@@ -1,0 +1,1228 @@
+import React, { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  MessageCircle,
+  Sparkles,
+  SlidersHorizontal,
+  Radio,
+  AudioLines,
+  Monitor,
+  Activity,
+  ChevronRight,
+  ArrowUp,
+  Mic,
+  Square,
+  Settings as SettingsIcon,
+  EyeOff,
+  X,
+  RefreshCw,
+  Check,
+  Moon,
+  Zap,
+  Volume2,
+  RotateCcw,
+  Power,
+  CircleHelp,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { PetState, Settings } from "../shared/types";
+import { PET_STATES } from "../shared/types";
+import { bridge } from "./native";
+import { machine, signals, useStore, report } from "./state/store";
+import { PetRenderer } from "./pet/Renderer";
+import { AudioDirector } from "./voice/audio";
+import "./style.css";
+
+const isPet = new URLSearchParams(location.search).get("view") === "pet";
+document.documentElement.dataset.view = isPet ? "pet" : "settings";
+document.title = isPet ? "Karen Desktop Pet" : "Karen · Ajustes";
+const labels: Record<PetState, string> = {
+  IDLE: "En calma",
+  LISTENING: "Escuchando",
+  THINKING: "Pensando",
+  SPEAKING: "Hablando",
+  HAPPY: "Feliz",
+  CONFUSED: "Con duda",
+  ERROR: "Algo ocurrió",
+  SLEEPING: "Descansando",
+  DRAGGING: "En tus manos",
+};
+const audio = isPet ? new AudioDirector() : undefined;
+const spoken = new Set<string>();
+async function action(operation: () => Promise<unknown>) {
+  try {
+    useStore.setState({ error: "" });
+    await operation();
+  } catch (e) {
+    report(e);
+  }
+}
+async function patch(patch: Partial<Settings>) {
+  await action(async () => {
+    useStore.setState({ settings: await bridge.settings(patch) });
+  });
+}
+function Logo() {
+  return (
+    <svg viewBox="0 0 40 44" aria-hidden="true">
+      <path
+        d="M10 17C4 12 7 3 10 3c6 3 7 8 6 11m14 3c6-5 3-14 0-14-6 3-7 8-6 11"
+        fill="#b7bef5"
+      />
+      <path
+        d="M20 12C6 11 2 22 5 32c1 6 6 10 11 7 4 4 7 1 9 0 7 4 13-4 11-14-1-8-6-13-16-13"
+        fill="#b4edf8"
+      />
+      <path d="M9 24q11-6 22 0v7q-11 6-22 0" fill="#263c59" />
+      <ellipse cx="15" cy="27" rx="2.6" ry="3.6" fill="#e6fdff" />
+      <ellipse cx="25" cy="27" rx="2.6" ry="3.6" fill="#e6fdff" />
+    </svg>
+  );
+}
+function Status({ compact = false }: { compact?: boolean }) {
+  const c = useStore((s) => s.connection);
+  return (
+    <span className={`connection ${c.state}`} title={c.message}>
+      <i />
+      {compact
+        ? c.state === "connected"
+          ? "Conectada"
+          : c.state === "reconnecting"
+            ? "Reconectando"
+            : c.state === "connecting"
+              ? "Conectando"
+              : c.state === "action-required"
+                ? "Revisar conexión"
+                : "Desconectada"
+        : c.message}
+    </span>
+  );
+}
+function ErrorBanner() {
+  const error = useStore((s) => s.error);
+  if (!error) return null;
+  return (
+    <div className="error-banner" role="alert">
+      <CircleHelp size={18} />
+      <span>{error}</span>
+      <button
+        aria-label="Cerrar aviso"
+        onClick={() => useStore.setState({ error: "" })}
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
+function Toggle({
+  label,
+  description,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="setting-row">
+      <div>
+        <label>{label}</label>
+        {description && <p>{description}</p>}
+      </div>
+      <button
+        className="toggle"
+        role="switch"
+        aria-label={label}
+        aria-checked={value}
+        disabled={disabled}
+        onClick={() => onChange(!value)}
+      >
+        <span />
+      </button>
+    </div>
+  );
+}
+function Range({
+  label,
+  value,
+  min,
+  max,
+  step = 0.05,
+  onChange,
+  unit = "",
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (v: number) => void;
+  unit?: string;
+}) {
+  return (
+    <div className="range-field">
+      <label>
+        {label}
+        <output>
+          {unit === "%"
+            ? `${Math.round(value * 100)} %`
+            : `${Math.round(value * 100) / 100}${unit}`}
+        </output>
+      </label>
+      <input
+        aria-label={label}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </div>
+  );
+}
+function Group({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="group">
+      <h2>{title}</h2>
+      {description && <p className="group-description">{description}</p>}
+      {children}
+    </section>
+  );
+}
+function PetPreview() {
+  const state = useStore((s) => s.state),
+    reason = useStore((s) => s.reason);
+  return (
+    <aside className="preview-pane">
+      <div className="preview-window">
+        <div className="orbit orbit-one" />
+        <div className="orbit orbit-two" />
+        <PetRenderer preview />
+        <div className="preview-state">
+          <i />
+          {labels[state]}
+        </div>
+      </div>
+      <div className="preview-caption">
+        <span>Karen</span>
+        <small>{reason || "Aquí contigo, a su ritmo."}</small>
+      </div>
+      <div className="preview-commands">
+        <button onClick={() => void action(() => bridge.demo("HAPPY"))}>
+          <Sparkles size={16} />
+          Saludar
+        </button>
+        <button
+          onClick={() =>
+            void action(() =>
+              bridge.demo(state === "SLEEPING" ? "HAPPY" : "SLEEPING"),
+            )
+          }
+        >
+          <Moon size={16} />
+          {state === "SLEEPING" ? "Despertar" : "Reposar"}
+        </button>
+      </div>
+      <p className="quiet-note">
+        Vista en directo de tu mascota.
+        <br />
+        Arrástrala desde el escritorio para moverla.
+      </p>
+    </aside>
+  );
+}
+const tabs: { name: string; icon: LucideIcon }[] = [
+  { name: "Conversación", icon: MessageCircle },
+  { name: "Apariencia", icon: Sparkles },
+  { name: "Comportamiento", icon: SlidersHorizontal },
+  { name: "OpenClaw", icon: Radio },
+  { name: "Voz", icon: AudioLines },
+  { name: "Sistema", icon: Monitor },
+  { name: "Diagnóstico", icon: Activity },
+];
+const subtitles: Record<string, string> = {
+  Conversación: "La misma Karen. Un nuevo lugar para acompañarte.",
+  Apariencia: "Luz, color y pequeños detalles.",
+  Comportamiento: "Encuentra su ritmo en tu escritorio.",
+  OpenClaw: "Tu asistente existente, conectado de forma segura.",
+  Voz: "Escuchar, responder y dar vida a cada palabra.",
+  Sistema: "Un pequeño espacio en Windows.",
+  Diagnóstico: "Lo que está ocurriendo, sin secretos.",
+};
+function SettingsApp() {
+  const tab = useStore((s) => s.tab),
+    native = useStore((s) => s.native);
+  return (
+    <div className="app-shell">
+      <nav className="sidebar" aria-label="Ajustes de Karen">
+        <div className="brand">
+          <Logo />
+          <div>
+            Karen<small>DESKTOP PET</small>
+          </div>
+        </div>
+        <div className="nav-links">
+          {tabs.map(({ name, icon: Icon }) => (
+            <button
+              key={name}
+              className={tab === name ? "active" : ""}
+              aria-current={tab === name ? "page" : undefined}
+              onClick={() => useStore.setState({ tab: name })}
+            >
+              <Icon size={18} />
+              {name}
+              {tab === name && <ChevronRight size={14} />}
+            </button>
+          ))}
+        </div>
+        <div className="sidebar-foot">
+          <Status compact />
+          <span>OpenClaw · agente main</span>
+          <small>
+            Hecha para estar cerca.
+            <br />
+            Versión 1.0.0
+          </small>
+        </div>
+      </nav>
+      <main className="workspace">
+        <header className="page-header">
+          <div>
+            <h1>{tab}</h1>
+            <p>{subtitles[tab]}</p>
+          </div>
+          <button
+            className="icon-button"
+            title="Volver a mostrar a Karen en el escritorio"
+            aria-label="Mostrar mascota"
+            onClick={() => void action(() => bridge.show())}
+          >
+            <Sparkles size={18} />
+          </button>
+        </header>
+        {!native && (
+          <div className="browser-note">
+            Vista de navegador. Las funciones de Windows y OpenClaw están
+            disponibles en la aplicación instalada.
+          </div>
+        )}
+        <ErrorBanner />
+        <div
+          className={`page-body ${tab === "Diagnóstico" ? "diagnostics-page" : ""}`}
+        >
+          <div className="settings-content">
+            {tab === "Conversación" ? (
+              <Conversation />
+            ) : tab === "Apariencia" ? (
+              <Appearance />
+            ) : tab === "Comportamiento" ? (
+              <Behavior />
+            ) : tab === "OpenClaw" ? (
+              <OpenClaw />
+            ) : tab === "Voz" ? (
+              <Voice />
+            ) : tab === "Sistema" ? (
+              <System />
+            ) : (
+              <Diagnostics />
+            )}
+          </div>
+          {tab !== "Diagnóstico" && <PetPreview />}
+        </div>
+      </main>
+    </div>
+  );
+}
+function Conversation() {
+  const messages = useStore((s) => s.messages),
+    connection = useStore((s) => s.connection);
+  const [text, setText] = useState("");
+  const end = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "nearest" });
+  }, [messages]);
+  const send = async () => {
+    const message = text;
+    if (!message.trim()) return;
+    await bridge.send(message);
+    setText("");
+  };
+  return (
+    <section className="conversation">
+      <div className="conversation-heading">
+        <h2>Tu espacio con Karen</h2>
+        <Status compact />
+      </div>
+      <div className="messages" role="log" aria-label="Conversación con Karen">
+        {messages.length === 0 ? (
+          <div className="empty-chat">
+            <div className="empty-symbol">
+              <MessageCircle size={27} strokeWidth={1.3} />
+            </div>
+            <h3>Lo que necesites, por aquí.</h3>
+            <p>
+              {connection.state === "connected"
+                ? "Escribe una idea, una pregunta o una tarea para tu asistente."
+                : "Conecta tu Gateway de OpenClaw para empezar a conversar con Karen."}
+            </p>
+            {connection.state !== "connected" && (
+              <button
+                className="text-button"
+                onClick={() => useStore.setState({ tab: "OpenClaw" })}
+              >
+                Revisar conexión
+                <ChevronRight size={15} />
+              </button>
+            )}
+          </div>
+        ) : (
+          messages.map((m) => (
+            <article key={m.id} className={`message ${m.role}`}>
+              <span>
+                {m.role === "user" ? "Tú" : "Karen"}
+                {m.pending ? " · respondiendo" : ""}
+              </span>
+              <p>{m.text}</p>
+            </article>
+          ))
+        )}
+        <div ref={end} />
+      </div>
+      <form
+        className="composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void action(send);
+        }}
+      >
+        <label className="sr-only" htmlFor="message">
+          Mensaje para Karen
+        </label>
+        <textarea
+          id="message"
+          rows={2}
+          maxLength={16000}
+          value={text}
+          placeholder={
+            connection.state === "connected"
+              ? "Habla con Karen…"
+              : "Conecta OpenClaw para enviar…"
+          }
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              void action(send);
+            }
+          }}
+        />
+        <div className="composer-actions">
+          <button
+            type="button"
+            className="icon-button"
+            title="Iniciar o terminar captura de voz"
+            aria-label="Capturar voz"
+            onClick={() => void action(() => bridge.listen())}
+          >
+            <Mic size={17} />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            title="Detener respuesta y voz"
+            aria-label="Detener"
+            onClick={() => void action(() => bridge.abort())}
+          >
+            <Square size={15} />
+          </button>
+          <small>Enter para enviar</small>
+          <button
+            className="send-button"
+            aria-label="Enviar mensaje"
+            disabled={!text.trim() || connection.state !== "connected"}
+          >
+            <ArrowUp size={19} />
+          </button>
+        </div>
+      </form>
+      <p className="quiet-note">
+        Las órdenes las ejecuta OpenClaw con sus permisos habituales.
+      </p>
+    </section>
+  );
+}
+function Appearance() {
+  const s = useStore((x) => x.settings);
+  return (
+    <>
+      <Group
+        title="Una luz propia"
+        description="Ajusta su presencia sin perder la suavidad."
+      >
+        <Range
+          label="Tamaño"
+          value={s.scale}
+          min={0.6}
+          max={1.6}
+          unit="%"
+          onChange={(scale) => void patch({ scale })}
+        />
+        <Range
+          label="Luminosidad"
+          value={s.brightness}
+          min={0.35}
+          max={1.4}
+          unit="%"
+          onChange={(brightness) => void patch({ brightness })}
+        />
+        <Range
+          label="Opacidad"
+          value={s.opacity}
+          min={0.35}
+          max={1}
+          unit="%"
+          onChange={(opacity) => void patch({ opacity })}
+        />
+        <div className="color-row">
+          <label htmlFor="accent">Tono holográfico</label>
+          <div className="swatches">
+            {["#8be4f3", "#b7b2f5", "#ade9d5", "#c9e8ff"].map((color) => (
+              <button
+                key={color}
+                style={{ backgroundColor: color }}
+                className={s.accent === color ? "selected" : ""}
+                aria-label={`Color ${color}`}
+                aria-pressed={s.accent === color}
+                onClick={() => void patch({ accent: color })}
+              >
+                {s.accent === color && <Check size={15} />}
+              </button>
+            ))}
+            <input
+              id="accent"
+              type="color"
+              value={s.accent}
+              onChange={(e) => void patch({ accent: e.target.value })}
+            />
+          </div>
+        </div>
+      </Group>
+      <Group title="En el aire">
+        <Toggle
+          label="Partículas de luz"
+          description="Pequeños destellos que acompañan sus movimientos."
+          value={s.particles}
+          onChange={(particles) => void patch({ particles })}
+        />
+        <Toggle
+          label="Globos de diálogo"
+          description="Muestra la respuesta sobre la mascota."
+          value={s.bubbles}
+          onChange={(bubbles) => void patch({ bubbles })}
+        />
+        <Toggle
+          label="Modo nocturno"
+          description="Una luz más tenue para las últimas horas."
+          value={s.nightMode}
+          onChange={(nightMode) => void patch({ nightMode })}
+        />
+      </Group>
+    </>
+  );
+}
+function Behavior() {
+  const s = useStore((x) => x.settings);
+  return (
+    <>
+      <Group title="A su manera">
+        <Toggle
+          label="Movimiento orgánico"
+          description="Respiración, flotación y pequeños gestos."
+          value={s.animations}
+          onChange={(animations) => void patch({ animations })}
+        />
+        <Toggle
+          label="Seguir el cursor"
+          description="Sus ojos acompañan suavemente tu movimiento."
+          value={s.cursorTracking}
+          onChange={(cursorTracking) => void patch({ cursorTracking })}
+        />
+        <Range
+          label="Nivel de actividad"
+          value={s.activity}
+          min={0}
+          max={1}
+          unit="%"
+          onChange={(activity) => void patch({ activity })}
+        />
+        <div className="input-field">
+          <label htmlFor="sleep">Reposar después de</label>
+          <select
+            id="sleep"
+            value={s.sleepAfter}
+            onChange={(e) => void patch({ sleepAfter: Number(e.target.value) })}
+          >
+            <option value={30}>30 segundos</option>
+            <option value={60}>1 minuto</option>
+            <option value={180}>3 minutos</option>
+            <option value={300}>5 minutos</option>
+            <option value={900}>15 minutos</option>
+            <option value={3600}>1 hora</option>
+          </select>
+        </div>
+      </Group>
+      <Group
+        title="Sus expresiones"
+        description="Demostración visual local. No genera eventos de OpenClaw."
+      >
+        <div className="state-grid">
+          {PET_STATES.map((state) => (
+            <button
+              key={state}
+              onClick={() => {
+                useStore
+                  .getState()
+                  .transition(state, "Demostración visual local");
+                void action(() => bridge.demo(state));
+              }}
+            >
+              {labels[state]}
+            </button>
+          ))}
+        </div>
+      </Group>
+    </>
+  );
+}
+function OpenClaw() {
+  const s = useStore((x) => x.settings),
+    c = useStore((x) => x.connection),
+    hasCredential = useStore((x) => x.hasCredential);
+  const [url, setUrl] = useState(s.gatewayUrl),
+    [agent, setAgent] = useState(s.agentId),
+    [token, setToken] = useState("");
+  return (
+    <>
+      <Group title="Gateway">
+        <div className="gateway-status">
+          <Radio size={21} />
+          <div>
+            <Status />
+            <p>
+              {c.version
+                ? `Gateway ${c.version}`
+                : "Protocolo oficial WebSocket v4"}
+            </p>
+          </div>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void action(async () => {
+              await bridge.settings({ gatewayUrl: url, agentId: agent });
+              await bridge.connect();
+            });
+          }}
+        >
+          <div className="input-field">
+            <label htmlFor="gateway">Dirección del Gateway</label>
+            <input
+              id="gateway"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+          <div className="input-field">
+            <label htmlFor="agent">Agente</label>
+            <input
+              id="agent"
+              value={agent}
+              onChange={(e) => setAgent(e.target.value)}
+              spellCheck={false}
+            />
+          </div>
+          <div className="button-row">
+            <button className="primary" type="submit">
+              <RefreshCw size={15} />
+              Guardar y conectar
+            </button>
+            <button
+              type="button"
+              onClick={() => void action(() => bridge.disconnect())}
+            >
+              Desconectar
+            </button>
+          </div>
+        </form>
+      </Group>
+      <Group
+        title="Autenticación segura"
+        description="Las credenciales permanecen en Windows. No se incluyen en el personaje ni en los registros."
+      >
+        <div className="input-field">
+          <label htmlFor="auth">Origen de la credencial</label>
+          <select
+            id="auth"
+            value={s.authSource}
+            onChange={(e) =>
+              void patch({
+                authSource: e.target.value as Settings["authSource"],
+              })
+            }
+          >
+            <option value="local">Configuración local de OpenClaw</option>
+            <option value="stored">Token guardado en este equipo</option>
+          </select>
+        </div>
+        {s.authSource === "local" ? (
+          <p className="info-note">
+            Se lee el token de <code>~/.openclaw/openclaw.json</code> únicamente
+            para el Gateway local. El archivo original se conserva.
+          </p>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void action(async () => {
+                await bridge.credential(token);
+                setToken("");
+                useStore.setState({ hasCredential: true });
+                await bridge.connect();
+              });
+            }}
+          >
+            <div className="input-field">
+              <label htmlFor="token">Token del Gateway</label>
+              <input
+                id="token"
+                type="password"
+                autoComplete="off"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Pega tu token de forma segura"
+              />
+            </div>
+            <button className="primary" disabled={!token}>
+              Cifrar y conectar
+            </button>
+          </form>
+        )}
+        <p className="credential-status">
+          <Check size={14} />
+          {hasCredential
+            ? "Credencial disponible en el proceso nativo"
+            : "La credencial se verifica al conectar"}
+        </p>
+        <p className="quiet-note">
+          Si OpenClaw solicita vinculación: revisa{" "}
+          <code>openclaw devices list</code> y aprueba el identificador mostrado
+          en Diagnóstico. La mascota solicita lectura y escritura de
+          conversación.
+        </p>
+      </Group>
+    </>
+  );
+}
+function Voice() {
+  const s = useStore((x) => x.settings);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
+    [health, setHealth] = useState(
+      "Consulta los motores para comprobar su disponibilidad.",
+    );
+  useEffect(() => {
+    void navigator.mediaDevices
+      ?.enumerateDevices()
+      .then(setDevices)
+      .catch(report);
+  }, []);
+  return (
+    <>
+      <Group title="La voz de Karen">
+        <Toggle
+          label="Leer las respuestas"
+          description="Reproduce audio real y sincroniza la boca con su energía."
+          value={s.voiceEnabled}
+          onChange={(voiceEnabled) => void patch({ voiceEnabled })}
+        />
+        <div className="input-field">
+          <label htmlFor="tts">Motor de voz</label>
+          <select
+            id="tts"
+            value={s.ttsEngine}
+            onChange={(e) =>
+              void patch({ ttsEngine: e.target.value as Settings["ttsEngine"] })
+            }
+          >
+            <option value="system">Voz instalada en Windows</option>
+            <option value="local">Karen expresiva local · puerto 18790</option>
+          </select>
+        </div>
+        <Range
+          label="Volumen"
+          value={s.volume}
+          min={0}
+          max={1}
+          unit="%"
+          onChange={(volume) => void patch({ volume })}
+        />
+        <div className="input-field">
+          <label htmlFor="output">Dispositivo de salida</label>
+          <select
+            id="output"
+            value={s.outputDevice}
+            onChange={(e) => void patch({ outputDevice: e.target.value })}
+          >
+            <option value="">Predeterminado de Windows</option>
+            {devices
+              .filter((d) => d.kind === "audiooutput" && d.deviceId)
+              .map((d, i) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Salida ${i + 1}`}
+                </option>
+              ))}
+          </select>
+        </div>
+        <button
+          onClick={() => void action(() => bridge.demo("SPEAKING"))}
+          className="text-button"
+        >
+          <AudioLines size={16} />
+          Ver expresión de habla sin audio
+        </button>
+      </Group>
+      <Group title="Escucharte, cuando tú decidas">
+        <Toggle
+          label="Reconocimiento local de voz"
+          description="Se activa con el botón de micrófono. Usa faster-whisper de Karen."
+          value={s.sttEnabled}
+          onChange={(sttEnabled) => void patch({ sttEnabled })}
+        />
+        <div className="input-field">
+          <label htmlFor="input">Micrófono</label>
+          <select
+            id="input"
+            value={s.inputDevice}
+            onChange={(e) => void patch({ inputDevice: e.target.value })}
+          >
+            <option value="">Predeterminado de Windows</option>
+            {devices
+              .filter((d) => d.kind === "audioinput" && d.deviceId)
+              .map((d, i) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Micrófono ${i + 1}`}
+                </option>
+              ))}
+          </select>
+        </div>
+        <Range
+          label="Sensibilidad visual"
+          value={s.sensitivity}
+          min={0.2}
+          max={5}
+          step={0.1}
+          onChange={(sensitivity) => void patch({ sensitivity })}
+        />
+        <p className="info-note">
+          La captura se detiene antes de reproducir voz. Un segundo clic
+          finaliza la captura; Detener cancela la operación.
+        </p>
+        <p className="quiet-note">
+          Palabra clave: interfaz preparada para un detector externo. No hay
+          detector activado. No se usa cámara.
+        </p>
+      </Group>
+      <Group title="Disponibilidad">
+        <button
+          onClick={() =>
+            void action(async () => setHealth(await bridge.voiceHealth()))
+          }
+        >
+          <RefreshCw size={15} />
+          Consultar motores
+        </button>
+        <p className="quiet-note">{health}</p>
+      </Group>
+    </>
+  );
+}
+function System() {
+  const s = useStore((x) => x.settings);
+  return (
+    <>
+      <Group title="En tu escritorio">
+        <Toggle
+          label="Iniciar con Windows"
+          description="Karen aparece al entrar en tu cuenta, después de instalarla."
+          value={s.autoStart}
+          onChange={(autoStart) => void patch({ autoStart })}
+        />
+        <Toggle
+          label="Siempre visible"
+          description="Mantiene la mascota por encima de otras ventanas."
+          value={s.alwaysOnTop}
+          onChange={(alwaysOnTop) => void patch({ alwaysOnTop })}
+        />
+        <Toggle
+          label="Modo de bajo consumo"
+          description="15 FPS y sin partículas; reposo automático a 15 FPS."
+          value={s.lowPower}
+          onChange={(lowPower) => void patch({ lowPower })}
+        />
+      </Group>
+      <Group title="Pequeña, pero a mano">
+        <div className="shortcut">
+          <span>Recuperar control</span>
+          <kbd>Ctrl</kbd>
+          <kbd>Alt</kbd>
+          <kbd>K</kbd>
+        </div>
+        <p className="quiet-note">
+          El atajo vuelve a mostrar a Karen y desactiva «Ignorar clics». También
+          puedes usar su icono en la bandeja de Windows.
+        </p>
+        <div className="button-row">
+          <button onClick={() => void action(() => bridge.hide())}>
+            <EyeOff size={16} />
+            Ocultar en la bandeja
+          </button>
+        </div>
+        <p className="info-note">
+          Clic derecho sobre Karen: menú de escritorio. Doble clic: ajustes. Los
+          espacios transparentes dejan pasar los clics.
+        </p>
+      </Group>
+      <Group title="Rendimiento">
+        <p className="quiet-note">
+          El renderizado usa texturas locales, limita la densidad a 2×, reduce
+          partículas si caen los FPS y se pausa al ocultarse. La prioridad del
+          proceso permanece normal.
+        </p>
+      </Group>
+    </>
+  );
+}
+function Diagnostics() {
+  const c = useStore((x) => x.connection),
+    d = useStore((x) => x.diagnostics),
+    native = useStore((x) => x.native);
+  return (
+    <>
+      <Group title="Estado de los servicios">
+        <dl className="service-list">
+          <div>
+            <dt>Aplicación de Windows</dt>
+            <dd>
+              {native ? "Proceso nativo disponible" : "Vista de navegador"}
+            </dd>
+          </div>
+          <div>
+            <dt>OpenClaw Gateway</dt>
+            <dd>
+              <Status compact />
+            </dd>
+          </div>
+          <div>
+            <dt>Versión del Gateway</dt>
+            <dd>{c.version || "Aún no autenticado"}</dd>
+          </div>
+          <div>
+            <dt>Permisos de la conexión</dt>
+            <dd>{c.scopes?.join(", ") || "No negociados"}</dd>
+          </div>
+          <div>
+            <dt>Micrófono</dt>
+            <dd>Solo tras activación explícita</dd>
+          </div>
+          <div>
+            <dt>Palabra clave</dt>
+            <dd>Sin detector configurado</dd>
+          </div>
+        </dl>
+        <div className="button-row">
+          <button onClick={() => void action(() => bridge.connect())}>
+            <RefreshCw size={15} />
+            Reconectar
+          </button>
+          <button onClick={() => useStore.setState({ tab: "Voz" })}>
+            <Volume2 size={15} />
+            Comprobar voz
+          </button>
+        </div>
+      </Group>
+      <Group
+        title="Registro de esta sesión"
+        description="Eventos técnicos reales. No se guardan mensajes, audio ni credenciales en este registro."
+      >
+        <div className="diagnostic-log" role="log">
+          {d.length ? (
+            d.map((item, i) => (
+              <div
+                className={`diagnostic ${item.level}`}
+                key={`${item.time}-${i}`}
+              >
+                <time>{new Date(item.time).toLocaleTimeString("es")}</time>
+                <b>{item.area}</b>
+                <p>{item.message}</p>
+              </div>
+            ))
+          ) : (
+            <p className="quiet-note">Aún no hay eventos de diagnóstico.</p>
+          )}
+        </div>
+      </Group>
+    </>
+  );
+}
+function PetApp() {
+  const s = useStore((x) => x.settings),
+    state = useStore((x) => x.state),
+    messages = useStore((x) => x.messages),
+    connection = useStore((x) => x.connection);
+  const [bubble, setBubble] = useState(false),
+    [compose, setCompose] = useState(false),
+    [text, setText] = useState("");
+  const root = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
+  const last = messages.filter((m) => m.role === "assistant").at(-1);
+  useEffect(() => {
+    if (last) {
+      setBubble(true);
+      const timer = setTimeout(() => setBubble(false), 16000);
+      return () => clearTimeout(timer);
+    }
+  }, [last?.text]);
+  useEffect(() => {
+    const check = (x: number, y: number) => {
+      const r = root.current?.getBoundingClientRect();
+      if (!r) return;
+      const nx = x / r.width,
+        ny = y / r.height;
+      const silhouette = signals.hitTest?.(x, y) ?? false;
+      const target = document.elementFromPoint(x, y);
+      bridge.hitTest(
+        silhouette ||
+          Boolean(
+            target?.closest(
+              ".pet-bubble,.pet-toolbar,.pet-composer,.pet-error",
+            ),
+          ),
+      );
+    };
+    const move = (e: MouseEvent) => check(e.clientX, e.clientY);
+    document.addEventListener("mousemove", move);
+    const off = bridge.event((e) => {
+      if (e.type === "cursor") check(e.x * innerWidth, e.y * innerHeight);
+    });
+    return () => {
+      document.removeEventListener("mousemove", move);
+      off();
+    };
+  }, []);
+  return (
+    <div
+      ref={root}
+      className="desktop-pet"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        void action(() => bridge.contextMenu());
+      }}
+    >
+      <PetRenderer />
+      {s.bubbles && bubble && last && !compose && (
+        <div
+          className="pet-bubble"
+          role="status"
+          onDoubleClick={() => void bridge.openSettings()}
+        >
+          <button aria-label="Cerrar globo" onClick={() => setBubble(false)}>
+            <X size={12} />
+          </button>
+          <p>
+            {last.text.slice(0, 240)}
+            {last.text.length > 240 ? "…" : ""}
+          </p>
+        </div>
+      )}
+      <button
+        className="pet-hit-area"
+        aria-label={`Karen: ${labels[state]}. Arrastra para mover, doble clic para ajustes.`}
+        onDoubleClick={() => void action(() => bridge.openSettings())}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          drag.current = { x: e.screenX, y: e.screenY, started: false };
+        }}
+        onPointerMove={(e) => {
+          if (
+            drag.current &&
+            !drag.current.started &&
+            Math.hypot(e.screenX - drag.current.x, e.screenY - drag.current.y) >
+              4
+          ) {
+            drag.current.started = true;
+            useStore.getState().transition("DRAGGING");
+            bridge.drag("start");
+          }
+        }}
+        onPointerUp={() => {
+          if (drag.current?.started) {
+            bridge.drag("end");
+            useStore.getState().transition("HAPPY");
+          } else {
+            useStore.getState().transition("HAPPY", "Un pequeño saludo");
+          }
+          drag.current = null;
+        }}
+        onLostPointerCapture={() => {
+          if (drag.current?.started) bridge.drag("end");
+          drag.current = null;
+        }}
+      />
+      <div className="pet-toolbar">
+        <button
+          title="Conversar"
+          aria-label="Abrir mensaje"
+          onClick={() => setCompose(!compose)}
+        >
+          <MessageCircle size={16} />
+        </button>
+        <button
+          title="Micrófono"
+          aria-label="Iniciar o terminar voz"
+          onClick={() => void action(() => bridge.listen())}
+        >
+          <Mic size={16} />
+        </button>
+        <button
+          title="Detener"
+          aria-label="Detener respuesta y voz"
+          onClick={() => void action(() => bridge.abort())}
+        >
+          <Square size={13} />
+        </button>
+        <button
+          title="Ajustes"
+          aria-label="Abrir ajustes"
+          onClick={() => void action(() => bridge.openSettings())}
+        >
+          <SettingsIcon size={16} />
+        </button>
+      </div>
+      <div className="pet-caption">
+        <span>{state === "IDLE" ? "Karen" : labels[state]}</span>
+        <i className={connection.state} />
+      </div>
+      {compose && (
+        <form
+          className="pet-composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void action(async () => {
+              await bridge.send(text);
+              setText("");
+              setCompose(false);
+            });
+          }}
+        >
+          <input
+            autoFocus
+            aria-label="Mensaje para Karen"
+            value={text}
+            maxLength={16000}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Dile algo a Karen…"
+          />
+          <button
+            aria-label="Enviar"
+            disabled={!text.trim() || connection.state !== "connected"}
+          >
+            <ArrowUp size={18} />
+          </button>
+          <button
+            type="button"
+            aria-label="Cerrar mensaje"
+            onClick={() => setCompose(false)}
+          >
+            <X size={16} />
+          </button>
+        </form>
+      )}
+      <div className="pet-error">
+        <ErrorBanner />
+      </div>
+    </div>
+  );
+}
+function Root() {
+  useEffect(() => {
+    let alive = true;
+    let hasEvent = false;
+    const off = bridge.event((e) => {
+      hasEvent = true;
+      useStore.getState().event(e);
+      if (
+        e.type === "chat" &&
+        e.final &&
+        e.message.role === "assistant" &&
+        audio &&
+        !spoken.has(e.message.id)
+      ) {
+        spoken.add(e.message.id);
+        void audio.speak(e.message.text);
+      }
+      if (e.type === "voice-cancel") audio?.cancel();
+      if (e.type === "voice-listen") void audio?.toggleListening();
+      if (e.type === "settings" && !e.settings.voiceEnabled) audio?.cancel();
+    });
+    void bridge
+      .snapshot()
+      .then((snapshot) => {
+        if (alive)
+          useStore.setState({
+            settings: snapshot.settings,
+            connection: hasEvent
+              ? useStore.getState().connection
+              : snapshot.connection,
+            diagnostics: snapshot.diagnostics,
+            messages: snapshot.messages,
+            native: snapshot.native,
+            hasCredential: snapshot.hasCredential,
+            ready: true,
+          });
+      })
+      .catch(report);
+    const timer = setInterval(() => {
+      const current = useStore.getState();
+      const next = machine.tick(current.settings.sleepAfter);
+      if (next.state !== current.state)
+        useStore.setState({ state: next.state });
+    }, 1000);
+    return () => {
+      alive = false;
+      off();
+      clearInterval(timer);
+      audio?.dispose();
+    };
+  }, []);
+  return isPet ? <PetApp /> : <SettingsApp />;
+}
+createRoot(document.getElementById("root")!).render(<Root />);

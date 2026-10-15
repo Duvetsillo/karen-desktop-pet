@@ -1,0 +1,23 @@
+const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('karen', {
+  snapshot: () => ipcRenderer.invoke('snapshot'),
+  settings: patch => ipcRenderer.invoke('settings', patch),
+  credential: value => ipcRenderer.invoke('credential', value),
+  connect: () => ipcRenderer.invoke('connect'),
+  disconnect: () => ipcRenderer.invoke('disconnect'),
+  send: text => ipcRenderer.invoke('send', text),
+  abort: () => ipcRenderer.invoke('abort'),
+  openSettings: () => ipcRenderer.invoke('open-settings'),
+  hide: () => ipcRenderer.invoke('hide'),
+  show: () => ipcRenderer.invoke('show'),
+  contextMenu: () => ipcRenderer.invoke('context-menu'),
+  hitTest: interactive => ipcRenderer.send('hit-test', interactive),
+  drag: action => ipcRenderer.send('drag', action),
+  synthesize: text => ipcRenderer.invoke('synthesize', text),
+  voiceHealth: () => ipcRenderer.invoke('voice-health'),
+  transcribe: pcm => ipcRenderer.invoke('transcribe', pcm),
+  demo: state => ipcRenderer.invoke('demo', state),
+  energy: value => ipcRenderer.send('energy', value),
+  listen: () => ipcRenderer.invoke('listen'),
+  event: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('desktop-event', listener); return () => ipcRenderer.removeListener('desktop-event', listener); }
+});

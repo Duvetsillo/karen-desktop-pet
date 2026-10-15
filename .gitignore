@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-electron/
+release/
+test-results/
+.qa-profile/
+*.log
+.cache/
+qa/
+.env
+.env.*
+!.env.example
+.private/
+*.dpapi
+__pycache__/
