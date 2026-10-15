@@ -19,7 +19,7 @@
     "dev:server": "tsx server/index.ts",
     "audit:source": "node scripts/audit-source.cjs",
     "test:server:browser": "tsx scripts/server-browser-smoke.ts",
-    "package": "npm run build && electron-builder --win nsis --x64"
+    "package": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@openclaw/gateway-client": "2026.8.1",

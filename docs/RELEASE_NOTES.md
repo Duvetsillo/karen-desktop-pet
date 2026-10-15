@@ -5,6 +5,8 @@ retains the native transparent pet, tray, settings and system TTS.
 Credentials, personal profiles, recordings and models are not included. Bring
 your own OpenClaw configuration. Server mode supports text and animations; TTS,
 STT and Windows desktop controls are not available on a headless server.
+Each operator supplies and pays for their own infrastructure and model providers.
+There is no maintainer-hosted API or shared account included with the application.
 
 The Windows installer is not Authenticode-signed. Verify SHA256SUMS.txt and use
 only releases from this repository. A real OpenClaw deployment still requires

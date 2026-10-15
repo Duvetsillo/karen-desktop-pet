@@ -4,6 +4,12 @@ Mascota holográfica original para **Windows** y **servidores autoalojados**.
 Karen representa tu asistente de [OpenClaw](https://docs.openclaw.ai/): no incorpora
 otro modelo de IA ni sustituye las herramientas o permisos de tu agente.
 
+Cada instalación usa los recursos de quien la ejecuta: su servidor, Gateway,
+proveedores de modelos, credenciales y facturación. Este proyecto no ofrece una
+API central ni acceso a las cuentas o infraestructura del mantenedor. Descargar
+Karen no da permiso para usar esos recursos. No compartas tus claves ni abras
+tu Gateway para dar servicio a otras instalaciones.
+
 **Windows:** mascota transparente sobre el escritorio, bandeja, arrastre, expresiones,
 conversación y voz del sistema. **Servidor:** panel y mascota en el navegador,
 conversación de texto, eventos y animaciones; no necesita escritorio ni Electron.
