@@ -1,4 +1,12 @@
-import type { DesktopEvent } from "./types.js";
+import type { DesktopEvent, ChatMessage } from "./types.js";
+export function mergeMessages(
+  snapshot: ChatMessage[],
+  live: ChatMessage[],
+): ChatMessage[] {
+  const messages = new Map(snapshot.map((message) => [message.id, message]));
+  for (const message of live) messages.set(message.id, message);
+  return [...messages.values()].slice(-100);
+}
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)

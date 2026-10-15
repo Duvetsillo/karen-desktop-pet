@@ -33,6 +33,7 @@ import { PetRenderer } from "./pet/Renderer";
 import { AudioDirector } from "./voice/audio";
 import "./style.css";
 import { APP_VERSION } from "../shared/version";
+import { mergeMessages } from "../shared/protocol";
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -1234,9 +1235,11 @@ function PetApp() {
 function Root() {
   useEffect(() => {
     let alive = true;
-    let hasEvent = false;
+    let connectionSeen = false;
+    let settingsSeen = false;
     const off = bridge.event((e) => {
-      hasEvent = true;
+      if (e.type === "connection") connectionSeen = true;
+      if (e.type === "settings") settingsSeen = true;
       useStore.getState().event(e);
       if (
         e.type === "chat" &&
@@ -1257,12 +1260,17 @@ function Root() {
       .then((snapshot) => {
         if (alive)
           useStore.setState({
-            settings: snapshot.settings,
-            connection: hasEvent
+            settings: settingsSeen
+              ? useStore.getState().settings
+              : snapshot.settings,
+            connection: connectionSeen
               ? useStore.getState().connection
               : snapshot.connection,
             diagnostics: snapshot.diagnostics,
-            messages: snapshot.messages,
+            messages: mergeMessages(
+              snapshot.messages,
+              useStore.getState().messages,
+            ),
             native: snapshot.native,
             runtime:
               snapshot.runtime || (snapshot.native ? "desktop" : "preview"),

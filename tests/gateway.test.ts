@@ -203,6 +203,11 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     });
     await until(() => t.events.some((e) => e.type === "chat" && e.final));
     expect(t.adapter.messages.at(-1)?.text).toBe("Respuesta de contrato");
+    expect(
+      t.adapter.messages.some(
+        (message) => message.role === "user" && message.text === "Hola Karen",
+      ),
+    ).toBe(true);
     await t.adapter.send("Segunda orden");
     await t.adapter.abort();
     expect(t.requests.at(-1)?.method).toBe("chat.abort");

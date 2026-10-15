@@ -154,6 +154,9 @@ try {
     })
     .waitFor();
   assert.equal(await page.evaluate(() => document.cookie), "");
+  await page
+    .getByText("Prueba sintética del navegador", { exact: true })
+    .waitFor();
   assert(
     !(await page
       .content()

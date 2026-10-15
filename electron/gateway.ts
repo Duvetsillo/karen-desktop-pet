@@ -249,7 +249,7 @@ export class OpenClawAdapter {
     const id = randomUUID();
     this.runId = id;
     this.knownRuns.add(id);
-    const message: ChatMessage = { id, role: "user", text };
+    const message: ChatMessage = { id: `user:${id}`, role: "user", text };
     this.upsert(message);
     this.emit({ type: "chat", message, final: false });
     this.emit({ type: "pet", state: "THINKING" });
