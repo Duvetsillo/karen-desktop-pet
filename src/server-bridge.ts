@@ -35,7 +35,7 @@ export function serverBridge(): DesktopBridge {
     credential: unsupported,
     connect: () => request<void>("connect", {}),
     disconnect: () => request<void>("disconnect", {}),
-    send: (text) => request<void>("send", { text }),
+    send: (text, images) => images?.length ? unsupported() : request<void>("send", { text }),
     abort: () => request<void>("abort", {}),
     openSettings: async () => {
       location.search = "?view=settings";
@@ -54,6 +54,13 @@ export function serverBridge(): DesktopBridge {
     demo: (state) => request<void>("demo", { state }),
     energy: () => {},
     listen: unsupported,
+    testVoice: unsupported,
+    chooseVoiceRoot: unsupported,
+    captureSources: unsupported,
+    captureScreen: unsupported,
+    armSystemAudio: unsupported,
+    captureStatus: () => {},
+    transcript: () => {},
     event: (callback) => {
       const events = new EventSource("/api/events");
       events.onmessage = (message) => {

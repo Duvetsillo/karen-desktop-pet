@@ -6,6 +6,7 @@ import type {
   Diagnostic,
   PetState,
   Settings,
+  CaptureStatus,
 } from "../../shared/types";
 import { defaults } from "../../shared/settings";
 import { PetMachine } from "./machine";
@@ -29,6 +30,8 @@ interface Store {
   ready: boolean;
   error: string;
   tab: string;
+  capture: CaptureStatus;
+  transcript: string;
   transition: (state: PetState, reason?: string) => void;
   event: (event: DesktopEvent) => void;
 }
@@ -45,12 +48,16 @@ export const useStore = create<Store>((set, get) => ({
   ready: false,
   error: "",
   tab: "Conversación",
+  capture: { kind: "microphone", phase: "idle" },
+  transcript: "",
   transition: (state, reason = "") => {
     machine.transition(state);
     set({ state, reason });
   },
   event: (event) => {
     if (event.type === "settings") set({ settings: event.settings });
+    else if (event.type === "capture") set({ capture: event.status });
+    else if (event.type === "transcript") set({ transcript: event.text, tab: "Percepción" });
     else if (event.type === "connection") set({ connection: event.info });
     else if (event.type === "pet") get().transition(event.state, event.reason);
     else if (event.type === "wake") get().transition("HAPPY", "Despertando");

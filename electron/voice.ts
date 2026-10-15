@@ -6,9 +6,11 @@ export class NativeVoice {
   private controller?: AbortController;
   private child?: ChildProcess;
   constructor(
-    private root: string,
+    private defaultRoot: string,
     private settings: () => Settings,
+    private worker?: string,
   ) {}
+  private get root() { return this.settings().voiceRoot || this.defaultRoot; }
   cancel() {
     this.controller?.abort();
     this.child?.kill();
@@ -127,7 +129,7 @@ export class NativeVoice {
       throw new Error("Audio inválido. Graba entre 0,1 y 60 segundos.");
     const result = await this.run(
       join(this.root, "voice-runtime", "Scripts", "python.exe"),
-      [join(this.root, "voice_worker.py")],
+      this.worker ? [this.worker, this.root] : [join(this.root, "voice_worker.py")],
       JSON.stringify({
         operation: "stt",
         engine: "faster-small",

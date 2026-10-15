@@ -21,6 +21,7 @@ export const defaults: Settings = {
   volume: 0.8,
   sensitivity: 1.5,
   sttEnabled: false,
+  voiceRoot: "",
   alwaysOnTop: true,
   autoStart: false,
   lowPower: false,
@@ -97,6 +98,10 @@ export function validateSettings(
   }
   for (const key of ["inputDevice", "outputDevice"] as const)
     if (typeof raw[key] === "string") s[key] = raw[key].slice(0, 256);
+  if (raw.voiceRoot !== undefined) {
+    if (typeof raw.voiceRoot !== "string" || raw.voiceRoot.length > 2048 || raw.voiceRoot.includes("\0")) throw new Error("Directorio de voz inválido.");
+    s.voiceRoot = raw.voiceRoot;
+  }
   if (raw.authSource === "local" || raw.authSource === "stored")
     s.authSource = raw.authSource;
   if (raw.ttsEngine === "system" || raw.ttsEngine === "local")

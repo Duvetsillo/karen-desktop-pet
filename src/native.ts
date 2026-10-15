@@ -44,6 +44,13 @@ const preview: DesktopBridge = {
   demo: async () => {},
   energy: () => {},
   listen: unavailable,
+  testVoice: unavailable,
+  chooseVoiceRoot: unavailable,
+  captureSources: unavailable,
+  captureScreen: unavailable,
+  armSystemAudio: unavailable,
+  captureStatus: () => {},
+  transcript: () => {},
 };
 export const bridge =
   window.karen ??

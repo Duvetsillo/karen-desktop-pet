@@ -32,6 +32,13 @@ export class AudioDirector {
   private stopRecording = false;
   private speechSeen = false;
   private silenceAt = 0;
+  private active = false;
+  private kind: "microphone" | "system" | "voice" = "microphone";
+  private status(phase: "idle" | "recording" | "transcribing" | "speaking") {
+    if (phase === "idle" && !this.active) return;
+    this.active = phase !== "idle";
+    bridge.captureStatus({ kind: this.kind, phase });
+  }
   constructor(
     private tts: TtsEngine = {
       synthesize: async (text) => bridge.synthesize(text),
@@ -68,10 +75,10 @@ export class AudioDirector {
         );
         bridge.energy(signals.energy);
         if (this.recording) {
-          if (raw > 0.018) {
+          if (raw > (this.kind === "system" ? 0.004 : 0.008)) {
             this.speechSeen = true;
             this.silenceAt = now;
-          } else if (this.speechSeen && now - this.silenceAt > 1800)
+          } else if (this.kind === "microphone" && this.speechSeen && now - this.silenceAt > 1800)
             this.recorder?.stop();
         }
       }
@@ -93,12 +100,14 @@ export class AudioDirector {
     this.stream = undefined;
     if (this.context) void this.context.close().catch(() => {});
     this.context = undefined;
+    this.status("idle");
   }
   cancel() {
     this.generation++;
     this.stopRecording = true;
     this.processing = false;
     if (this.recorder?.state === "recording") this.recorder.stop();
+    this.recorder = undefined;
     this.recording = false;
     this.cleanup();
     this.detector?.resume();
@@ -109,6 +118,7 @@ export class AudioDirector {
     const generation = this.generation;
     const settings = useStore.getState().settings;
     if (!settings.voiceEnabled) return;
+    this.kind = "voice";
     this.detector?.pause();
     useStore.getState().transition("THINKING", "Preparando voz");
     try {
@@ -118,6 +128,11 @@ export class AudioDirector {
       );
       if (generation !== this.generation) return;
       this.context = new AudioContext();
+      const outputContext = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+      if (settings.outputDevice) {
+        if (!outputContext.setSinkId) throw new Error("Este motor no permite elegir la salida de audio.");
+        await outputContext.setSinkId(settings.outputDevice);
+      }
       this.analyser = this.context.createAnalyser();
       this.analyser.fftSize = 512;
       this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
@@ -149,6 +164,7 @@ export class AudioDirector {
       await this.context.resume();
       await this.audio.play();
       useStore.getState().transition("SPEAKING");
+      this.status("speaking");
       this.meter();
     } catch (e) {
       if (generation === this.generation) {
@@ -159,12 +175,13 @@ export class AudioDirector {
       }
     }
   }
-  async toggleListening() {
+  async toggleListening(kind: "microphone" | "system" = "microphone") {
     if (this.recording) {
       if (this.recorder?.state === "recording") this.recorder.stop();
       return;
     }
     this.cancel();
+    this.kind = kind;
     const generation = this.generation;
     this.stopRecording = false;
     if (!useStore.getState().settings.sttEnabled) {
@@ -174,7 +191,8 @@ export class AudioDirector {
     this.detector?.pause();
     try {
       const settings = useStore.getState().settings;
-      const stream = await navigator.mediaDevices.getUserMedia({
+      if (kind === "system") await bridge.armSystemAudio();
+      const stream = kind === "system" ? await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { frameRate: 1 } }) : await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: settings.inputDevice
             ? { exact: settings.inputDevice }
@@ -185,6 +203,9 @@ export class AudioDirector {
         },
         video: false,
       });
+      // Loopback is audio-only after permission; no frames are retained or sent.
+      if (kind === "system") stream.getVideoTracks().forEach(track => track.stop());
+      if (!stream.getAudioTracks().length) { stream.getTracks().forEach(track => track.stop()); throw new Error("Windows no entregó audio del sistema."); }
       if (generation !== this.generation) {
         stream.getTracks().forEach((t) => t.stop());
         return;
@@ -194,19 +215,22 @@ export class AudioDirector {
       this.analyser = this.context.createAnalyser();
       this.analyser.fftSize = 512;
       this.context.createMediaStreamSource(stream).connect(this.analyser);
-      this.chunks = [];
+      const chunks: Blob[] = [];
       this.speechSeen = false;
       this.silenceAt = performance.now();
       this.recorder = new MediaRecorder(stream);
+      const recorder = this.recorder;
       this.recording = true;
       this.recorder.ondataavailable = (e) => {
-        if (e.data.size) this.chunks.push(e.data);
+        if (e.data.size) chunks.push(e.data);
       };
       this.recorder.onstop = () => {
-        void this.finishCapture(generation);
+        void this.finishCapture(generation, new Blob(chunks, { type: recorder.mimeType || "audio/webm" }));
       };
       this.recorder.start();
       useStore.getState().transition("LISTENING");
+      this.status("recording");
+      stream.getAudioTracks().forEach(track => { track.onended = () => { if (recorder.state === "recording") recorder.stop(); }; });
       this.meter();
       this.limit = setTimeout(() => {
         if (this.recorder?.state === "recording") this.recorder.stop();
@@ -218,14 +242,13 @@ export class AudioDirector {
       useStore.getState().transition("ERROR");
     }
   }
-  private async finishCapture(generation: number) {
-    const blob = new Blob(this.chunks, {
-      type: this.recorder?.mimeType || "audio/webm",
-    });
+  private async finishCapture(generation: number, blob: Blob) {
+    if (this.stopRecording || generation !== this.generation) return;
     this.recording = false;
     this.cleanup();
-    if (this.stopRecording || generation !== this.generation) return;
+    if (!this.speechSeen || blob.size < 100) { useStore.getState().transition("CONFUSED", "No se detectó audio con voz"); this.detector?.resume(); return; }
     this.processing = true;
+    this.status("transcribing");
     useStore.getState().transition("THINKING", "Transcribiendo en este equipo");
     try {
       const decoder = new AudioContext();
@@ -258,7 +281,10 @@ export class AudioDirector {
         useStore.getState().transition("CONFUSED", "No se detectó voz");
         return;
       }
-      await bridge.send(text);
+      if (this.kind === "system") {
+        bridge.transcript(text);
+        useStore.getState().transition("HAPPY", "Audio del PC transcrito. Revísalo antes de enviar.");
+      } else await bridge.send(text);
     } catch (e) {
       if (generation === this.generation) {
         report(e);
@@ -266,6 +292,7 @@ export class AudioDirector {
       }
     } finally {
       this.processing = false;
+      if (generation === this.generation) this.status("idle");
       this.detector?.resume();
     }
   }

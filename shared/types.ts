@@ -37,6 +37,7 @@ export interface Settings {
   volume: number;
   sensitivity: number;
   sttEnabled: boolean;
+  voiceRoot: string;
   alwaysOnTop: boolean;
   autoStart: boolean;
   lowPower: boolean;
@@ -61,6 +62,18 @@ export interface ChatMessage {
   text: string;
   pending?: boolean;
 }
+export interface ImageAttachment {
+  type: "image";
+  mimeType: "image/jpeg" | "image/png";
+  fileName: string;
+  content: string;
+}
+export interface CaptureSource { id: string; name: string; }
+export interface CaptureStatus {
+  kind: "microphone" | "system" | "voice";
+  phase: "idle" | "recording" | "transcribing" | "speaking";
+  startedAt?: number;
+}
 export type DesktopEvent =
   | { type: "connection"; info: ConnectionInfo }
   | { type: "pet"; state: PetState; reason?: string }
@@ -70,6 +83,9 @@ export type DesktopEvent =
   | { type: "cursor"; x: number; y: number }
   | { type: "voice-cancel" }
   | { type: "voice-listen" }
+  | { type: "voice-speak"; text: string }
+  | { type: "capture"; status: CaptureStatus }
+  | { type: "transcript"; text: string }
   | { type: "energy"; value: number }
   | { type: "wake" };
 export interface Snapshot {
@@ -81,6 +97,7 @@ export interface Snapshot {
   native: boolean;
   runtime?: "desktop" | "server" | "preview";
   version: string;
+  capture?: CaptureStatus;
 }
 export interface DesktopBridge {
   snapshot(): Promise<Snapshot>;
@@ -88,7 +105,7 @@ export interface DesktopBridge {
   credential(value: string): Promise<void>;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
-  send(text: string): Promise<void>;
+  send(text: string, images?: ImageAttachment[]): Promise<void>;
   abort(): Promise<void>;
   openSettings(): Promise<void>;
   hide(): Promise<void>;
@@ -102,5 +119,12 @@ export interface DesktopBridge {
   demo(state: PetState): Promise<void>;
   energy(value: number): void;
   listen(): Promise<void>;
+  testVoice(): Promise<void>;
+  chooseVoiceRoot(): Promise<string | null>;
+  captureSources(): Promise<CaptureSource[]>;
+  captureScreen(id: string): Promise<ImageAttachment>;
+  armSystemAudio(): Promise<void>;
+  captureStatus(status: CaptureStatus): void;
+  transcript(text: string): void;
   event(callback: (event: DesktopEvent) => void): () => void;
 }

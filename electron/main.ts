@@ -9,6 +9,8 @@ import {
   globalShortcut,
   session,
   powerMonitor,
+  desktopCapturer,
+  dialog,
 } from "electron";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -17,12 +19,14 @@ import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
+import { ScreenCapture } from "./capture.js";
 import {
   PET_STATES,
   type DesktopEvent,
   type Diagnostic,
   type Settings,
   type Snapshot,
+  type CaptureStatus,
 } from "../shared/types.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +43,9 @@ let quitting = false,
 let cursorTimer: ReturnType<typeof setInterval>,
   saveTimer: ReturnType<typeof setTimeout>;
 const diagnostics: Diagnostic[] = [];
+const screenCapture = new ScreenCapture();
+let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
+let displayGrant: { owner: number; expires: number } | undefined;
 const boundsPath = () => join(app.getPath("userData"), "window.json");
 function emit(event: DesktopEvent) {
   for (const w of [pet, panel])
@@ -239,6 +246,7 @@ async function ready() {
   voice = new NativeVoice(
     process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
     () => storage.settings,
+    join(here, "../../python/recognize.py"),
   );
   gateway = new OpenClawAdapter(storage, emit, log);
   const area = screen.getPrimaryDisplay().workArea;
@@ -317,21 +325,30 @@ async function ready() {
   session.defaultSession.setPermissionRequestHandler(
     (contents, permission, callback, details) =>
       callback(
-        contents.id === pet?.webContents.id &&
-          permission === "media" &&
+        [pet?.webContents.id, panel?.webContents.id].includes(contents.id) &&
+          (permission === "display-capture" || (permission === "media" &&
           "mediaTypes" in details &&
           Boolean(
             details.mediaTypes?.length &&
               details.mediaTypes?.every((type) => type === "audio"),
-          ),
+          ))),
       ),
   );
   session.defaultSession.setPermissionCheckHandler(
     (contents, permission, _origin, details) =>
-      contents?.id === pet?.webContents.id &&
-      permission === "media" &&
-      details.mediaType === "audio",
+      Boolean(contents && [pet?.webContents.id, panel?.webContents.id].includes(contents.id)) &&
+      (permission === "display-capture" || (permission === "media" && details.mediaType === "audio")),
   );
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    const grant = displayGrant;
+    displayGrant = undefined;
+    const owner = [pet, panel].find(window => window?.webContents.id === grant?.owner);
+    if (!grant || grant.expires < Date.now() || request.frame !== owner?.webContents.mainFrame || !request.audioRequested) { callback({}); return; }
+    void desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } }).then(sources => {
+      if (!sources[0]) { callback({}); return; }
+      callback({ video: sources[0], audio: "loopback" });
+    }).catch(() => callback({}));
+  });
   handle(
     "snapshot",
     (): Snapshot => ({
@@ -342,6 +359,7 @@ async function ready() {
       hasCredential: storage.hasCredential(),
       native: true,
       version: app.getVersion(),
+      capture,
     }),
   );
   handle("settings", (patch) => {
@@ -355,9 +373,9 @@ async function ready() {
   });
   handle("connect", () => gateway.connect());
   handle("disconnect", () => gateway.disconnect());
-  handle("send", (value) => {
+  handle("send", (value, images) => {
     if (typeof value !== "string") throw new Error("Mensaje inválido.");
-    return gateway.send(value);
+    return gateway.send(value, images as never);
   });
   handle("abort", () => {
     voice.cancel();
@@ -367,6 +385,39 @@ async function ready() {
     if (!storage.settings.sttEnabled)
       throw new Error("Activa el reconocimiento local en Voz.");
     pet?.webContents.send("desktop-event", { type: "voice-listen" });
+  });
+  handle("test-voice", () => {
+    if (!storage.settings.voiceEnabled) throw new Error("Activa Leer las respuestas primero.");
+    pet?.webContents.send("desktop-event", { type: "voice-speak", text: "Hola. Soy Karen. Ya puedo hablar contigo." });
+  });
+  handle("choose-voice-root", async () => {
+    const result = await dialog.showOpenDialog({ title: "Carpeta con voice-runtime y voice-models", properties: ["openDirectory"] });
+    if (result.canceled) return null;
+    const root = result.filePaths[0];
+    if (!existsSync(join(root, "voice-runtime/Scripts/python.exe")) || !existsSync(join(root, "voice-models/faster-whisper-small/model.bin"))) throw new Error("Faltan voice-runtime/Scripts/python.exe o voice-models/faster-whisper-small/model.bin.");
+    updateSettings({ voiceRoot: root });
+    return root;
+  });
+  handle("capture-sources", () => screenCapture.sources());
+  handle("capture-screen", id => {
+    if (typeof id !== "string") throw new Error("Selecciona una fuente.");
+    return screenCapture.snapshot(id);
+  });
+  ipcMain.handle("arm-system-audio", (event) => {
+    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame) throw new Error("Origen no autorizado.");
+    if (!storage.settings.sttEnabled) throw new Error("Activa reconocimiento local y configura su carpeta en Voz.");
+    voice.cancel();
+    pet?.webContents.send("desktop-event", { type: "voice-cancel" });
+    displayGrant = { owner: event.sender.id, expires: Date.now() + 10000 };
+  });
+  ipcMain.on("capture-status", (event, status: CaptureStatus) => {
+    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "speaking"].includes(status.phase)) return;
+    capture = { kind: status.kind, phase: status.phase, startedAt: status.phase === "idle" ? undefined : Date.now() };
+    emit({ type: "capture", status: capture });
+  });
+  ipcMain.on("transcript", (event, text) => {
+    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || typeof text !== "string") return;
+    emit({ type: "transcript", text: text.slice(0, 16000) });
   });
   handle("open-settings", openSettings);
   handle("hide", () => pet?.hide());

@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('karen', {
   credential: value => ipcRenderer.invoke('credential', value),
   connect: () => ipcRenderer.invoke('connect'),
   disconnect: () => ipcRenderer.invoke('disconnect'),
-  send: text => ipcRenderer.invoke('send', text),
+  send: (text, images) => ipcRenderer.invoke('send', text, images),
   abort: () => ipcRenderer.invoke('abort'),
   openSettings: () => ipcRenderer.invoke('open-settings'),
   hide: () => ipcRenderer.invoke('hide'),
@@ -19,5 +19,12 @@ contextBridge.exposeInMainWorld('karen', {
   demo: state => ipcRenderer.invoke('demo', state),
   energy: value => ipcRenderer.send('energy', value),
   listen: () => ipcRenderer.invoke('listen'),
+  testVoice: () => ipcRenderer.invoke('test-voice'),
+  chooseVoiceRoot: () => ipcRenderer.invoke('choose-voice-root'),
+  captureSources: () => ipcRenderer.invoke('capture-sources'),
+  captureScreen: id => ipcRenderer.invoke('capture-screen', id),
+  armSystemAudio: () => ipcRenderer.invoke('arm-system-audio'),
+  captureStatus: status => ipcRenderer.send('capture-status', status),
+  transcript: text => ipcRenderer.send('transcript', text),
   event: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('desktop-event', listener); return () => ipcRenderer.removeListener('desktop-event', listener); }
 });

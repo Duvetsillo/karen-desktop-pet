@@ -7,7 +7,9 @@ import type {
   ConnectionInfo,
   DesktopEvent,
   Settings,
+  ImageAttachment,
 } from "../shared/types.js";
+import { validateImages } from "../shared/attachments.js";
 import {
   extractText,
   routeGatewayEvent,
@@ -234,7 +236,8 @@ export class OpenClawAdapter {
       );
     }
   }
-  async send(text: string) {
+  async send(text: string, attachments?: ImageAttachment[]) {
+    const images = validateImages(attachments);
     text = text.trim();
     if (!text || text.length > 16000)
       throw new Error("Escribe un mensaje de hasta 16.000 caracteres.");
@@ -263,7 +266,7 @@ export class OpenClawAdapter {
     try {
       const result = await this.client.request<{ runId?: string }>(
         "chat.send",
-        { sessionKey: this.sessionKey, message: text, idempotencyKey: id },
+        { sessionKey: this.sessionKey, message: text, idempotencyKey: id, ...(images.length ? { attachments: images } : {}) },
       );
       this.accepted = true;
       this.runId = result.runId || id;
