@@ -16,5 +16,5 @@ COPY --from=build /app/dist-electron ./dist-electron
 USER node
 VOLUME ["/app/data"]
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:3000/healthz',{headers:{host:new URL(process.env.KAREN_PUBLIC_ORIGIN).host}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s CMD node -e "require('node:http').get('http://127.0.0.1:3000/healthz',{headers:{host:new URL(process.env.KAREN_PUBLIC_ORIGIN).host}},r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
 CMD ["node", "dist-electron/server/index.js"]

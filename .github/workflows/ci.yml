@@ -5,6 +5,9 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check:
     strategy:
@@ -33,3 +36,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t karen-server:ci .
+      - name: Start headless container with synthetic credentials
+        run: >-
+          docker run -d --name karen-ci -p 127.0.0.1:3000:3000
+          -e KAREN_ACCESS_TOKEN=synthetic-ci-only-access-token-32-characters
+          -e KAREN_PUBLIC_ORIGIN=http://localhost:3000
+          -e KAREN_SECURE_COOKIES=false
+          -e KAREN_GATEWAY_URL=ws://127.0.0.1:18789 karen-server:ci
+      - name: Verify HTTP and authentication inside container
+        run: |
+          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://localhost:3000/healthz
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/snapshot)" = 401
+          test "$(docker exec karen-ci id -u)" = 1000
+      - if: always()
+        run: docker rm -fv karen-ci
