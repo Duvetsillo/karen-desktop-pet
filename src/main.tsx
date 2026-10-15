@@ -32,6 +32,7 @@ import { machine, signals, useStore, report } from "./state/store";
 import { PetRenderer } from "./pet/Renderer";
 import { AudioDirector } from "./voice/audio";
 import "./style.css";
+import { APP_VERSION } from "../shared/version";
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -264,7 +265,8 @@ const subtitles: Record<string, string> = {
 };
 function SettingsApp() {
   const tab = useStore((s) => s.tab),
-    native = useStore((s) => s.native);
+    native = useStore((s) => s.native),
+    runtime = useStore((s) => s.runtime);
   return (
     <div className="app-shell">
       <nav className="sidebar" aria-label="Ajustes de Karen">
@@ -294,7 +296,7 @@ function SettingsApp() {
           <small>
             Hecha para estar cerca.
             <br />
-            Versión 1.0.0
+            Versión {APP_VERSION}
           </small>
         </div>
       </nav>
@@ -315,8 +317,9 @@ function SettingsApp() {
         </header>
         {!native && (
           <div className="browser-note">
-            Vista de navegador. Las funciones de Windows y OpenClaw están
-            disponibles en la aplicación instalada.
+            {runtime === "server"
+              ? "Modo servidor · conexión de OpenClaw gestionada por tu administrador. Las funciones de escritorio y voz de Windows requieren el cliente nativo."
+              : "Vista de navegador. Las funciones de Windows y OpenClaw están disponibles en la aplicación instalada."}
           </div>
         )}
         <ErrorBanner />
@@ -618,6 +621,36 @@ function OpenClaw() {
   const [url, setUrl] = useState(s.gatewayUrl),
     [agent, setAgent] = useState(s.agentId),
     [token, setToken] = useState("");
+  const runtime = useStore((x) => x.runtime);
+  if (runtime === "server")
+    return (
+      <Group
+        title="Gateway del servidor"
+        description="La dirección, el agente y los secretos se configuran mediante variables de entorno o archivos privados del administrador."
+      >
+        <Status />
+        <dl className="service-list">
+          <div>
+            <dt>Gateway</dt>
+            <dd>{s.gatewayUrl}</dd>
+          </div>
+          <div>
+            <dt>Agente</dt>
+            <dd>{s.agentId}</dd>
+          </div>
+          <div>
+            <dt>Credencial</dt>
+            <dd>
+              {hasCredential ? "Disponible en el servidor" : "No configurada"}
+            </dd>
+          </div>
+        </dl>
+        <button onClick={() => void action(() => bridge.connect())}>
+          <RefreshCw size={15} />
+          Reconectar
+        </button>
+      </Group>
+    );
   return (
     <>
       <Group title="Gateway">
@@ -744,6 +777,7 @@ function OpenClaw() {
 }
 function Voice() {
   const s = useStore((x) => x.settings);
+  const runtime = useStore((x) => x.runtime);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
     [health, setHealth] = useState(
       "Consulta los motores para comprobar su disponibilidad.",
@@ -756,6 +790,12 @@ function Voice() {
   }, []);
   return (
     <>
+      {runtime === "server" && (
+        <p className="info-note">
+          Modo servidor: conversación de texto y animaciones. TTS/STT no están
+          configurados. La voz de Windows pertenece al cliente nativo.
+        </p>
+      )}
       <Group title="La voz de Karen">
         <Toggle
           label="Leer las respuestas"
@@ -866,6 +906,20 @@ function Voice() {
 }
 function System() {
   const s = useStore((x) => x.settings);
+  const runtime = useStore((x) => x.runtime);
+  if (runtime === "server")
+    return (
+      <Group
+        title="Servidor y navegador"
+        description="La mascota vive en esta pestaña. Bandeja, arrastre entre monitores e inicio con Windows pertenecen al cliente nativo."
+      >
+        <Toggle
+          label="Modo de bajo consumo"
+          value={s.lowPower}
+          onChange={(lowPower) => void patch({ lowPower })}
+        />
+      </Group>
+    );
   return (
     <>
       <Group title="En tu escritorio">
@@ -924,6 +978,7 @@ function Diagnostics() {
   const c = useStore((x) => x.connection),
     d = useStore((x) => x.diagnostics),
     native = useStore((x) => x.native);
+  const runtime = useStore((x) => x.runtime);
   return (
     <>
       <Group title="Estado de los servicios">
@@ -931,7 +986,11 @@ function Diagnostics() {
           <div>
             <dt>Aplicación de Windows</dt>
             <dd>
-              {native ? "Proceso nativo disponible" : "Vista de navegador"}
+              {native
+                ? "Proceso nativo disponible"
+                : runtime === "server"
+                  ? "Servidor Node disponible"
+                  : "Vista de navegador"}
             </dd>
           </div>
           <div>
@@ -1205,6 +1264,8 @@ function Root() {
             diagnostics: snapshot.diagnostics,
             messages: snapshot.messages,
             native: snapshot.native,
+            runtime:
+              snapshot.runtime || (snapshot.native ? "desktop" : "preview"),
             hasCredential: snapshot.hasCredential,
             ready: true,
           });

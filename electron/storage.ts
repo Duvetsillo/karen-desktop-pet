@@ -113,6 +113,7 @@ export class Storage {
     }
   }
   hostDeps(): GatewayClientHostDeps {
+    const origin = this.origin;
     return {
       loadOrCreateDeviceIdentity: () => {
         if (!this.vault.identity) {
@@ -141,16 +142,16 @@ export class Storage {
           .export({ format: "der", type: "spki" })
           .subarray(-32)
           .toString("base64url"),
-      loadDeviceAuthToken: () => this.vault.devices[this.origin] ?? null,
+      loadDeviceAuthToken: () => this.vault.devices[origin] ?? null,
       storeDeviceAuthToken: (value) => {
-        this.vault.devices[this.origin] = {
+        this.vault.devices[origin] = {
           token: value.token,
           scopes: value.scopes,
         };
         this.saveVault();
       },
       clearDeviceAuthToken: () => {
-        delete this.vault.devices[this.origin];
+        delete this.vault.devices[origin];
         this.saveVault();
       },
       logDebug: () => {},

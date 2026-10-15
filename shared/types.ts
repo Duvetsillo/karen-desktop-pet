@@ -79,6 +79,7 @@ export interface Snapshot {
   messages: ChatMessage[];
   hasCredential: boolean;
   native: boolean;
+  runtime?: "desktop" | "server" | "preview";
   version: string;
 }
 export interface DesktopBridge {

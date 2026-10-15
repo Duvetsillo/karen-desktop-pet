@@ -13,3 +13,10 @@ qa/
 .private/
 *.dpapi
 __pycache__/
+data/
+secrets/
+*.pem
+*.key
+*.wav
+*.sqlite*
+*.env

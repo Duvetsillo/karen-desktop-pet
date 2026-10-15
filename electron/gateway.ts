@@ -1,6 +1,7 @@
 import { GatewayClient } from "@openclaw/gateway-client";
 import type { GatewayClientHostDeps } from "@openclaw/gateway-client";
 import { randomUUID } from "node:crypto";
+import { APP_VERSION } from "../shared/version.js";
 import type {
   ChatMessage,
   ConnectionInfo,
@@ -74,8 +75,8 @@ export class OpenClawAdapter {
       hostDeps: this.storage.hostDeps(),
       clientName: "webchat",
       clientDisplayName: "Karen Desktop Pet",
-      clientVersion: "1.0.0",
-      platform: "win32",
+      clientVersion: APP_VERSION,
+      platform: process.platform,
       mode: "ui",
       role: "operator",
       scopes: ["operator.read", "operator.write"],

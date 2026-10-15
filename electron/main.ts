@@ -242,10 +242,7 @@ async function ready() {
     );
   }
   voice = new NativeVoice(
-    process.env.KAREN_PROJECT_ROOT ||
-      (existsSync(resolve(here, "../../../voice_worker.py"))
-        ? resolve(here, "../../..")
-        : "C:\\karen"),
+    process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
     () => storage.settings,
   );
   gateway = new OpenClawAdapter(storage, emit, log);

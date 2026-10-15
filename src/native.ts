@@ -1,5 +1,7 @@
 import type { DesktopBridge, Snapshot } from "../shared/types";
 import { defaults } from "../shared/settings";
+import { serverBridge } from "./server-bridge";
+import { APP_VERSION } from "../shared/version";
 declare global {
   interface Window {
     karen?: DesktopBridge;
@@ -19,7 +21,7 @@ const preview: DesktopBridge = {
     messages: [],
     hasCredential: false,
     native: false,
-    version: "1.0.0",
+    version: APP_VERSION,
   }),
   settings: async (patch) => ({ ...defaults, ...patch }),
   credential: unavailable,
@@ -43,4 +45,10 @@ const preview: DesktopBridge = {
   energy: () => {},
   listen: unavailable,
 };
-export const bridge = window.karen ?? preview;
+export const bridge =
+  window.karen ??
+  (document
+    .querySelector('meta[name="karen-runtime"]')
+    ?.getAttribute("content") === "server"
+    ? serverBridge()
+    : preview);
