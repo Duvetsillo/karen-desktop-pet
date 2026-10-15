@@ -1,4 +1,5 @@
 import type { Settings } from "./types.js";
+import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
   scale: 1,
   brightness: 1,
@@ -68,7 +69,7 @@ export function validateSettings(
     }
   }
   const ranges = {
-    scale: [0.6, 1.6],
+    scale: [PET_SCALE.min, PET_SCALE.max],
     brightness: [0.35, 1.4],
     opacity: [0.35, 1],
     sleepAfter: [30, 3600],

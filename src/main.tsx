@@ -34,6 +34,7 @@ import { AudioDirector } from "./voice/audio";
 import "./style.css";
 import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
+import { PET_SCALE } from "../shared/pet-layout";
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -206,7 +207,8 @@ function Group({
 }
 function PetPreview() {
   const state = useStore((s) => s.state),
-    reason = useStore((s) => s.reason);
+    reason = useStore((s) => s.reason),
+    scale = useStore((s) => s.settings.scale);
   return (
     <aside className="preview-pane">
       <div className="preview-window">
@@ -219,7 +221,7 @@ function PetPreview() {
         </div>
       </div>
       <div className="preview-caption">
-        <span>Karen</span>
+        <span>Karen · {Math.round(scale * 100)} %</span>
         <small>{reason || "Aquí contigo, a su ritmo."}</small>
       </div>
       <div className="preview-commands">
@@ -477,17 +479,27 @@ function Appearance() {
   return (
     <>
       <Group
-        title="Una luz propia"
-        description="Ajusta su presencia sin perder la suavidad."
+        title="Tamaño del PET"
+        description="Cambia al instante y se recuerda al volver a abrir Karen."
       >
         <Range
-          label="Tamaño"
+          label="Tamaño del PET"
           value={s.scale}
-          min={0.6}
-          max={1.6}
+          min={PET_SCALE.min}
+          max={PET_SCALE.max}
           unit="%"
           onChange={(scale) => void patch({ scale })}
         />
+        <div className="size-presets" role="group" aria-label="Tamaños rápidos">
+          {([{ label: "Pequeña", scale: 0.7 }, { label: "Normal", scale: 1 }, { label: "Grande", scale: 1.5 }] as const).map((preset) => (
+            <button key={preset.label} aria-pressed={s.scale === preset.scale} onClick={() => void patch({ scale: preset.scale })}>
+              {preset.label}<small>{Math.round(preset.scale * 100)} %</small>
+            </button>
+          ))}
+        </div>
+        <p className="quiet-note">50–200 %. Se ajusta al espacio disponible de tu monitor.</p>
+      </Group>
+      <Group title="Una luz propia" description="Ajusta su presencia sin perder la suavidad.">
         <Range
           label="Luminosidad"
           value={s.brightness}

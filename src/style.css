@@ -412,6 +412,28 @@ code {
 .range-field {
   margin: 23px 0;
 }
+.size-presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.size-presets button {
+  flex: 1;
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.size-presets button small {
+  color: var(--muted, #98a5bb);
+  font-size: 10px;
+}
+.size-presets button[aria-pressed="true"] {
+  background: #8be4f315;
+  border-color: #8be4f366;
+  color: #c8f7ff;
+}
 .range-field label {
   display: flex;
   justify-content: space-between;

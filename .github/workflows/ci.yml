@@ -27,6 +27,13 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run audit:source
+      - if: runner.os == 'Windows'
+        name: Install Electron for native appearance smoke
+        run: node node_modules/electron/install.js
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: ""
+      - if: runner.os == 'Windows'
+        run: npm run test:appearance
       - if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
       - if: runner.os == 'Linux'

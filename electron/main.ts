@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
 import { NativeVoice } from "./voice.js";
+import { petBounds } from "../shared/pet-layout.js";
 import {
   PET_STATES,
   type DesktopEvent,
@@ -104,13 +105,7 @@ function resizePet() {
   if (!pet) return;
   const old = pet.getBounds();
   const s = storage.settings.scale;
-  pet.setBounds(
-    clampBounds({
-      ...old,
-      width: Math.round(380 * s),
-      height: Math.round(440 * s),
-    }),
-  );
+  pet.setBounds(petBounds(s, old, screen.getDisplayMatching(old).workArea));
 }
 function recover() {
   clickThrough = false;
@@ -259,6 +254,7 @@ async function ready() {
       ...JSON.parse(readFileSync(boundsPath(), "utf8")),
     });
   } catch {}
+  bounds = petBounds(storage.settings.scale, bounds, screen.getDisplayMatching(bounds).workArea);
   pet = new BrowserWindow({
     ...bounds,
     transparent: true,

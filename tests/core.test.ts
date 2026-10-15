@@ -9,7 +9,7 @@ import {
 } from "../shared/protocol";
 describe("configuración", () => {
   it("acota recursos y rechaza entradas inválidas", () => {
-    expect(validateSettings({ scale: 99, brightness: -1 }).scale).toBe(1.6);
+    expect(validateSettings({ scale: 99, brightness: -1 }).scale).toBe(2);
     expect(validateSettings({ brightness: -1 }).brightness).toBe(0.35);
     expect(() => validateSettings({ scale: NaN })).toThrow();
     expect(() => validateSettings({ agentId: "../main" })).toThrow();

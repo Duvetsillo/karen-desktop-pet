@@ -43,6 +43,9 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - **Ctrl+Alt+K** o la bandeja recuperan el control tras ignorar clics.
 - Activa opcionalmente inicio con Windows, prioridad de ventana y bajo consumo.
 - Los nueve estados incluyen reposo, escucha, procesamiento, habla y errores.
+- **Apariencia → Tamaño del PET:** escala de 50 a 200 %, presets y vista previa en directo.
+- El tamaño se recuerda al abrir y se limita al monitor sin deformar la mascota.
+- Pupilas independientes, cejas y ojos asimétricos hacen más visibles la mirada y las expresiones.
 - El modo de bajo consumo y el reposo limitan el renderizado a 15 FPS.
 - La boca sigue el audio real mediante Web Audio, no una animación de habla falsa.
 

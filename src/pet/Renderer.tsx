@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite } from "pixi.js";
 import "pixi.js/unsafe-eval";
 import { createPetTextures } from "./textures";
+import { gazeTarget } from "./gaze";
 import { signals, useStore } from "../state/store";
 
 function damp(value: number, target: number, dt: number, rate = 9) {
@@ -110,12 +111,18 @@ export function PetRenderer({
       const eyes = new Container();
       root.addChild(eyes);
       eyes.y = -7;
-      const eyeL = make(tex.eye, eyes);
+      const eyeL = new Container();
+      eyes.addChild(eyeL);
       eyeL.x = -44;
       eyeL.scale.set(0.7, 0.7);
-      const eyeR = make(tex.eye, eyes);
+      make(tex.eye, eyeL);
+      const irisL = make(tex.iris, eyeL);
+      const eyeR = new Container();
+      eyes.addChild(eyeR);
       eyeR.x = 44;
       eyeR.scale.set(-0.7, 0.7);
+      make(tex.eye, eyeR);
+      const irisR = make(tex.iris, eyeR);
       const facial = new Graphics();
       root.addChild(facial);
       const sparkles = Array.from({ length: 22 }, (_, i) => {
@@ -134,7 +141,7 @@ export function PetRenderer({
         const { width, height } = host.current.getBoundingClientRect();
         app.renderer.resize(width, height);
         scene.position.set(width / 2, height * 0.54);
-        scene.scale.set(Math.min(width / 380, height / 440) * 0.8);
+        scene.scale.set(Math.min(width / 380, height / 440) * (preview ? 0.5 : 0.8));
       };
       observer = new ResizeObserver(resize);
       observer.observe(host.current!);
@@ -143,12 +150,13 @@ export function PetRenderer({
         blink = 0,
         nextBlink = 2 + Math.random() * 4,
         eyeOpen = 1,
+        rightOpen = 1,
         tilt = 0,
         mouth = 0,
         float = 0,
         eyeX = 0,
         eyeY = 0,
-        lastState = "",
+        brow = 0,
         frames = 0,
         frameTime = 0,
         quality = 1;
@@ -172,6 +180,7 @@ export function PetRenderer({
           frameTime = 0;
         }
         const motion = s.animations && !reduced.matches;
+        if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.5 * s.scale);
         const activity = motion ? s.activity : 0;
         let targetTilt =
           state === "CONFUSED"
@@ -181,7 +190,8 @@ export function PetRenderer({
               : state === "DRAGGING"
                 ? 0.16
                 : 0;
-        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022;
+        const gaze = gazeTarget(signals.cursor, s.cursorTracking && !sleeping);
+        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002;
         tilt = damp(tilt, motion ? targetTilt : 0, dt, 7);
         root.rotation = tilt;
         const bob =
@@ -203,7 +213,8 @@ export function PetRenderer({
         root.y = float;
         const breathe =
           1 + (motion ? Math.sin(t * (sleeping ? 1.2 : 2.3)) * 0.009 : 0);
-        root.scale.set(breathe, 2 - breathe);
+        const voicePulse = state === "SPEAKING" && motion ? signals.energy * 0.018 : 0;
+        root.scale.set(breathe - voicePulse, 2 - breathe + voicePulse);
         root.alpha = damp(
           root.alpha,
           (sleeping ? 0.57 : 1) * (s.nightMode ? 0.7 : 1) * s.opacity,
@@ -262,28 +273,24 @@ export function PetRenderer({
           : blink > 0
             ? Math.max(0.04, Math.abs(blink - 0.08) / 0.08)
             : state === "HAPPY"
-              ? 0.72
+              ? 0.68
               : state === "LISTENING"
-                ? 1.12
-                : 1;
-        eyeOpen = damp(eyeOpen, targetOpen, dt, blink > 0 ? 60 : 12);
-        const cursor = s.cursorTracking ? signals.cursor : { x: 0.5, y: 0.5 };
-        eyeX = damp(
-          eyeX,
-          Math.max(-5, Math.min(5, (cursor.x - 0.5) * 12)) +
-            (motion ? Math.sin(t * 0.37) * 1.4 : 0),
-          dt,
-          7,
-        );
-        eyeY = damp(
-          eyeY,
-          Math.max(-3, Math.min(3, (cursor.y - 0.5) * 6)),
-          dt,
-          7,
-        );
-        eyes.position.set(eyeX, -7 + eyeY);
+                ? 1.13
+                : state === "ERROR" ? 0.85 : 1;
+        const asymmetry = !sleeping && blink === 0 && (state === "CONFUSED" || state === "THINKING");
+        eyeOpen = damp(eyeOpen, targetOpen * (asymmetry ? 0.73 : 1), dt, blink > 0 ? 60 : 12);
+        rightOpen = damp(rightOpen, targetOpen * (asymmetry ? 1.08 : 1), dt, blink > 0 ? 60 : 12);
+        // Pursuit is damped, not restarted by each cursor event. Reduced motion
+        // keeps a legible gaze but removes face translation and head sway.
+        eyeX = damp(eyeX, gaze.x, dt, reduced.matches ? 18 : 12);
+        eyeY = damp(eyeY, gaze.y, dt, reduced.matches ? 18 : 12);
+        eyes.position.set(motion ? eyeX * 0.2 : 0, -7 + (motion ? eyeY * 0.16 : 0));
+        irisL.position.set(3 + eyeX, 6 + eyeY);
+        irisR.position.set(3 - eyeX, 6 + eyeY);
         eyeL.scale.y = 0.7 * eyeOpen;
-        eyeR.scale.y = 0.7 * eyeOpen;
+        eyeR.scale.y = 0.7 * rightOpen;
+        eyeL.rotation = damp(eyeL.rotation, state === "HAPPY" ? -0.1 : state === "CONFUSED" ? -0.08 : 0, dt, 12);
+        eyeR.rotation = damp(eyeR.rotation, state === "HAPPY" ? 0.1 : 0, dt, 12);
         mouth = damp(mouth, state === "SPEAKING" ? signals.energy : 0, dt, 22);
         facial.clear();
         if (sleeping) {
@@ -309,15 +316,16 @@ export function PetRenderer({
             .quadraticCurveTo(0, state === "HAPPY" ? 54 : 46, 12, 36)
             .stroke({ color: 0xcdfaff, width: 3, cap: "round" });
         }
-        if (state === "CONFUSED") {
-          facial
-            .moveTo(-61, -58)
-            .lineTo(-34, -64)
-            .stroke({ color: 0xe4fcff, width: 3, cap: "round" });
-          facial
-            .moveTo(33, -58)
-            .lineTo(59, -52)
-            .stroke({ color: 0xe4fcff, width: 3, cap: "round" });
+        brow = damp(brow, state === "LISTENING" ? -6 : state === "ERROR" ? 4 : 0, dt, 12);
+        if (!sleeping) {
+          const questioning = state === "CONFUSED" || state === "THINKING";
+          const worried = state === "ERROR";
+          facial.moveTo(-61, -45 + brow)
+            .quadraticCurveTo(-46, -51 + brow - (questioning ? 7 : 0), -30, -45 + brow - (worried ? 8 : 0))
+            .stroke({ color: 0xe4fcff, alpha: 0.8, width: 2.5, cap: "round" });
+          facial.moveTo(30, -45 + brow - (worried ? 8 : 0))
+            .quadraticCurveTo(46, -51 + brow + (questioning ? 7 : 0), 61, -45 + brow + (questioning ? 4 : 0))
+            .stroke({ color: 0xe4fcff, alpha: 0.8, width: 2.5, cap: "round" });
         }
         if (state === "THINKING")
           for (let i = 0; i < 3; i++)
@@ -346,10 +354,16 @@ export function PetRenderer({
             (0.18 + 0.5 * (0.5 + 0.5 * Math.sin(t * 1.4 + p.phase))) *
             s.brightness;
         });
-        if (lastState !== state) lastState = state;
       });
       const oldCleanup = cleanup;
+      const pointer = (event: PointerEvent) => {
+        if (event.pointerType === "touch" || (!preview && useStore.getState().native)) return;
+        const bounds = host.current?.getBoundingClientRect();
+        if (bounds) signals.cursor = { x: (event.clientX - bounds.left) / bounds.width, y: (event.clientY - bounds.top) / bounds.height };
+      };
+      document.addEventListener("pointermove", pointer, { passive: true });
       cleanup = () => {
+        document.removeEventListener("pointermove", pointer);
         document.removeEventListener("visibilitychange", visibility);
         oldCleanup();
         Object.values(tex).forEach((t) => t.destroy(true));

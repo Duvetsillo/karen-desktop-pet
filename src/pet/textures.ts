@@ -176,23 +176,26 @@ export function createPetTextures(accent: string) {
     c.fill();
     c.shadowBlur = 0;
     c.beginPath();
-    c.ellipse(53, 66, 21, 29, -0.08, 0, Math.PI * 2);
-    const iris = c.createLinearGradient(40, 38, 65, 90);
-    iris.addColorStop(0, "#161d4b");
-    iris.addColorStop(1, "#507cc3");
-    c.fillStyle = iris;
+    c.ellipse(45, 94, 12, 3, -0.15, 0, Math.PI * 2);
+    c.fillStyle = "#f0ffffb3";
+    c.fill();
+  });
+  // Iris and highlights travel independently from the eye silhouette.
+  const iris = paint(80, 96, (c) => {
+    c.beginPath();
+    c.ellipse(40, 48, 20, 28, -0.08, 0, Math.PI * 2);
+    const gradient = c.createLinearGradient(27, 20, 52, 72);
+    gradient.addColorStop(0, "#10182f");
+    gradient.addColorStop(1, "#4b79b6");
+    c.fillStyle = gradient;
     c.fill();
     c.beginPath();
-    c.ellipse(44, 46, 10, 13, 0.35, 0, Math.PI * 2);
+    c.ellipse(32, 29, 9, 12, 0.35, 0, Math.PI * 2);
     c.fillStyle = "#ffffff";
     c.fill();
     c.beginPath();
-    c.arc(65, 77, 4, 0, Math.PI * 2);
+    c.arc(52, 59, 4, 0, Math.PI * 2);
     c.fillStyle = "#deffff";
-    c.fill();
-    c.beginPath();
-    c.ellipse(45, 94, 12, 3, -0.15, 0, Math.PI * 2);
-    c.fillStyle = "#f0ffffb3";
     c.fill();
   });
   const glow = paint(128, 128, (c) => {
@@ -224,5 +227,5 @@ export function createPetTextures(accent: string) {
     c.fillStyle = g;
     c.fillRect(0, 0, 32, 32);
   });
-  return { body, fin, arm, eye, glow, shadow, particle };
+  return { body, fin, arm, eye, iris, glow, shadow, particle };
 }
