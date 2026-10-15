@@ -45,8 +45,10 @@ jobs:
           -e KAREN_GATEWAY_URL=ws://127.0.0.1:18789 karen-server:ci
       - name: Verify HTTP and authentication inside container
         run: |
-          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://localhost:3000/healthz
+          curl --fail --retry 15 --retry-all-errors --retry-delay 1 --max-time 3 http://localhost:3000/healthz
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/snapshot)" = 401
           test "$(docker exec karen-ci id -u)" = 1000
+      - if: failure()
+        run: docker logs karen-ci
       - if: always()
         run: docker rm -fv karen-ci
