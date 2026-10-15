@@ -5,6 +5,7 @@ import {
   extractText,
   routeGatewayEvent,
   nextChatText,
+  mergeMessages,
 } from "../shared/protocol";
 describe("configuración", () => {
   it("acota recursos y rechaza entradas inválidas", () => {
@@ -45,6 +46,26 @@ describe("máquina de estados", () => {
   });
 });
 describe("eventos reales de OpenClaw", () => {
+  it("conserva mensajes en vivo al recibir un snapshot de arranque anterior", () => {
+    const result = mergeMessages(
+      [{ id: "history", role: "assistant", text: "Antes" }],
+      [
+        { id: "user:run", role: "user", text: "Pregunta" },
+        { id: "run", role: "assistant", text: "Respuesta" },
+      ],
+    );
+    expect(result.map((message) => message.text)).toEqual([
+      "Antes",
+      "Pregunta",
+      "Respuesta",
+    ]);
+    expect(
+      mergeMessages(
+        [{ id: "run", role: "assistant", text: "Parcial" }],
+        [{ id: "run", role: "assistant", text: "Final" }],
+      )[0].text,
+    ).toBe("Final");
+  });
   const sessionKey = "agent:main:main";
   it("aísla otras sesiones y no muestra pensamiento ni herramientas internas", () => {
     expect(

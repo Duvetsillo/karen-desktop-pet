@@ -49,7 +49,7 @@ export class NativeVoice {
       await this.speechRequest("/health");
       local = "Servicio expresivo disponible (18790, autenticado)";
     } catch {}
-    return `${local}. STT local: ${stt ? "archivos encontrados; ejecutar una captura para verificar inferencia" : "requiere los recursos de C:\\karen o KAREN_PROJECT_ROOT"}. TTS de Windows: disponible mediante System.Speech, se verifica al reproducir.`;
+    return `${local}. STT local: ${stt ? "archivos encontrados; ejecutar una captura para verificar inferencia" : "configura KAREN_PROJECT_ROOT con los recursos de voz opcionales"}. TTS de Windows: disponible mediante System.Speech, se verifica al reproducir.`;
   }
   private run(
     command: string,

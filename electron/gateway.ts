@@ -1,6 +1,7 @@
 import { GatewayClient } from "@openclaw/gateway-client";
 import type { GatewayClientHostDeps } from "@openclaw/gateway-client";
 import { randomUUID } from "node:crypto";
+import { APP_VERSION } from "../shared/version.js";
 import type {
   ChatMessage,
   ConnectionInfo,
@@ -74,8 +75,8 @@ export class OpenClawAdapter {
       hostDeps: this.storage.hostDeps(),
       clientName: "webchat",
       clientDisplayName: "Karen Desktop Pet",
-      clientVersion: "1.0.0",
-      platform: "win32",
+      clientVersion: APP_VERSION,
+      platform: process.platform,
       mode: "ui",
       role: "operator",
       scopes: ["operator.read", "operator.write"],
@@ -248,7 +249,7 @@ export class OpenClawAdapter {
     const id = randomUUID();
     this.runId = id;
     this.knownRuns.add(id);
-    const message: ChatMessage = { id, role: "user", text };
+    const message: ChatMessage = { id: `user:${id}`, role: "user", text };
     this.upsert(message);
     this.emit({ type: "chat", message, final: false });
     this.emit({ type: "pet", state: "THINKING" });

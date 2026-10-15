@@ -24,6 +24,7 @@ interface Store {
   diagnostics: Diagnostic[];
   messages: ChatMessage[];
   native: boolean;
+  runtime: "desktop" | "server" | "preview";
   hasCredential: boolean;
   ready: boolean;
   error: string;
@@ -39,6 +40,7 @@ export const useStore = create<Store>((set, get) => ({
   diagnostics: [],
   messages: [],
   native: false,
+  runtime: "preview",
   hasCredential: false,
   ready: false,
   error: "",

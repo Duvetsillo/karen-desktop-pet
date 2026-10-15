@@ -10,6 +10,7 @@ cliente no incorpora otro modelo de lenguaje ni cambia la configuración del Gat
 El panel distingue conexión real, demostración visual y servicios no disponibles.
 El micrófono requiere una acción explícita; no se utiliza cámara.
 
-El proyecto Python de `C:\karen` se conserva. Este producto vive en `desktop-pet`.
-Electron sustituye Tauri porque este entorno no tiene Rust ni MSVC. React,
-TypeScript estricto, Zustand, PixiJS y Web Audio mantienen las capas sustituibles.
+Electron proporciona las funciones de Windows. Un servidor Node independiente
+reutiliza el adaptador oficial para autoalojar la interfaz sin escritorio. Cada
+instalación aporta su propio Gateway y secretos. React, TypeScript estricto,
+Zustand, PixiJS y Web Audio mantienen las capas sustituibles.
