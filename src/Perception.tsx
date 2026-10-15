@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { CaptureSource, ImageAttachment } from "../shared/types";
 import { bridge } from "./native";
 import { report, useStore } from "./state/store";
-import { AudioDirector } from "./voice/audio";
 
 export function CaptureIndicator() {
   const capture = useStore(state => state.capture);
@@ -17,16 +16,11 @@ export function Perception() {
   const capture = useStore(state => state.capture);
   const transcript = useStore(state => state.transcript);
   const connected = useStore(state => state.connection.state === "connected");
-  const [audio] = useState(() => new AudioDirector());
   const [sources, setSources] = useState<CaptureSource[]>([]);
   const [selected, setSelected] = useState("");
   const [image, setImage] = useState<ImageAttachment | null>(null);
   const [question, setQuestion] = useState("¿Qué ves en esta captura?");
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const off = bridge.event(event => { if (event.type === "voice-cancel") audio.cancel(); });
-    return () => { off(); audio.dispose(); };
-  }, [audio]);
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
     try { await action(); } catch(error) { report(error); } finally { setBusy(false); }
@@ -38,7 +32,7 @@ export function Perception() {
       <h2>Escuchar el audio del PC</h2>
       <p className="group-description">Captura hasta 60 segundos de la salida predeterminada de Windows. La transcripción se hace localmente.</p>
       <div className="button-row">
-        <button disabled={!settings.sttEnabled || busy || (capture.phase !== "idle" && !recordingSystem)} onClick={() => void run(() => audio.toggleListening("system"))}>{recordingSystem ? "Finalizar audio del PC" : "Escuchar audio del PC"}</button>
+        <button disabled={!settings.sttEnabled || busy || (capture.phase !== "idle" && !recordingSystem)} onClick={() => void run(() => bridge.systemAudio(recordingSystem ? "finish" : "start"))}>{recordingSystem ? "Finalizar audio del PC" : "Escuchar audio del PC"}</button>
         <button disabled={capture.phase === "idle"} onClick={() => void bridge.abort().catch(report)}>Cancelar captura</button>
       </div>
       {!settings.sttEnabled && <p className="info-note">Configura reconocimiento local en Voz antes de empezar.</p>}

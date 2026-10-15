@@ -23,8 +23,7 @@ contextBridge.exposeInMainWorld('karen', {
   chooseVoiceRoot: () => ipcRenderer.invoke('choose-voice-root'),
   captureSources: () => ipcRenderer.invoke('capture-sources'),
   captureScreen: id => ipcRenderer.invoke('capture-screen', id),
-  armSystemAudio: () => ipcRenderer.invoke('arm-system-audio'),
+  systemAudio: action => ipcRenderer.invoke('system-audio', action),
   captureStatus: status => ipcRenderer.send('capture-status', status),
-  transcript: text => ipcRenderer.send('transcript', text),
   event: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('desktop-event', listener); return () => ipcRenderer.removeListener('desktop-event', listener); }
 });

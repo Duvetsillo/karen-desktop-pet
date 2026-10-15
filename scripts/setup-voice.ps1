@@ -8,7 +8,7 @@ if (-not (Test-Path -LiteralPath $python)) {
     & py -3.11 -m venv (Join-Path $VoiceDirectory 'voice-runtime')
     if ($LASTEXITCODE -ne 0) { throw 'Instala Python 3.11 para crear el runtime opcional.' }
 }
-& $python -m pip install --disable-pip-version-check 'faster-whisper==1.2.1'
+& $python -m pip install --disable-pip-version-check 'faster-whisper==1.2.1' 'PyAudioWPatch==0.2.12.9'
 if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar las dependencias de reconocimiento.' }
 $modelPath = Join-Path $VoiceDirectory 'voice-models\faster-whisper-small'
 & $python -c 'import sys; from huggingface_hub import snapshot_download; snapshot_download(repo_id="Systran/faster-whisper-small", local_dir=sys.argv[1])' $modelPath

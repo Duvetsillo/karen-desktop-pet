@@ -29,10 +29,11 @@ de escritorio. No se usa cámara ni hay detector de palabra clave instalado.
 ## Escuchar videos y llamadas
 
 En **Percepción**, pulsa **Escuchar audio del PC**. Captura la salida predeterminada
-de Windows mediante [loopback de Electron](https://www.electronjs.org/docs/latest/api/session#sessetdisplaymediarequesthandlerhandler-opts),
+de Windows mediante [WASAPI / PyAudioWPatch](https://github.com/s0d3s/PyAudioWPatch),
 hasta 60 segundos. Finaliza la captura para transcribirla. No reproduce el audio
 capturado y detiene la voz de Karen antes de empezar para evitar que se escuche a sí misma.
-Descarta inmediatamente la pista de video necesaria para obtener loopback; no envía imágenes en este modo.
+No se solicita video para capturar audio del PC. El worker usa WASAPI y se cierra
+al finalizar, cancelar, ocultar Karen, cerrar ajustes o bloquear el equipo.
 
 Revisa la transcripción y pulsa **Enviar para resumir**, o descártala. No se envía
 automáticamente ni se interpreta el contenido de un video como una orden tuya.
@@ -51,3 +52,20 @@ No se guardan archivos de audio o captura en Karen ni en sus logs. La transcripc
 y la imagen se mantienen en memoria para revisión. Una vez enviadas, se aplica la
 retención y la política del Gateway y proveedor que tú configures. No hay vigilancia
 automática de pantalla ni grabación persistente. Descarta las vistas previas al terminar.
+
+## Pruebas de desarrollo
+
+`npm test` comprueba protocolo, ajustes, geometría y restricciones de captura con
+fixtures sintéticos. El smoke nativo completo requiere Windows, una salida de
+audio, micrófono y recursos propios ya preparados:
+
+```powershell
+$env:KAREN_TEST_VOICE_ROOT = 'TU_CARPETA_DE_RECURSOS'
+npm run test:perception
+Remove-Item Env:KAREN_TEST_VOICE_ROOT
+```
+
+La prueba reproduce una frase sintética, comprueba STT y loopback, abre y descarta
+el micrófono sin transcribirlo, y captura solo la ventana de ajustes QA. No envía
+contenido al Gateway real. La visión real debe probarse aparte con una imagen
+sintética y un Gateway/modelo propios.

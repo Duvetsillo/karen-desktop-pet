@@ -58,9 +58,8 @@ export function serverBridge(): DesktopBridge {
     chooseVoiceRoot: unsupported,
     captureSources: unsupported,
     captureScreen: unsupported,
-    armSystemAudio: unsupported,
+    systemAudio: unsupported,
     captureStatus: () => {},
-    transcript: () => {},
     event: (callback) => {
       const events = new EventSource("/api/events");
       events.onmessage = (message) => {

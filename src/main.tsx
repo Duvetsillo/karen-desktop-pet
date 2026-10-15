@@ -816,6 +816,8 @@ function Voice() {
         </p>
       )}
       <Group title="La voz de Karen">
+        <button disabled={runtime !== "desktop"} onClick={() => void action(async () => { const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); stream.getTracks().forEach(track => track.stop()); setDevices(await navigator.mediaDevices.enumerateDevices()); })}>Actualizar dispositivos de audio</button>
+        <p className="quiet-note">Abre y cierra brevemente el micrófono para que Windows muestre los nombres de los dispositivos.</p>
         <Toggle
           label="Leer las respuestas"
           description="Reproduce audio real y sincroniza la boca con su energía."

@@ -48,9 +48,8 @@ const preview: DesktopBridge = {
   chooseVoiceRoot: unavailable,
   captureSources: unavailable,
   captureScreen: unavailable,
-  armSystemAudio: unavailable,
+  systemAudio: unavailable,
   captureStatus: () => {},
-  transcript: () => {},
 };
 export const bridge =
   window.karen ??

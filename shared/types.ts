@@ -86,6 +86,7 @@ export type DesktopEvent =
   | { type: "voice-speak"; text: string }
   | { type: "capture"; status: CaptureStatus }
   | { type: "transcript"; text: string }
+  | { type: "error"; message: string }
   | { type: "energy"; value: number }
   | { type: "wake" };
 export interface Snapshot {
@@ -123,8 +124,7 @@ export interface DesktopBridge {
   chooseVoiceRoot(): Promise<string | null>;
   captureSources(): Promise<CaptureSource[]>;
   captureScreen(id: string): Promise<ImageAttachment>;
-  armSystemAudio(): Promise<void>;
+  systemAudio(action: "start" | "finish"): Promise<void>;
   captureStatus(status: CaptureStatus): void;
-  transcript(text: string): void;
   event(callback: (event: DesktopEvent) => void): () => void;
 }

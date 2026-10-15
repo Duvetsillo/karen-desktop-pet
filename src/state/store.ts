@@ -58,6 +58,7 @@ export const useStore = create<Store>((set, get) => ({
     if (event.type === "settings") set({ settings: event.settings });
     else if (event.type === "capture") set({ capture: event.status });
     else if (event.type === "transcript") set({ transcript: event.text, tab: "Percepción" });
+    else if (event.type === "error") set({ error: event.message });
     else if (event.type === "connection") set({ connection: event.info });
     else if (event.type === "pet") get().transition(event.state, event.reason);
     else if (event.type === "wake") get().transition("HAPPY", "Despertando");

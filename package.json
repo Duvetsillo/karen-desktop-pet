@@ -1,6 +1,6 @@
 {
   "name": "karen-desktop-pet",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "description": "Mascota holográfica de escritorio para OpenClaw",
@@ -60,7 +60,9 @@
       "python/**",
       "package.json"
     ],
-    "asarUnpack": ["python/**"],
+    "asarUnpack": [
+      "python/**"
+    ],
     "win": {
       "target": "nsis",
       "icon": "assets/karen.ico",

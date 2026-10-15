@@ -9,7 +9,6 @@ import {
   globalShortcut,
   session,
   powerMonitor,
-  desktopCapturer,
   dialog,
 } from "electron";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -19,7 +18,8 @@ import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
-import { ScreenCapture, DisplayAudioGrant } from "./capture.js";
+import { ScreenCapture } from "./capture.js";
+import { LoopbackRecorder } from "./loopback.js";
 import {
   PET_STATES,
   type DesktopEvent,
@@ -45,7 +45,19 @@ let cursorTimer: ReturnType<typeof setInterval>,
 const diagnostics: Diagnostic[] = [];
 const screenCapture = new ScreenCapture();
 let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
-const displayGrant = new DisplayAudioGrant();
+let loopback: LoopbackRecorder;
+let captureOwner: number | undefined;
+let perceptionEpoch = 0;
+function stopPerception() {
+  perceptionEpoch++;
+  loopback?.cancel();
+  voice?.cancel();
+  captureOwner = undefined;
+  capture = { kind: capture.kind, phase: "idle" };
+  emit({ type: "voice-cancel" });
+  emit({ type: "capture", status: capture });
+}
+function hidePet() { stopPerception(); pet?.hide(); }
 const boundsPath = () => join(app.getPath("userData"), "window.json");
 function emit(event: DesktopEvent) {
   for (const w of [pet, panel])
@@ -142,12 +154,14 @@ function openSettings() {
   protect(panel);
   void loadWindow(panel, "settings");
   panel.on("closed", () => {
+    if (capture.kind === "system") stopPerception();
     panel = undefined;
   });
 }
 function contextMenu() {
   Menu.buildFromTemplate([
     { label: "Conversar y ajustar Karen", click: openSettings },
+    { label: "Detener voz y captura", click: stopPerception },
     { label: "Despertar / recuperar control · Ctrl+Alt+K", click: recover },
     { type: "separator" },
     {
@@ -175,7 +189,7 @@ function contextMenu() {
         updateSettings({ lowPower: item.checked });
       },
     },
-    { label: "Ocultar en la bandeja", click: () => pet?.hide() },
+    { label: "Ocultar en la bandeja", click: hidePet },
     { type: "separator" },
     {
       label: "Salir de Karen",
@@ -200,6 +214,7 @@ function protect(w: BrowserWindow) {
 function updateSettings(patch: Partial<Settings>) {
   const before = storage.settings;
   const saved = storage.saveSettings(patch);
+  if ((before.sttEnabled && !saved.sttEnabled) || before.voiceRoot !== saved.voiceRoot) stopPerception();
   pet?.setAlwaysOnTop(saved.alwaysOnTop, "floating");
   pet?.setOpacity(1);
   resizePet();
@@ -248,6 +263,11 @@ async function ready() {
     () => storage.settings,
     app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/recognize.py") : join(here, "../../python/recognize.py"),
   );
+  loopback = new LoopbackRecorder(
+    () => storage.settings.voiceRoot || process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
+    app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/loopback.py") : join(here, "../../python/loopback.py"),
+    value => emit({ type: "energy", value }),
+  );
   gateway = new OpenClawAdapter(storage, emit, log);
   const area = screen.getPrimaryDisplay().workArea;
   let bounds = {
@@ -283,7 +303,7 @@ async function ready() {
   pet.on("close", (event) => {
     if (!quitting) {
       event.preventDefault();
-      pet?.hide();
+      hidePet();
     }
   });
   pet.on("moved", () => {
@@ -314,10 +334,10 @@ async function ready() {
     if (pet) pet.setBounds(clampBounds(pet.getBounds()));
   });
   powerMonitor.on("suspend", () => {
-    voice.cancel();
-    emit({ type: "voice-cancel" });
+    stopPerception();
     gateway.disconnect();
   });
+  powerMonitor.on("lock-screen", stopPerception);
   powerMonitor.on("resume", () => {
     void gateway.connect();
     emit({ type: "wake" });
@@ -326,7 +346,7 @@ async function ready() {
     (contents, permission, callback, details) =>
       callback(
         [pet?.webContents.id, panel?.webContents.id].includes(contents.id) &&
-          (permission === "display-capture" || (permission === "media" &&
+          (permission === "speaker-selection" || (permission === "media" &&
           "mediaTypes" in details &&
           Boolean(
             details.mediaTypes?.length &&
@@ -337,16 +357,9 @@ async function ready() {
   session.defaultSession.setPermissionCheckHandler(
     (contents, permission, _origin, details) =>
       Boolean(contents && [pet?.webContents.id, panel?.webContents.id].includes(contents.id)) &&
-      (permission === "display-capture" || (permission === "media" && details.mediaType === "audio")),
+      (permission === "speaker-selection" || (permission === "media" && details.mediaType === "audio")),
   );
-  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-    const owner = [pet, panel].find(window => window && request.frame === window.webContents.mainFrame);
-    if (!displayGrant.take(owner?.webContents.id) || !request.audioRequested) { callback({}); return; }
-    void desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } }).then(sources => {
-      if (!sources[0]) { callback({}); return; }
-      callback({ video: sources[0], audio: "loopback" });
-    }).catch(() => callback({}));
-  });
+  session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => callback(null as never));
   handle(
     "snapshot",
     (): Snapshot => ({
@@ -376,7 +389,7 @@ async function ready() {
     return gateway.send(value, images as never);
   });
   handle("abort", () => {
-    voice.cancel();
+    stopPerception();
     return gateway.abort();
   });
   handle("listen", () => {
@@ -388,6 +401,7 @@ async function ready() {
   });
   handle("test-voice", () => {
     if (!storage.settings.voiceEnabled) throw new Error("Activa Leer las respuestas primero.");
+    if (capture.kind === "system" && capture.phase !== "idle") throw new Error("Finaliza el audio del PC antes de reproducir la voz de Karen.");
     pet?.webContents.send("desktop-event", { type: "voice-speak", text: "Hola. Soy Karen. Ya puedo hablar contigo." });
   });
   handle("choose-voice-root", async () => {
@@ -403,24 +417,40 @@ async function ready() {
     if (typeof id !== "string") throw new Error("Selecciona una fuente.");
     return screenCapture.snapshot(id);
   });
-  ipcMain.handle("arm-system-audio", (event) => {
+  ipcMain.handle("system-audio", async (event, action) => {
     if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame) throw new Error("Origen no autorizado.");
     if (!storage.settings.sttEnabled) throw new Error("Activa reconocimiento local y configura su carpeta en Voz.");
-    voice.cancel();
-    pet?.webContents.send("desktop-event", { type: "voice-cancel" });
-    displayGrant.arm(event.sender.id);
+    if (action === "finish") { if (captureOwner === event.sender.id) loopback.finish(); return; }
+    if (action !== "start") throw new Error("Acción inválida.");
+    if (capture.phase !== "idle" && capture.kind !== "voice") throw new Error("Finaliza primero la captura actual.");
+    stopPerception();
+    const epoch = ++perceptionEpoch;
+    captureOwner = event.sender.id;
+    const status = (phase: CaptureStatus["phase"]) => {
+      capture = { kind: "system", phase, startedAt: phase === "idle" ? undefined : Date.now() };
+      emit({ type: "capture", status: capture });
+      if (phase === "recording" || phase === "transcribing") emit({ type: "pet", state: phase === "recording" ? "LISTENING" : "THINKING", reason: phase === "recording" ? "Escuchando audio del PC" : "Transcribiendo localmente" });
+    };
+    const fail = (message: string) => { if (epoch === perceptionEpoch) { status("idle"); emit({ type: "error", message }); } };
+    await loopback.start(pcm => {
+      if (epoch !== perceptionEpoch) return;
+      status("transcribing");
+      void voice.transcribe(pcm).then(text => {
+        if (epoch !== perceptionEpoch) return;
+        if (text) emit({ type: "transcript", text });
+        emit({ type: "pet", state: text ? "HAPPY" : "CONFUSED", reason: text ? "Audio del PC listo para revisar" : "No se detectó voz" });
+      }).catch(() => fail("No se pudo transcribir el audio del PC.")).finally(() => { if (epoch === perceptionEpoch) status("idle"); });
+    }, fail);
+    if (epoch === perceptionEpoch) status("recording");
   });
   ipcMain.on("capture-status", (event, status: CaptureStatus) => {
-    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "speaking"].includes(status.phase)) return;
+    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "speaking"].includes(status.phase)) return;
+    if (capture.kind === "system" && capture.phase !== "idle" && captureOwner !== event.sender.id) return;
     capture = { kind: status.kind, phase: status.phase, startedAt: status.phase === "idle" ? undefined : Date.now() };
     emit({ type: "capture", status: capture });
   });
-  ipcMain.on("transcript", (event, text) => {
-    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || typeof text !== "string") return;
-    emit({ type: "transcript", text: text.slice(0, 16000) });
-  });
   handle("open-settings", openSettings);
-  handle("hide", () => pet?.hide());
+  handle("hide", hidePet);
   handle("show", recover);
   handle("context-menu", contextMenu);
   handle("synthesize", (text) => voice.synthesize(text as string));
@@ -493,6 +523,7 @@ else {
   app.on("before-quit", () => {
     quitting = true;
     voice?.cancel();
+    loopback?.cancel();
     gateway?.disconnect(false);
     clearInterval(cursorTimer);
     clearTimeout(saveTimer);

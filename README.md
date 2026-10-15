@@ -48,6 +48,9 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - Pupilas independientes, cejas y ojos asimétricos hacen más visibles la mirada y las expresiones.
 - El modo de bajo consumo y el reposo limitan el renderizado a 15 FPS.
 - La boca sigue el audio real mediante Web Audio, no una animación de habla falsa.
+- **Voz:** prueba la salida de Windows y configura dictado local con tus propios recursos.
+- **Percepción:** transcribe audio del PC por WASAPI y revisa capturas antes de enviarlas al modelo con visión.
+- [Configurar micrófono, audio del PC y pantalla](docs/PERCEPTION.md).
 
 ## Servidor Linux / Docker
 

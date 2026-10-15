@@ -174,13 +174,13 @@ export class AudioDirector {
       }
     }
   }
-  async toggleListening(kind: "microphone" | "system" = "microphone") {
+  async toggleListening() {
     if (this.recording) {
       if (this.recorder?.state === "recording") this.recorder.stop();
       return;
     }
     this.cancel();
-    this.kind = kind;
+    this.kind = "microphone";
     const generation = this.generation;
     this.stopRecording = false;
     if (!useStore.getState().settings.sttEnabled) {
@@ -190,8 +190,7 @@ export class AudioDirector {
     this.detector?.pause();
     try {
       const settings = useStore.getState().settings;
-      if (kind === "system") await bridge.armSystemAudio();
-      const stream = kind === "system" ? await navigator.mediaDevices.getDisplayMedia({ audio: true, video: { frameRate: 1 } }) : await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: settings.inputDevice
             ? { exact: settings.inputDevice }
@@ -202,8 +201,6 @@ export class AudioDirector {
         },
         video: false,
       });
-      // Loopback is audio-only after permission; no frames are retained or sent.
-      if (kind === "system") stream.getVideoTracks().forEach(track => track.stop());
       if (!stream.getAudioTracks().length) { stream.getTracks().forEach(track => track.stop()); throw new Error("Windows no entregó audio del sistema."); }
       if (generation !== this.generation) {
         stream.getTracks().forEach((t) => t.stop());
@@ -217,7 +214,7 @@ export class AudioDirector {
       const chunks: Blob[] = [];
       this.speechSeen = false;
       this.silenceAt = performance.now();
-      this.recorder = new MediaRecorder(stream);
+      this.recorder = new MediaRecorder(new MediaStream(stream.getAudioTracks()));
       const recorder = this.recorder;
       this.recording = true;
       this.recorder.ondataavailable = (e) => {
@@ -281,10 +278,7 @@ export class AudioDirector {
         useStore.getState().transition("CONFUSED", "No se detectó voz");
         return;
       }
-      if (this.kind === "system") {
-        bridge.transcript(text);
-        useStore.getState().transition("HAPPY", "Audio del PC transcrito. Revísalo antes de enviar.");
-      } else await bridge.send(text);
+      await bridge.send(text);
     } catch (e) {
       if (generation === this.generation) {
         report(e);
