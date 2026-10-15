@@ -19,7 +19,7 @@ import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
-import { ScreenCapture } from "./capture.js";
+import { ScreenCapture, DisplayAudioGrant } from "./capture.js";
 import {
   PET_STATES,
   type DesktopEvent,
@@ -45,7 +45,7 @@ let cursorTimer: ReturnType<typeof setInterval>,
 const diagnostics: Diagnostic[] = [];
 const screenCapture = new ScreenCapture();
 let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
-let displayGrant: { owner: number; expires: number } | undefined;
+const displayGrant = new DisplayAudioGrant();
 const boundsPath = () => join(app.getPath("userData"), "window.json");
 function emit(event: DesktopEvent) {
   for (const w of [pet, panel])
@@ -246,7 +246,7 @@ async function ready() {
   voice = new NativeVoice(
     process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
     () => storage.settings,
-    join(here, "../../python/recognize.py"),
+    app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/recognize.py") : join(here, "../../python/recognize.py"),
   );
   gateway = new OpenClawAdapter(storage, emit, log);
   const area = screen.getPrimaryDisplay().workArea;
@@ -340,10 +340,8 @@ async function ready() {
       (permission === "display-capture" || (permission === "media" && details.mediaType === "audio")),
   );
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-    const grant = displayGrant;
-    displayGrant = undefined;
-    const owner = [pet, panel].find(window => window?.webContents.id === grant?.owner);
-    if (!grant || grant.expires < Date.now() || request.frame !== owner?.webContents.mainFrame || !request.audioRequested) { callback({}); return; }
+    const owner = [pet, panel].find(window => window && request.frame === window.webContents.mainFrame);
+    if (!displayGrant.take(owner?.webContents.id) || !request.audioRequested) { callback({}); return; }
     void desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } }).then(sources => {
       if (!sources[0]) { callback({}); return; }
       callback({ video: sources[0], audio: "loopback" });
@@ -384,6 +382,8 @@ async function ready() {
   handle("listen", () => {
     if (!storage.settings.sttEnabled)
       throw new Error("Activa el reconocimiento local en Voz.");
+    if (capture.kind === "system" && capture.phase !== "idle") throw new Error("Finaliza primero el audio del PC.");
+    voice.cancel();
     pet?.webContents.send("desktop-event", { type: "voice-listen" });
   });
   handle("test-voice", () => {
@@ -408,7 +408,7 @@ async function ready() {
     if (!storage.settings.sttEnabled) throw new Error("Activa reconocimiento local y configura su carpeta en Voz.");
     voice.cancel();
     pet?.webContents.send("desktop-event", { type: "voice-cancel" });
-    displayGrant = { owner: event.sender.id, expires: Date.now() + 10000 };
+    displayGrant.arm(event.sender.id);
   });
   ipcMain.on("capture-status", (event, status: CaptureStatus) => {
     if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "speaking"].includes(status.phase)) return;

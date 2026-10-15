@@ -1,6 +1,16 @@
 import { desktopCapturer } from "electron";
 import type { CaptureSource, ImageAttachment } from "../shared/types.js";
 
+export class DisplayAudioGrant {
+  private grant?: { owner: number; expires: number };
+  arm(owner: number, now = Date.now()) { this.grant = { owner, expires: now + 10000 }; }
+  take(owner: number | undefined, now = Date.now()) {
+    const grant = this.grant;
+    this.grant = undefined;
+    return Boolean(grant && grant.owner === owner && grant.expires > now);
+  }
+}
+
 export class ScreenCapture {
   private choices = new Map<string, number>();
   async sources(): Promise<CaptureSource[]> {

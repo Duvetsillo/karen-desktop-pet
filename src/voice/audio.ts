@@ -23,7 +23,6 @@ export class AudioDirector {
   private url?: string;
   private stream?: MediaStream;
   private recorder?: MediaRecorder;
-  private chunks: Blob[] = [];
   private generation = 0;
   private limit?: ReturnType<typeof setTimeout>;
   private detector?: WakeWordDetector;
@@ -236,6 +235,7 @@ export class AudioDirector {
         if (this.recorder?.state === "recording") this.recorder.stop();
       }, 60000);
     } catch (e) {
+      if (generation !== this.generation) return;
       this.cleanup();
       this.detector?.resume();
       report(e);
@@ -246,7 +246,7 @@ export class AudioDirector {
     if (this.stopRecording || generation !== this.generation) return;
     this.recording = false;
     this.cleanup();
-    if (!this.speechSeen || blob.size < 100) { useStore.getState().transition("CONFUSED", "No se detectó audio con voz"); this.detector?.resume(); return; }
+    if (blob.size < 100) { useStore.getState().transition("CONFUSED", "No se detectó audio con voz"); this.detector?.resume(); return; }
     this.processing = true;
     this.status("transcribing");
     useStore.getState().transition("THINKING", "Transcribiendo en este equipo");

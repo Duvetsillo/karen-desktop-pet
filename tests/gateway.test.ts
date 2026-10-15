@@ -156,6 +156,11 @@ async function setup() {
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it("envía capturas como adjuntos reales del protocolo", async () => {
+    const t = await setup();
+    await t.adapter.send("Describe esta imagen", [{ type: "image", mimeType: "image/png", fileName: "capture.png", content: "c3ludGhldGlj" }]);
+    expect(t.requests.find(request => request.method === "chat.send")?.params.attachments).toEqual([{ type: "image", mimeType: "image/png", fileName: "karen-screen.png", content: "c3ludGhldGlj" }]);
+  });
   it("firma el reto, autentica y conserva permisos de conversación", async () => {
     const t = await setup();
     expect(t.signatureValid).toBe(true);

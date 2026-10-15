@@ -417,6 +417,15 @@ code {
   gap: 8px;
   margin-top: 14px;
 }
+.capture-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; background: #243d48; color: #e0faff; border: 1px solid #8be4f355; border-radius: 12px; font-size: 12px; }
+.capture-status span { display: flex; align-items: center; gap: 8px; }
+.capture-status i { width: 7px; height: 7px; border-radius: 50%; background: #8be4f3; flex: none; }
+.capture-status button { min-height: 30px; padding: 3px 10px; }
+.desktop-pet > .capture-status { position: absolute; z-index: 5; top: 6%; left: 4%; right: 4%; padding: 6px 8px; font-size: 10px; }
+.capture-review { display: grid; gap: 12px; margin-top: 20px; }
+.capture-review label { font-size: 12px; color: #c4d2df; }
+.capture-review textarea { width: 100%; resize: vertical; padding: 12px; background: #141925; border: 1px solid #394152; border-radius: 10px; color: #edf9ff; font: inherit; font-size: 13px; line-height: 1.6; }
+.screen-preview { display: block; width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #394152; border-radius: 10px; background: #0a101b; }
 .size-presets button {
   flex: 1;
   min-height: 46px;

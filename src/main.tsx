@@ -35,6 +35,7 @@ import "./style.css";
 import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
 import { PET_SCALE } from "../shared/pet-layout";
+import { Perception, CaptureIndicator } from "./Perception";
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -254,6 +255,7 @@ const tabs: { name: string; icon: LucideIcon }[] = [
   { name: "Comportamiento", icon: SlidersHorizontal },
   { name: "OpenClaw", icon: Radio },
   { name: "Voz", icon: AudioLines },
+  { name: "Percepción", icon: Monitor },
   { name: "Sistema", icon: Monitor },
   { name: "Diagnóstico", icon: Activity },
 ];
@@ -263,6 +265,7 @@ const subtitles: Record<string, string> = {
   Comportamiento: "Encuentra su ritmo en tu escritorio.",
   OpenClaw: "Tu asistente existente, conectado de forma segura.",
   Voz: "Escuchar, responder y dar vida a cada palabra.",
+  Percepción: "Audio y pantalla, cuando tú decidas compartirlos.",
   Sistema: "Un pequeño espacio en Windows.",
   Diagnóstico: "Lo que está ocurriendo, sin secretos.",
 };
@@ -326,6 +329,7 @@ function SettingsApp() {
           </div>
         )}
         <ErrorBanner />
+        <CaptureIndicator />
         <div
           className={`page-body ${tab === "Diagnóstico" ? "diagnostics-page" : ""}`}
         >
@@ -340,6 +344,8 @@ function SettingsApp() {
               <OpenClaw />
             ) : tab === "Voz" ? (
               <Voice />
+            ) : tab === "Percepción" ? (
+              <Perception />
             ) : tab === "Sistema" ? (
               <System />
             ) : (
@@ -816,6 +822,7 @@ function Voice() {
           value={s.voiceEnabled}
           onChange={(voiceEnabled) => void patch({ voiceEnabled })}
         />
+        <button disabled={runtime !== "desktop" || !s.voiceEnabled} onClick={() => void action(() => bridge.testVoice())}>Probar voz de Karen</button>
         <div className="input-field">
           <label htmlFor="tts">Motor de voz</label>
           <select
@@ -863,12 +870,15 @@ function Voice() {
         </button>
       </Group>
       <Group title="Escucharte, cuando tú decidas">
+        <p className="quiet-note">Recursos: {s.voiceRoot || "Directorio de voz de la aplicación / KAREN_PROJECT_ROOT"}</p>
+        <button disabled={runtime !== "desktop"} onClick={() => void action(async () => { await bridge.chooseVoiceRoot(); setHealth(await bridge.voiceHealth()); })}>Elegir carpeta de reconocimiento</button>
         <Toggle
           label="Reconocimiento local de voz"
           description="Se activa con el botón de micrófono. Usa faster-whisper de Karen."
           value={s.sttEnabled}
           onChange={(sttEnabled) => void patch({ sttEnabled })}
         />
+        <button disabled={runtime !== "desktop" || !s.sttEnabled} onClick={() => void action(() => bridge.listen())}>Iniciar o finalizar micrófono</button>
         <div className="input-field">
           <label htmlFor="input">Micrófono</label>
           <select
@@ -1094,7 +1104,7 @@ function PetApp() {
         silhouette ||
           Boolean(
             target?.closest(
-              ".pet-bubble,.pet-toolbar,.pet-composer,.pet-error",
+              ".pet-bubble,.pet-toolbar,.pet-composer,.pet-error,.capture-status",
             ),
           ),
       );
@@ -1119,6 +1129,7 @@ function PetApp() {
       }}
     >
       <PetRenderer />
+      <CaptureIndicator />
       {s.bubbles && bubble && last && !compose && (
         <div
           className="pet-bubble"
@@ -1249,15 +1260,18 @@ function Root() {
     let alive = true;
     let connectionSeen = false;
     let settingsSeen = false;
+    let captureSeen = false;
     const off = bridge.event((e) => {
       if (e.type === "connection") connectionSeen = true;
       if (e.type === "settings") settingsSeen = true;
+      if (e.type === "capture") captureSeen = true;
       useStore.getState().event(e);
       if (
         e.type === "chat" &&
         e.final &&
         e.message.role === "assistant" &&
         audio &&
+        useStore.getState().capture.phase === "idle" &&
         !spoken.has(e.message.id)
       ) {
         spoken.add(e.message.id);
@@ -1265,6 +1279,7 @@ function Root() {
       }
       if (e.type === "voice-cancel") audio?.cancel();
       if (e.type === "voice-listen") void audio?.toggleListening();
+      if (e.type === "voice-speak") void audio?.speak(e.text);
       if (e.type === "settings" && !e.settings.voiceEnabled) audio?.cancel();
     });
     void bridge
@@ -1288,6 +1303,7 @@ function Root() {
               snapshot.runtime || (snapshot.native ? "desktop" : "preview"),
             hasCredential: snapshot.hasCredential,
             ready: true,
+            capture: captureSeen ? useStore.getState().capture : snapshot.capture || { kind: "microphone", phase: "idle" },
           });
       })
       .catch(report);

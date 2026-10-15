@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:native": "node scripts/native-smoke.cjs",
     "test:appearance": "node scripts/appearance-smoke.cjs",
+    "test:perception": "node scripts/perception-smoke.cjs",
     "probe": "tsx scripts/probe.ts",
     "start:server": "node dist-electron/server/index.js",
     "dev:server": "tsx server/index.ts",
@@ -59,6 +60,7 @@
       "python/**",
       "package.json"
     ],
+    "asarUnpack": ["python/**"],
     "win": {
       "target": "nsis",
       "icon": "assets/karen.ico",
