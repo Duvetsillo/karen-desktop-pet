@@ -393,7 +393,8 @@ async function ready() {
     return gateway.send(value, images as never);
   });
   handle("abort", () => {
-    if (storage.settings.wakeWordEnabled) updateSettings({wakeWordEnabled:false});
+    // Stop the current reply/capture without changing the user's wake preference.
+    // Continuous listening has its own explicit pause control.
     stopPerception();
     return gateway.abort();
   });

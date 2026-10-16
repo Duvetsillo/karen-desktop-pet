@@ -7,6 +7,8 @@ export function CaptureIndicator() {
   const capture = useStore(state => state.capture);
   const localVoice = useStore(state => state.settings.ttsEngine === "local");
   const wake = useStore(state => state.wakeStatus);
+  const wakeEnabled = useStore(state => state.settings.wakeWordEnabled);
+  const canWake = useStore(state => state.native && state.settings.sttEnabled);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (capture.phase === "idle") return;
@@ -14,10 +16,23 @@ export function CaptureIndicator() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [capture.phase, capture.startedAt]);
-  if (capture.phase === "idle") return wake === 'listening' || wake === 'processing' ? <div className="capture-status" role="status">
-    <div className="capture-copy"><span><i />Karen/Caren · {wake === 'processing' ? 'comprobando llamada local' : 'escucha local activa'}</span></div>
-    <button onClick={() => void bridge.settings({wakeWordEnabled:false}).catch(report)}>Pausar escucha</button>
-  </div> : null;
+  if (capture.phase === "idle") {
+    if (!canWake) return null;
+    const failed = wakeEnabled && wake === 'error';
+    const label = !wakeEnabled ? 'Activación por voz pausada'
+      : failed ? 'Error de micrófono · revisa Voz'
+      : wake === 'processing' ? 'Comprobando llamada local'
+      : wake === 'listening' ? 'Di «Karen» para activarme'
+      : 'Preparando escucha local';
+    const toggle = async () => {
+      if (failed) await bridge.settings({wakeWordEnabled:false});
+      await bridge.settings({wakeWordEnabled:failed || !wakeEnabled});
+    };
+    return <div className="capture-status" role="group" aria-label="Activación por voz">
+      <div className="capture-copy"><span role="status"><i />{label}</span></div>
+      <button onClick={() => void toggle().catch(report)}>{failed ? 'Reintentar escucha' : wakeEnabled ? 'Pausar escucha' : 'Activar escucha'}</button>
+    </div>;
+  }
   const elapsed = Math.max(0, Math.floor((now - (capture.startedAt ?? now)) / 1000));
   const clock = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
   const source = capture.kind === "system" ? "Audio del PC" : capture.kind === "voice" ? "Voz de Karen" : "Micrófono";

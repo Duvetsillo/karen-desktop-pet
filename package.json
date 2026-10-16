@@ -1,6 +1,6 @@
 {
   "name": "karen-desktop-pet",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "private": true,
   "type": "module",
   "description": "Mascota holográfica de escritorio para OpenClaw",
@@ -19,6 +19,7 @@
     "test:voice:contracts": "python -m unittest discover -s tests -p test_voice_profile.py",
     "test:voice:native": "node scripts/shared-voice-smoke.cjs",
     "test:voice:replies": "node scripts/voice-replies-smoke.cjs",
+    "test:wake:controls": "node scripts/wake-controls-smoke.cjs",
     "probe": "tsx scripts/probe.ts",
     "start:server": "node dist-electron/server/index.js",
     "dev:server": "tsx server/index.ts",

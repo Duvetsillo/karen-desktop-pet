@@ -30,8 +30,11 @@ the name is retained; the name alone opens a ten-second command window. ASR can
 mishear words, especially poor synthetic audio, noise or distant microphones;
 this is not speaker authentication or guaranteed instantaneous wake detection.
 
-An indicator shows when the pet is listening locally. **Pausar escucha** closes
-it; the overall Stop action also disables continuous wake listening. Input is
+An indicator shows when the pet is listening locally. Say only **Karen**;
+**Caren** is an accepted spelling from recognition, not a second required word.
+**Pausar escucha** closes the microphone; **Activar escucha** restores it.
+**Detener** cancels the current response or capture while preserving the chosen
+wake setting. A microphone error stays visible with a retry control. Input is
 closed during the pet's playback, manual capture and PC-audio capture. Stale
 capture callbacks cannot reopen a paused detector. Nothing before activation
 is sent to OpenClaw or written to a recording file. Recognition keeps one CPU

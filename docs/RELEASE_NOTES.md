@@ -1,3 +1,9 @@
+Karen Desktop Pet 1.5.1 fixes Stop silently disabling addressed-name activation.
+Stopping a response or capture preserves the user's listening preference.
+An idle indicator now shows paused listening, offers an activation button and
+keeps microphone errors visible with a retry control. Say only "Karen";
+recognition also accepts the spelling "Caren". No slash is pronounced.
+
 Karen Desktop Pet 1.5.0 adds offline addressed-name activation for Karen/Caren,
 with explicit continuous-listening controls and a visible microphone indicator.
 It preserves a command after the name and opens a ten-second command window
