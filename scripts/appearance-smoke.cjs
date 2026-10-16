@@ -41,6 +41,16 @@ const path = require("node:path");
     await panel.getByRole("button", { name: "Normal 100 %", exact: true }).click();
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).settings.scale, 1);
     await panel.evaluate(() => window.karen.settings({ animations: false, particles: false, cursorTracking: true }));
+    // Windows can pause a panel occluded by the always-on-top pet. Test the
+    // preview in its actual foreground usage scene instead of a hidden frame.
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes("view=pet")).hide();
+      const settings = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes("view=settings"));
+      settings.show();
+      settings.focus();
+    });
+    await panel.bringToFront();
+    assert.equal(await panel.evaluate(() => document.hidden), false);
     // Exercise real browser pointer events in the live preview. The native pet
     // continues reading the OS cursor, which browser automation does not move.
     const preview = panel.locator(".preview-window canvas");
