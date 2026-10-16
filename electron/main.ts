@@ -417,7 +417,8 @@ async function ready() {
     const root = result.filePaths[0];
     const hasStt = existsSync(join(root, "voice-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/faster-whisper-small/model.bin"));
     const hasVoice = existsSync(join(root, "expressive-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/active-voice.json"));
-    if (!hasStt && !hasVoice) throw new Error("La carpeta necesita recursos de reconocimiento o un perfil de voz original compartida.");
+    const hasFast = existsSync(join(root,'voice-runtime/Scripts/python.exe')) && existsSync(join(root,'voice-models/kokoro-v1.0.onnx')) && existsSync(join(root,'voice-models/voices-v1.0.bin'));
+    if (!hasStt && !hasVoice && !hasFast) throw new Error("La carpeta necesita recursos de reconocimiento, Kokoro o un perfil de voz original compartida.");
     updateSettings({ voiceRoot: root });
     return root;
   });
@@ -543,7 +544,7 @@ else {
   app.on("window-all-closed", () => {});
   app.on("before-quit", () => {
     quitting = true;
-    voice?.cancel();
+    voice?.dispose();
     loopback?.cancel();
     gateway?.disconnect(false);
     clearInterval(cursorTimer);

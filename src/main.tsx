@@ -843,12 +843,14 @@ function Voice() {
           >
             <option value="system">Voz instalada en Windows</option>
             <option value="local">Voz original compartida de Karen</option>
+            <option value="fast">Rápida local · Kokoro (otro timbre)</option>
           </select>
         </div>
         {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
+        {s.ttsEngine === 'fast' && <p className="quiet-note">Prioriza rapidez con Kokoro en CPU. Usa otro timbre fijo; no es la referencia original de WhatsApp. Requiere tus modelos locales de Kokoro.</p>}
         <div className="input-field">
           <label htmlFor="voice-style">Estilo de la voz original</label>
-          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine !== 'local'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
+          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine === 'system'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
             <option value="serene">Serena · madura y pausada</option>
             <option value="warm">Cercana · cálida</option>
             <option value="serious">Seria · sobria</option>

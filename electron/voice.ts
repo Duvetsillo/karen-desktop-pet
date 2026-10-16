@@ -5,24 +5,31 @@ import { randomBytes } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import type { Settings } from "../shared/types.js";
 import { LocalRecognizer } from './recognizer.js';
+import { FastVoice } from './fast-voice.js';
 export class NativeVoice {
   private recognizer: LocalRecognizer;
   private controller?: AbortController;
   private child?: ChildProcess;
   private preparing?: Promise<void>;
+  private fast: FastVoice;
   constructor(
     private defaultRoot: string,
     private settings: () => Settings,
     private worker?: string,
     private serviceWorker?: string,
-  ) { this.recognizer = new LocalRecognizer(worker); }
+  ) {
+    this.recognizer = new LocalRecognizer(worker);
+    this.fast = new FastVoice(join(serviceWorker ? dirname(serviceWorker) : join(this.defaultRoot, 'desktop-pet/python'), 'fast_voice.py'));
+  }
   private get root() { return resolve(this.settings().voiceRoot || this.defaultRoot); }
   cancelTranscription() { this.recognizer.cancelActive(); }
+  dispose() {this.cancel();this.fast.close();this.recognizer.cancel();}
   cancel() {
     this.recognizer.cancelActive();
     this.cancelSynthesis();
   }
   cancelSynthesis() {
+    this.fast.cancelActive();
     this.controller?.abort();
     this.child?.kill();
     this.controller = undefined;
@@ -115,6 +122,10 @@ export class NativeVoice {
       existsSync(
         join(this.root, "voice-models", "faster-whisper-small", "model.bin"),
       );
+    if (this.settings().ttsEngine === 'fast') {
+      const found = ['voice-runtime/Scripts/python.exe','voice-models/kokoro-v1.0.onnx','voice-models/voices-v1.0.bin'].every(file=>existsSync(join(this.root,file)));
+      return `Kokoro rápido: ${found ? 'archivos encontrados; se verifica al reproducir' : 'faltan sus recursos locales'}. Usa otro timbre fijo, distinto de la voz original. STT: ${stt ? 'archivos encontrados' : 'sin configurar'}.`;
+    }
     let local = "Voz original sin configurar; elige su carpeta de recursos en Voz";
     try {
       const { profile, phase } = await this.sharedService(new AbortController().signal, false);
@@ -180,6 +191,7 @@ export class NativeVoice {
     this.cancel();
     if (typeof text !== "string" || !text.trim() || text.length > 4096)
       throw new Error("Texto de voz inválido (máximo 4096 caracteres).");
+    if (this.settings().ttsEngine === 'fast') return this.fast.synthesize(this.root,text,this.settings().voiceStyle);
     if (this.settings().ttsEngine === "local") {
       const controller = new AbortController();
       this.controller = controller;

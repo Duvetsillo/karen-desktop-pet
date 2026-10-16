@@ -1,5 +1,19 @@
 # One original Karen voice
 
+## 1.5.3: optional fast local voice
+
+Select **Rápida local · Kokoro (otro timbre)** in Voice to prioritize latency.
+This is a distinct fixed synthetic timbre, not a clone of the Qwen reference.
+The original shared voice stays selectable and WhatsApp is unchanged. There is
+no automatic fallback or silent migration between voices.
+
+Bring your own `voice-runtime` Python environment with `kokoro-onnx` and
+`soundfile`, `voice-models/kokoro-v1.0.onnx`, `voice-models/voices-v1.0.bin`, and
+FFmpeg with Rubber Band for delivery presets. The application downloads none
+of these. A CPU worker reuses the model and exits after two idle minutes.
+No GPU, API key or external speech service is required. The same delivery
+presets and real energy-driven mouth animation work with this option.
+
 ## 1.5.2: first audio and layout
 
 The pet starts with a short natural phrase (at most 64 characters), then prepares

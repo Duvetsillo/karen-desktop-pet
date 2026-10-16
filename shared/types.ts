@@ -34,7 +34,7 @@ export interface Settings {
   authSource: "local" | "stored";
   bubbles: boolean;
   voiceEnabled: boolean;
-  ttsEngine: "system" | "local";
+  ttsEngine: "system" | "local" | "fast";
   voiceStyle: VoiceStyle;
   wakeWordEnabled: boolean;
   inputDevice: string;
