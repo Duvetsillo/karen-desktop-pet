@@ -447,7 +447,7 @@ async function ready() {
     if (epoch === perceptionEpoch) status("recording");
   });
   ipcMain.on("capture-status", (event, status: CaptureStatus) => {
-    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "speaking"].includes(status.phase)) return;
+    if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "preparing", "speaking"].includes(status.phase)) return;
     if (capture.kind === "system" && capture.phase !== "idle" && captureOwner !== event.sender.id) return;
     capture = { kind: status.kind, phase: status.phase, startedAt: status.phase === "idle" ? undefined : Date.now() };
     emit({ type: "capture", status: capture });

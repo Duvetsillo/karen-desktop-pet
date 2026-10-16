@@ -1,3 +1,17 @@
+Karen Desktop Pet 1.4.1 fixes automatic spoken replies that arrive before
+transcription finishes or while an earlier reply is playing. Final replies wait
+in a bounded queue and are read once. Stopping capture or disabling voice clears
+the queue. Aborted and failed Gateway turns are not read as new replies.
+Replies play in short phrases instead of waiting for the entire synthesis.
+An explicit preparing-audio status remains visible while the original model
+generates a phrase. This is sequential phrase playback, not streaming inference;
+the local CUDA engine can still take tens of seconds or longer under load.
+The mouth, antennae, glow and gentle body movement follow real audio energy,
+with reduced-motion support. Late Gateway completion events no longer replace
+the speaking animation. Voice diagnostics refresh when the resource folder
+changes, report authentication errors and distinguish an idle service from
+missing resources. No voice identity, model or credentials are changed.
+
 Karen Desktop Pet 1.4 adds an optional shared original voice. The native pet,
 Python desktop client and OpenClaw's local CLI TTS provider can use one fixed
 reference and authenticated service. Profile IDs and reference hashes are

@@ -47,6 +47,16 @@ inference. After two idle minutes it releases model GPU memory; a bounded RAM
 cache can reuse recent audio. Text and audio are not written to logs or disk.
 The pet's default remains Windows TTS until its operator chooses shared voice.
 
+Version 1.4.1 keeps final replies that arrive during transcription or playback
+in a bounded queue (eight pending replies), rather than dropping them. It reads
+up to 4096 characters per reply in short phrases, omitting code blocks and URLs.
+Each phrase finishes playback before the next one starts. The visible status
+distinguishes preparing audio from speaking; the mouth, antennae, glow and body
+react to actual playback energy. Stop, a new recording, or disabling voice clears
+pending replies. An interrupted or failed Gateway turn is not spoken.
+Diagnostics refresh when the selected folder changes; choose the resource folder
+in Voice settings rather than setting an environment variable unnecessarily.
+
 ## Karen Local and WhatsApp
 
 Python desktop clients can import `shared_voice_client.synthesize(root, text,
@@ -96,8 +106,8 @@ Reference-code continuation on the tested Turing GPU produced invalid audio.
 The supported runtime uses the fixed speaker embedding, FP32, eager attention
 and a CPU audio codec. Keeping the codec off the GPU leaves VRAM for the pet
 and other Windows applications. Do not switch conditioning or precision without repeating real
-audio verification. There is no streaming playback yet; the client waits for
-the generated utterance, and latency depends on text length and hardware.
+audio verification. There is no streaming inference yet; the client waits for
+each generated phrase, and latency depends on text length and hardware.
 
 Primary references: [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS),
 [OpenClaw personas](https://docs.openclaw.ai/tools/tts/personas), and

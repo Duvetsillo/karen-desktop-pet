@@ -71,13 +71,13 @@ export interface ImageAttachment {
 export interface CaptureSource { id: string; name: string; }
 export interface CaptureStatus {
   kind: "microphone" | "system" | "voice";
-  phase: "idle" | "recording" | "transcribing" | "speaking";
+  phase: "idle" | "recording" | "transcribing" | "preparing" | "speaking";
   startedAt?: number;
 }
 export type DesktopEvent =
   | { type: "connection"; info: ConnectionInfo }
   | { type: "pet"; state: PetState; reason?: string }
-  | { type: "chat"; message: ChatMessage; final: boolean }
+  | { type: "chat"; message: ChatMessage; final: boolean; speak?: boolean }
   | { type: "diagnostic"; item: Diagnostic }
   | { type: "settings"; settings: Settings }
   | { type: "cursor"; x: number; y: number }

@@ -1,5 +1,7 @@
 import { bridge } from "../native";
 import { useStore, signals, report } from "../state/store";
+import { speechPhrases } from "./replies";
+import type { CaptureStatus } from "../../shared/types";
 
 export interface TtsEngine {
   synthesize(text: string, signal: AbortSignal): Promise<ArrayBuffer>;
@@ -20,6 +22,8 @@ export class AudioDirector {
   private analyser?: AnalyserNode;
   private frame = 0;
   private audio?: HTMLAudioElement;
+  private speechController?: AbortController;
+  private finishPlayback?: () => void;
   private url?: string;
   private stream?: MediaStream;
   private recorder?: MediaRecorder;
@@ -33,10 +37,12 @@ export class AudioDirector {
   private silenceAt = 0;
   private active = false;
   private kind: "microphone" | "system" | "voice" = "microphone";
-  private status(phase: "idle" | "recording" | "transcribing" | "speaking") {
+  private status(phase: CaptureStatus["phase"]) {
     if (phase === "idle" && !this.active) return;
     this.active = phase !== "idle";
-    bridge.captureStatus({ kind: this.kind, phase });
+    const status = { kind: this.kind, phase };
+    useStore.getState().event({ type: "capture", status });
+    bridge.captureStatus(status);
   }
   constructor(
     private tts: TtsEngine = {
@@ -85,13 +91,15 @@ export class AudioDirector {
     };
     this.frame = requestAnimationFrame(tick);
   }
-  private cleanup() {
+  private cleanup(finish = true) {
     cancelAnimationFrame(this.frame);
     clearTimeout(this.limit);
     this.analyser = undefined;
     signals.energy = 0;
     bridge.energy(0);
     this.audio?.pause();
+    this.finishPlayback?.();
+    this.finishPlayback = undefined;
     this.audio = undefined;
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = undefined;
@@ -99,10 +107,12 @@ export class AudioDirector {
     this.stream = undefined;
     if (this.context) void this.context.close().catch(() => {});
     this.context = undefined;
-    this.status("idle");
+    if (finish) this.status("idle");
   }
   cancel() {
     this.generation++;
+    this.speechController?.abort();
+    this.speechController = undefined;
     this.stopRecording = true;
     this.processing = false;
     if (this.recorder?.state === "recording") this.recorder.stop();
@@ -117,61 +127,79 @@ export class AudioDirector {
     const generation = this.generation;
     const settings = useStore.getState().settings;
     if (!settings.voiceEnabled) return;
+    const phrases = speechPhrases(text);
+    if (!phrases.length) return;
     this.kind = "voice";
+    this.processing = true;
+    const controller = new AbortController();
+    this.speechController = controller;
     this.detector?.pause();
-    useStore.getState().transition("THINKING", "Preparando voz");
     try {
-      const bytes = await this.tts.synthesize(
-        text.slice(0, 4096),
-        new AbortController().signal,
-      );
-      if (generation !== this.generation) return;
-      this.context = new AudioContext();
-      const outputContext = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
-      if (settings.outputDevice) {
-        if (!outputContext.setSinkId) throw new Error("Este motor no permite elegir la salida de audio.");
-        await outputContext.setSinkId(settings.outputDevice);
+      for (const phrase of phrases) {
+        if (generation !== this.generation) return;
+        useStore.getState().transition("THINKING", "Preparando voz original");
+        this.status("preparing");
+        const bytes = await this.tts.synthesize(
+          phrase,
+          controller.signal,
+        );
+        if (generation !== this.generation) return;
+        this.context = new AudioContext();
+        const outputContext = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+        if (settings.outputDevice) {
+          if (!outputContext.setSinkId) throw new Error("Este motor no permite elegir la salida de audio.");
+          await outputContext.setSinkId(settings.outputDevice);
+        }
+        if (generation !== this.generation) return;
+        this.analyser = this.context.createAnalyser();
+        this.analyser.fftSize = 512;
+        this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        this.audio = new Audio(this.url);
+        this.audio.volume = settings.volume;
+        const output = this.audio as HTMLAudioElement & {
+          setSinkId?: (id: string) => Promise<void>;
+        };
+        if (settings.outputDevice && output.setSinkId)
+          await output.setSinkId(settings.outputDevice);
+        if (generation !== this.generation) return;
+        const source = this.context.createMediaElementSource(this.audio);
+        source.connect(this.analyser);
+        this.analyser.connect(this.context.destination);
+        const playback = new Promise<void>((resolve, reject) => {
+          this.finishPlayback = resolve;
+          this.audio!.onended = () => { this.finishPlayback = undefined; resolve(); };
+          this.audio!.onerror = () => { this.finishPlayback = undefined; reject(new Error("No se pudo reproducir la voz. Revisa el dispositivo de salida.")); };
+        });
+        // The error handler can reject while play() itself is still pending.
+        void playback.catch(() => {});
+        await this.context.resume();
+        if (generation !== this.generation) return;
+        await this.audio.play();
+        if (generation !== this.generation) return;
+        useStore.getState().transition("SPEAKING");
+        this.status("speaking");
+        this.meter();
+        await playback;
+        if (generation !== this.generation) return;
+        // Keep ownership between phrases so another reply cannot overtake us.
+        this.cleanup(false);
       }
-      this.analyser = this.context.createAnalyser();
-      this.analyser.fftSize = 512;
-      this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
-      this.audio = new Audio(this.url);
-      this.audio.volume = settings.volume;
-      const output = this.audio as HTMLAudioElement & {
-        setSinkId?: (id: string) => Promise<void>;
-      };
-      if (settings.outputDevice && output.setSinkId)
-        await output.setSinkId(settings.outputDevice);
-      const source = this.context.createMediaElementSource(this.audio);
-      source.connect(this.analyser);
-      this.analyser.connect(this.context.destination);
-      this.audio.onended = () => {
+      if (generation === this.generation) {
+        this.processing = false;
         this.cleanup();
         this.detector?.resume();
         useStore.getState().transition("HAPPY", "Voz completada");
-      };
-      this.audio.onerror = () => {
-        this.cleanup();
-        this.detector?.resume();
-        report(
-          new Error(
-            "No se pudo reproducir la voz. Revisa el dispositivo de salida.",
-          ),
-        );
-        useStore.getState().transition("ERROR");
-      };
-      await this.context.resume();
-      await this.audio.play();
-      useStore.getState().transition("SPEAKING");
-      this.status("speaking");
-      this.meter();
+      }
     } catch (e) {
       if (generation === this.generation) {
+        this.processing = false;
         this.cleanup();
         this.detector?.resume();
         report(e);
         useStore.getState().transition("ERROR", "Motor de voz no disponible");
       }
+    } finally {
+      if (this.speechController === controller) this.speechController = undefined;
     }
   }
   async toggleListening() {

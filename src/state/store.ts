@@ -60,7 +60,11 @@ export const useStore = create<Store>((set, get) => ({
     else if (event.type === "transcript") set({ transcript: event.text, tab: "Percepción" });
     else if (event.type === "error") set({ error: event.message });
     else if (event.type === "connection") set({ connection: event.info });
-    else if (event.type === "pet") get().transition(event.state, event.reason);
+    else if (event.type === "pet") {
+      const capture = get().capture;
+      // Gateway completion/tool events cannot replace the real playback state.
+      if (capture.kind !== "voice" || capture.phase === "idle") get().transition(event.state, event.reason);
+    }
     else if (event.type === "wake") get().transition("HAPPY", "Despertando");
     else if (event.type === "diagnostic")
       set((s) => ({ diagnostics: [...s.diagnostics.slice(-119), event.item] }));

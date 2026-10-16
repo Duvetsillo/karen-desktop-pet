@@ -182,6 +182,8 @@ export function PetRenderer({
           frameTime = 0;
         }
         const motion = s.animations && !reduced.matches;
+        const speaking = state === "SPEAKING";
+        const voiceEnergy = speaking ? Math.sqrt(Math.max(0, Math.min(1, signals.energy))) : 0;
         if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.5 * s.scale);
         const activity = motion ? s.activity : 0;
         let targetTilt =
@@ -193,7 +195,7 @@ export function PetRenderer({
                 ? 0.16
                 : 0;
         const gaze = gazeTarget(signals.cursor, s.cursorTracking && !sleeping);
-        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002;
+        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + (speaking ? Math.sin(t * 4) * voiceEnergy * 0.035 : 0);
         tilt = damp(tilt, motion ? targetTilt : 0, dt, 7);
         root.rotation = tilt;
         const bob =
@@ -215,7 +217,7 @@ export function PetRenderer({
         root.y = float;
         const breathe =
           1 + (motion ? Math.sin(t * (sleeping ? 1.2 : 2.3)) * 0.009 : 0);
-        const voicePulse = state === "SPEAKING" && motion ? signals.energy * 0.018 : 0;
+        const voicePulse = motion ? voiceEnergy * 0.028 : 0;
         root.scale.set(breathe - voicePulse, 2 - breathe + voicePulse);
         root.alpha = damp(
           root.alpha,
@@ -225,7 +227,7 @@ export function PetRenderer({
         );
         body.tint = state === "ERROR" ? 0xffceb3 : 0xffffff;
         halo.alpha =
-          (sleeping ? 0.08 : 0.22) * s.brightness * (s.nightMode ? 0.6 : 1);
+          (sleeping ? 0.08 : 0.22 + voiceEnergy * 0.07) * s.brightness * (s.nightMode ? 0.6 : 1);
         halo.tint = state === "ERROR" ? 0xffb473 : 0xffffff;
         shadow.scale.set(0.85 - float * 0.002, 0.85 - float * 0.002);
         shadow.alpha = 0.65 - float * 0.009;
@@ -239,7 +241,7 @@ export function PetRenderer({
                 : state === "CONFUSED"
                   ? -0.3
                   : 0) +
-            Math.sin(t * 1.7) * 0.04 * activity,
+            Math.sin(t * 1.7) * 0.04 * activity - (motion ? voiceEnergy * 0.1 : 0),
           dt,
           7,
         );
@@ -253,7 +255,7 @@ export function PetRenderer({
                 : state === "CONFUSED"
                   ? -0.13
                   : 0) -
-            Math.sin(t * 1.7 + 0.6) * 0.04 * activity,
+            Math.sin(t * 1.7 + 0.6) * 0.04 * activity + (motion ? voiceEnergy * 0.1 : 0),
           dt,
           7,
         );
@@ -293,7 +295,7 @@ export function PetRenderer({
         eyeR.scale.y = 0.7 * rightOpen;
         eyeL.rotation = damp(eyeL.rotation, state === "HAPPY" ? -0.1 : state === "CONFUSED" ? -0.08 : 0, dt, 12);
         eyeR.rotation = damp(eyeR.rotation, state === "HAPPY" ? 0.1 : 0, dt, 12);
-        mouth = damp(mouth, state === "SPEAKING" ? signals.energy : 0, dt, 22);
+        mouth = damp(mouth, voiceEnergy * (motion ? 1 : 0.35), dt, voiceEnergy > mouth ? 22 : 12);
         facial.clear();
         if (sleeping) {
           for (const x of [-44, 44])

@@ -31,6 +31,7 @@ import { bridge } from "./native";
 import { machine, signals, useStore, report } from "./state/store";
 import { PetRenderer } from "./pet/Renderer";
 import { AudioDirector } from "./voice/audio";
+import { VoiceReplies } from "./voice/replies";
 import "./style.css";
 import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
@@ -52,7 +53,7 @@ const labels: Record<PetState, string> = {
   DRAGGING: "En tus manos",
 };
 const audio = isPet ? new AudioDirector() : undefined;
-const spoken = new Set<string>();
+const replies = audio ? new VoiceReplies(text => audio.speak(text), () => ({ enabled: useStore.getState().settings.voiceEnabled, capture: useStore.getState().capture })) : undefined;
 async function action(operation: () => Promise<unknown>) {
   try {
     useStore.setState({ error: "" });
@@ -802,6 +803,11 @@ function Voice() {
       "Consulta los motores para comprobar su disponibilidad.",
     );
   useEffect(() => {
+    let alive = true;
+    if (runtime === "desktop") void bridge.voiceHealth().then(value => { if (alive) setHealth(value); }).catch(report);
+    return () => { alive = false; };
+  }, [s.voiceRoot, s.ttsEngine, runtime]);
+  useEffect(() => {
     void navigator.mediaDevices
       ?.enumerateDevices()
       .then(setDevices)
@@ -1271,19 +1277,15 @@ function Root() {
       useStore.getState().event(e);
       if (
         e.type === "chat" &&
-        e.final &&
-        e.message.role === "assistant" &&
-        audio &&
-        useStore.getState().capture.phase === "idle" &&
-        !spoken.has(e.message.id)
+        e.final && e.speak !== false
       ) {
-        spoken.add(e.message.id);
-        void audio.speak(e.message.text);
+        replies?.enqueue(e.message);
       }
-      if (e.type === "voice-cancel") audio?.cancel();
+      if (e.type === "capture" && e.status.phase === "idle") replies?.resume();
+      if (e.type === "voice-cancel") { replies?.clear(); audio?.cancel(); }
       if (e.type === "voice-listen") void audio?.toggleListening();
       if (e.type === "voice-speak") void audio?.speak(e.text);
-      if (e.type === "settings" && !e.settings.voiceEnabled) audio?.cancel();
+      if (e.type === "settings" && !e.settings.voiceEnabled) { replies?.clear(); audio?.cancel(); }
     });
     void bridge
       .snapshot()
@@ -1320,6 +1322,7 @@ function Root() {
       alive = false;
       off();
       clearInterval(timer);
+      replies?.clear();
       audio?.dispose();
     };
   }, []);

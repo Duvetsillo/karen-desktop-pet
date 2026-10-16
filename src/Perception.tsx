@@ -7,7 +7,7 @@ export function CaptureIndicator() {
   const capture = useStore(state => state.capture);
   if (capture.phase === "idle") return null;
   const source = capture.kind === "system" ? "Audio del PC" : capture.kind === "voice" ? "Voz de Karen" : "Micrófono";
-  return <div className="capture-status" role="status"><span><i />{source} · {capture.phase === "recording" ? "capturando" : capture.phase === "speaking" ? "hablando" : "transcribiendo"}</span><button onClick={() => void bridge.abort().catch(report)}>Detener</button></div>;
+  return <div className="capture-status" role="status"><span><i />{source} · {capture.phase === "recording" ? "capturando" : capture.phase === "speaking" ? "hablando" : capture.phase === "preparing" ? "preparando audio" : "transcribiendo"}</span><button onClick={() => void bridge.abort().catch(report)}>Detener</button></div>;
 }
 
 export function Perception() {

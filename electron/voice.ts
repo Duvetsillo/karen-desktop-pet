@@ -58,11 +58,12 @@ export class NativeVoice {
     const token = this.token(start);
     const check = async () => {
       const response = await this.speechRequest("/health", token, signal);
-      const value = await response.json() as { protocol?: number; profileId?: string; referenceSha256?: string };
+      const value = await response.json() as { protocol?: number; profileId?: string; referenceSha256?: string; phase?: string };
       if (value.protocol !== 2 || value.profileId !== profile.profileId || value.referenceSha256 !== profile.referenceSha256)
         throw new Error("El servicio tiene otro perfil. No se cambiará la voz de Karen.");
+      return value.phase;
     };
-    try { await check(); return { token, profile }; }
+    try { const phase = await check(); return { token, profile, phase }; }
     catch (error) {
       signal.throwIfAborted();
       // Only an unavailable transport can start a service; never replace a
@@ -80,7 +81,7 @@ export class NativeVoice {
     while (Date.now() < deadline) {
       signal.throwIfAborted();
       if (launchError) throw new Error("No se pudo iniciar el servicio de voz original.");
-      try { await check(); return { token, profile }; }
+      try { const phase = await check(); return { token, profile, phase }; }
       catch (error) { signal.throwIfAborted(); if (!(error instanceof TypeError)) throw error; }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
@@ -92,14 +93,22 @@ export class NativeVoice {
       existsSync(
         join(this.root, "voice-models", "faster-whisper-small", "model.bin"),
       );
-    let local = "Servicio expresivo no disponible";
+    let local = "Voz original sin configurar; elige su carpeta de recursos en Voz";
     try {
-      const { profile } = await this.sharedService(new AbortController().signal, false);
-      local = `Voz compartida ${profile.profileId}, autenticada y con referencia verificada`;
-    } catch {
-      try { local = `Perfil ${this.profile().profileId} configurado; el servicio se inicia al hablar`; } catch {}
+      const { profile, phase } = await this.sharedService(new AbortController().signal, false);
+      const state = phase === "loading" ? "; cargando modelo" : phase === "generating" ? "; generando audio, puede tardar" : phase === "error" ? "; la última síntesis falló" : "";
+      local = `Voz compartida ${profile.profileId}, autenticada y con referencia verificada${state}`;
+    } catch (error) {
+      try {
+        const profile = this.profile();
+        const installed = existsSync(join(this.root, "expressive-runtime", "Scripts", "python.exe"));
+        const tokenMissing = !existsSync(join(this.root, "voice-models", ".expressive-token"));
+        if (!installed) local = `Perfil ${profile.profileId} configurado; falta instalar el motor local`;
+        else if (error instanceof TypeError || tokenMissing) local = `Perfil ${profile.profileId} configurado; el servicio se inicia al hablar`;
+        else local = error instanceof Error ? error.message : "No se pudo verificar la voz original";
+      } catch {}
     }
-    return `${local}. STT local: ${stt ? "archivos encontrados; ejecutar una captura para verificar inferencia" : "configura KAREN_PROJECT_ROOT con los recursos de voz opcionales"}. TTS de Windows: disponible mediante System.Speech, se verifica al reproducir.`;
+    return `${local}. STT local: ${stt ? "archivos encontrados; ejecutar una captura para verificar inferencia" : "elige la carpeta con voice-runtime y el modelo de reconocimiento en Voz"}. TTS de Windows: se verifica al reproducir si eliges ese motor.`;
   }
   private run(
     command: string,

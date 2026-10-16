@@ -75,6 +75,7 @@ export function routeGatewayEvent(
             text: "OpenClaw no pudo completar la respuesta. Consulta su diagnóstico.",
           },
           final: true,
+          speak: false,
         },
       ];
     if (state === "aborted")
@@ -89,6 +90,7 @@ export function routeGatewayEvent(
             text: text || "Respuesta detenida.",
           },
           final: true,
+          speak: false,
         },
       ];
     if (state === "delta" || state === "final") {

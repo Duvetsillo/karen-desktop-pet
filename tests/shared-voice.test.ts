@@ -55,4 +55,15 @@ describe("voz compartida y fija", () => {
     voice.cancel();
     await expect(pending).rejects.toMatchObject({ name: "AbortError" });
   });
+  it("distingue el motor detenido de un rechazo de autenticación sin iniciarlo", async () => {
+    const voice = fixture();
+    mkdirSync(join(roots.at(-1)!, "expressive-runtime", "Scripts"), { recursive: true });
+    writeFileSync(join(roots.at(-1)!, "expressive-runtime", "Scripts", "python.exe"), "fixture-not-executable");
+    const fetcher = vi.fn().mockRejectedValueOnce(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", fetcher);
+    expect(await voice.health()).toContain("se inicia al hablar");
+    fetcher.mockResolvedValueOnce(new Response("Forbidden", { status: 403 }));
+    expect(await voice.health()).toContain("403");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });
