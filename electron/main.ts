@@ -449,7 +449,8 @@ async function ready() {
   ipcMain.on("capture-status", (event, status: CaptureStatus) => {
     if (![pet?.webContents.id, panel?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !status || !["microphone", "system", "voice"].includes(status.kind) || !["idle", "recording", "transcribing", "preparing", "speaking"].includes(status.phase)) return;
     if (capture.kind === "system" && capture.phase !== "idle" && captureOwner !== event.sender.id) return;
-    capture = { kind: status.kind, phase: status.phase, startedAt: status.phase === "idle" ? undefined : Date.now() };
+    const unchanged = capture.kind === status.kind && capture.phase === status.phase;
+    capture = { kind: status.kind, phase: status.phase, startedAt: status.phase === "idle" ? undefined : unchanged ? capture.startedAt ?? Date.now() : Date.now() };
     emit({ type: "capture", status: capture });
   });
   handle("open-settings", openSettings);

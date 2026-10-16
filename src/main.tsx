@@ -20,6 +20,7 @@ import {
   Moon,
   Zap,
   Volume2,
+  VolumeX,
   RotateCcw,
   Power,
   CircleHelp,
@@ -1087,7 +1088,9 @@ function PetApp() {
   const s = useStore((x) => x.settings),
     state = useStore((x) => x.state),
     messages = useStore((x) => x.messages),
-    connection = useStore((x) => x.connection);
+    connection = useStore((x) => x.connection),
+    capture = useStore((x) => x.capture),
+    native = useStore((x) => x.native);
   const [bubble, setBubble] = useState(false),
     [compose, setCompose] = useState(false),
     [text, setText] = useState("");
@@ -1132,6 +1135,7 @@ function PetApp() {
     <div
       ref={root}
       className="desktop-pet"
+      data-capturing={capture.phase !== "idle"}
       onContextMenu={(e) => {
         e.preventDefault();
         void action(() => bridge.contextMenu());
@@ -1200,9 +1204,28 @@ function PetApp() {
         <button
           title="Micrófono"
           aria-label="Iniciar o terminar voz"
+          aria-pressed={capture.kind === "microphone" && capture.phase === "recording"}
+          disabled={!native || !s.sttEnabled}
           onClick={() => void action(() => bridge.listen())}
         >
           <Mic size={16} />
+        </button>
+        <button
+          title={s.voiceEnabled ? "Silenciar respuestas habladas" : "Activar respuestas habladas"}
+          aria-label="Leer respuestas"
+          aria-pressed={s.voiceEnabled}
+          disabled={!native}
+          onClick={() => void patch({ voiceEnabled: !s.voiceEnabled })}
+        >
+          {s.voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+        </button>
+        <button
+          title="Repetir la última respuesta sin consultar al modelo"
+          aria-label="Repetir última respuesta"
+          disabled={!native || !s.voiceEnabled || !last || last.pending || capture.phase !== "idle"}
+          onClick={() => void action(async () => { if (last && audio) { replies?.clear(); await audio.speak(last.text); } })}
+        >
+          <RotateCcw size={15} />
         </button>
         <button
           title="Detener"

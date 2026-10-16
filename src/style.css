@@ -420,8 +420,18 @@ code {
 .capture-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; background: #243d48; color: #e0faff; border: 1px solid #8be4f355; border-radius: 12px; font-size: 12px; }
 .capture-status span { display: flex; align-items: center; gap: 8px; }
 .capture-status i { width: 7px; height: 7px; border-radius: 50%; background: #8be4f3; flex: none; }
+.capture-copy { min-width: 0; flex: 1; }
+.capture-copy > span { overflow-wrap: anywhere; }
+.capture-copy small { display: block; margin-top: 3px; color: #cae7ed; font-size: 11px; }
+.capture-clock { flex: none; color: #cae7ed; font-variant-numeric: tabular-nums; font-size: 11px; }
 .capture-status button { min-height: 30px; padding: 3px 10px; }
 .desktop-pet > .capture-status { position: absolute; z-index: 5; top: 6%; left: 4%; right: 4%; padding: 6px 8px; font-size: 10px; }
+@media (max-width: 260px) {
+  .desktop-pet > .capture-status { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
+  .desktop-pet .capture-copy { grid-column: 1 / -1; }
+  .desktop-pet .capture-copy small { display: none; }
+  .desktop-pet .capture-status button { min-height: 24px; font-size: 10px; }
+}
 .capture-review { display: grid; gap: 12px; margin-top: 20px; }
 .capture-review label { font-size: 12px; color: #c4d2df; }
 .capture-review textarea { width: 100%; resize: vertical; padding: 12px; background: #141925; border: 1px solid #394152; border-radius: 10px; color: #edf9ff; font: inherit; font-size: 13px; line-height: 1.6; }
@@ -870,11 +880,14 @@ kbd {
   padding: 4px;
   background: #172238ed;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 180ms var(--ease-out);
 }
 .desktop-pet:hover .pet-toolbar,
+.desktop-pet[data-capturing="true"] .pet-toolbar,
 .desktop-pet:focus-within .pet-toolbar {
   opacity: 1;
+  pointer-events: auto;
 }
 .pet-toolbar button {
   width: 29px;
@@ -889,6 +902,8 @@ kbd {
 .pet-toolbar button:hover {
   background: #344462;
 }
+.pet-toolbar button[aria-pressed="true"] { color: #a2e7ef; background: #263a50; }
+.pet-toolbar button:disabled { opacity: .4; }
 .pet-caption {
   position: absolute;
   bottom: 9%;

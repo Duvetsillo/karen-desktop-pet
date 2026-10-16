@@ -1,3 +1,13 @@
+Karen Desktop Pet 1.4.2 adds quick voice controls on the pet. Toggle spoken
+replies or replay the last completed reply without another Gateway/model request.
+The microphone reflects recording state and is disabled until recognition is
+configured. The toolbar remains available during capture/playback, and its hidden
+state no longer intercepts clicks through transparent areas.
+Capture and voice show elapsed time; a long local synthesis has a clear waiting
+message. The compact layout stays readable at 50% size. A resize also redraws
+the pet once when Windows has paused its background animation, preserving the
+character without keeping a hidden render loop active.
+
 Karen Desktop Pet 1.4.1 fixes automatic spoken replies that arrive before
 transcription finishes or while an earlier reply is playing. Final replies wait
 in a bounded queue and are read once. Stopping capture or disabling voice clears

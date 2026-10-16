@@ -65,7 +65,7 @@ describe("ciclo real de reproducción", () => {
     expect(signal?.aborted).toBe(true);
     expect(TestAudio.instances).toHaveLength(0);
     expect(useStore.getState().capture.phase).toBe("idle");
-    expect(bridge.captureStatus).toHaveBeenCalledWith({ kind: "voice", phase: "idle" });
+    expect(bridge.captureStatus).toHaveBeenCalledWith({ kind: "voice", phase: "idle", startedAt: undefined });
   });
   it("cancelar durante la reproducción resuelve la cola y cierra el audio", async () => {
     const director = new AudioDirector({ synthesize: async () => new ArrayBuffer(12) });

@@ -144,6 +144,9 @@ export function PetRenderer({
         app.renderer.resize(width, height);
         scene.position.set(width / 2, height * 0.54);
         scene.scale.set(Math.min(width / 380, height / 440) * (preview ? 0.5 : 0.8));
+        // Resizing clears WebGL even while Windows has paused the hidden ticker.
+        // Draw this frame immediately; no background animation loop is needed.
+        app.render();
       };
       observer = new ResizeObserver(resize);
       observer.observe(host.current!);

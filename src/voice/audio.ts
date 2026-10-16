@@ -40,7 +40,7 @@ export class AudioDirector {
   private status(phase: CaptureStatus["phase"]) {
     if (phase === "idle" && !this.active) return;
     this.active = phase !== "idle";
-    const status = { kind: this.kind, phase };
+    const status = { kind: this.kind, phase, startedAt: phase === "idle" ? undefined : Date.now() };
     useStore.getState().event({ type: "capture", status });
     bridge.captureStatus(status);
   }

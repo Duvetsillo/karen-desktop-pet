@@ -1,13 +1,30 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CaptureSource, ImageAttachment } from "../shared/types";
 import { bridge } from "./native";
 import { report, useStore } from "./state/store";
 
 export function CaptureIndicator() {
   const capture = useStore(state => state.capture);
+  const localVoice = useStore(state => state.settings.ttsEngine === "local");
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (capture.phase === "idle") return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [capture.phase, capture.startedAt]);
   if (capture.phase === "idle") return null;
+  const elapsed = Math.max(0, Math.floor((now - (capture.startedAt ?? now)) / 1000));
+  const clock = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
   const source = capture.kind === "system" ? "Audio del PC" : capture.kind === "voice" ? "Voz de Karen" : "Micrófono";
-  return <div className="capture-status" role="status"><span><i />{source} · {capture.phase === "recording" ? "capturando" : capture.phase === "speaking" ? "hablando" : capture.phase === "preparing" ? "preparando audio" : "transcribiendo"}</span><button onClick={() => void bridge.abort().catch(report)}>Detener</button></div>;
+  const phase = capture.phase === "recording" ? "capturando" : capture.phase === "speaking" ? "hablando" : capture.phase === "preparing" ? "preparando audio" : "transcribiendo";
+  return <div className="capture-status" role="group" aria-label="Captura y voz">
+    <div className="capture-copy"><span role="status"><i />{source} · {phase}</span>
+      {capture.phase === "preparing" && localVoice && elapsed >= 15 && <small>La generación local puede tardar.</small>}
+    </div>
+    <time className="capture-clock" aria-label="Tiempo transcurrido" aria-live="off">{clock}</time>
+    <button onClick={() => void bridge.abort().catch(report)}>Detener</button>
+  </div>;
 }
 
 export function Perception() {
