@@ -29,8 +29,8 @@ const path = require("node:path");
     for (const scale of [0.5, 2, 1.5]) {
       await slider.fill(String(scale));
       await panel.waitForTimeout(200);
-      const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.getTitle() === "Karen Desktop Pet").getBounds());
-      const area = await app.evaluate(({ screen, BrowserWindow }) => screen.getDisplayMatching(BrowserWindow.getAllWindows().find(w => w.getTitle() === "Karen Desktop Pet").getBounds()).workArea);
+      const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes("view=pet")).getBounds());
+      const area = await app.evaluate(({ screen, BrowserWindow }) => screen.getDisplayMatching(BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes("view=pet")).getBounds()).workArea);
       const fit = Math.min(scale, area.width / 380, area.height / 440);
       assert.equal(bounds.width, Math.round(380 * fit));
       assert.equal(bounds.height, Math.round(440 * fit));
@@ -72,11 +72,17 @@ const path = require("node:path");
     await app.close();
     app = await launch();
     await app.firstWindow();
-    const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.getTitle() === "Karen Desktop Pet").getBounds());
+    const restartedPet = app.windows().find(page => page.url().includes("view=pet")) ||
+      await app.waitForEvent("window", { predicate: page => page.url().includes("view=pet") });
+    await restartedPet.waitForSelector("canvas");
+    const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes("view=pet")).getBounds());
     const profile = await app.evaluate(({ app }) => app.getPath("userData"));
     const scale = JSON.parse(fs.readFileSync(path.join(profile, "settings.json"), "utf8")).scale;
     assert.equal(scale, 1.5);
-    assert.equal(bounds.width, 570);
+    const area = await app.evaluate(({ screen, BrowserWindow }) => screen.getDisplayMatching(BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes("view=pet")).getBounds()).workArea);
+    const fit = Math.min(scale, area.width / 380, area.height / 440);
+    assert.equal(bounds.width, Math.round(380 * fit));
+    assert.equal(bounds.height, Math.round(440 * fit));
     console.log(JSON.stringify({ sizes: [0.5, 2, 1.5], restartScale: scale, cursorScreenshots: true, reducedMotion: true, errors }));
   } finally {
     await app.close();
