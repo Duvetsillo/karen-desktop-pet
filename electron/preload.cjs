@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('karen', {
   hitTest: interactive => ipcRenderer.send('hit-test', interactive),
   drag: action => ipcRenderer.send('drag', action),
   synthesize: text => ipcRenderer.invoke('synthesize', text),
+  prepareVoice: () => ipcRenderer.invoke('prepare-voice'),
+  cancelSynthesis: () => ipcRenderer.invoke('cancel-synthesis'),
   voiceHealth: () => ipcRenderer.invoke('voice-health'),
   transcribe: pcm => ipcRenderer.invoke('transcribe', pcm),
   cancelTranscription: () => ipcRenderer.invoke('cancel-transcription'),

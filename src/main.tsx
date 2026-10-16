@@ -1110,13 +1110,15 @@ function PetApp() {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
   const last = messages.filter((m) => m.role === "assistant").at(-1);
+  const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
   useEffect(() => {
-    if (last) {
-      setBubble(true);
-      const timer = setTimeout(() => setBubble(false), 16000);
-      return () => clearTimeout(timer);
-    }
+    if (last) setBubble(true);
   }, [last?.text]);
+  useEffect(() => {
+    if (!bubble || voiceActive) return;
+    const timer = setTimeout(() => setBubble(false), 16000);
+    return () => clearTimeout(timer);
+  }, [bubble, last?.text, voiceActive]);
   useEffect(() => {
     const check = (x: number, y: number) => {
       const r = root.current?.getBoundingClientRect();
@@ -1155,6 +1157,7 @@ function PetApp() {
       }}
     >
       <PetRenderer />
+      <div className="pet-dialogue">
       <CaptureIndicator />
       {s.bubbles && bubble && last && !compose && (
         <div
@@ -1171,6 +1174,7 @@ function PetApp() {
           </p>
         </div>
       )}
+      </div>
       <button
         className="pet-hit-area"
         aria-label={`Karen: ${labels[state]}. Arrastra para mover, doble clic para ajustes.`}

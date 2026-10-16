@@ -425,9 +425,11 @@ code {
 .capture-copy small { display: block; margin-top: 3px; color: #cae7ed; font-size: 11px; }
 .capture-clock { flex: none; color: #cae7ed; font-variant-numeric: tabular-nums; font-size: 11px; }
 .capture-status button { min-height: 30px; padding: 3px 10px; }
-.desktop-pet > .capture-status { position: absolute; z-index: 5; top: 6%; left: 4%; right: 4%; padding: 6px 8px; font-size: 10px; }
+.pet-dialogue { position: absolute; z-index: 5; top: 4%; left: 4%; right: 4%; display: flex; flex-direction: column; gap: 6px; max-height: 48%; pointer-events: none; }
+.pet-dialogue > * { pointer-events: auto; }
+.pet-dialogue > .capture-status { flex: none; padding: 6px 8px; font-size: 10px; }
 @media (max-width: 260px) {
-  .desktop-pet > .capture-status { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
+  .pet-dialogue > .capture-status { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
   .desktop-pet .capture-copy { grid-column: 1 / -1; }
   .desktop-pet .capture-copy small { display: none; }
   .desktop-pet .capture-status button { min-height: 24px; font-size: 10px; }
@@ -922,11 +924,9 @@ kbd {
   height: 4px;
 }
 .pet-bubble {
-  position: absolute;
-  left: 9%;
-  right: 9%;
-  top: 2%;
-  max-height: 26%;
+  position: relative;
+  min-height: 0;
+  flex: 0 1 auto;
   overflow: auto;
   background: #172136f5;
   color: #e9f3ff;

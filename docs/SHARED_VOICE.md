@@ -1,5 +1,27 @@
 # One original Karen voice
 
+## 1.5.2: first audio and layout
+
+The pet starts with a short natural phrase (at most 64 characters), then prepares
+one following phrase during playback. The queue stays bounded and cancellation
+aborts the pet's own synthesis request without cancelling a Gateway action.
+Replies remain visible while their audio is preparing or playing. The status
+and reply share a vertical column, including at 50% size.
+
+With local speech enabled, microphone capture and message submission request
+authenticated `/prepare` on Karen's own loopback voice service. It loads the
+same pinned reference without synthesizing text, overlapping startup with the
+user's command and the assistant's response. The model may remain in GPU memory
+for ten minutes after preparation; idle inference consumes no generation CPU.
+Low-power mode and muted speech skip preparation. Other voice clients retain
+their settings. This extension is advertised through a health capability and
+does not add or alter any OpenClaw endpoint.
+
+This reduces time to the first phrase and some gaps between phrases. It is not
+true audio streaming or an instantaneous TTS engine. New phrases still require
+local inference; cold startup and cached repeats must be measured separately.
+The stable FP32 path, CPU codec and original voice identity remain in use.
+
 ## 1.5: delivery styles and addressed-name activation
 
 Voice settings now offer Original, Serene, Warm, Serious, Bright and Gentle irony.
@@ -13,7 +35,8 @@ so existing notes retain their prior processing and provider configuration.
 
 The native client requests and verifies the selected style. An old service that
 ignores it produces an update error, rather than pretending the style worked.
-Health requests remain read-only; a missing service starts on the first utterance.
+Health requests remain read-only; enabled local voice can start the service
+when preparing a command or synthesizing an utterance.
 The native process explicitly uses the resource directory as its working folder,
 and recognition errors include a bounded launch error code without stderr logs.
 Windows speech also works without an optional resource directory, using an

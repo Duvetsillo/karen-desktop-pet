@@ -9,6 +9,7 @@ export class NativeVoice {
   private recognizer: LocalRecognizer;
   private controller?: AbortController;
   private child?: ChildProcess;
+  private preparing?: Promise<void>;
   constructor(
     private defaultRoot: string,
     private settings: () => Settings,
@@ -19,6 +20,9 @@ export class NativeVoice {
   cancelTranscription() { this.recognizer.cancelActive(); }
   cancel() {
     this.recognizer.cancelActive();
+    this.cancelSynthesis();
+  }
+  cancelSynthesis() {
     this.controller?.abort();
     this.child?.kill();
     this.controller = undefined;
@@ -43,7 +47,7 @@ export class NativeVoice {
     if (!/^[\w-]{32,256}$/.test(token)) throw new Error("Credencial de voz local inválida.");
     return token;
   }
-  private async speechRequest(path: "/health" | "/speech", token: string, signal: AbortSignal, body?: object) {
+  private async speechRequest(path: "/health" | "/speech" | "/prepare", token: string, signal: AbortSignal, body?: object) {
     const response = await fetch(`http://127.0.0.1:18790${path}`, {
       method: body ? "POST" : "GET",
       headers: {
@@ -62,12 +66,12 @@ export class NativeVoice {
     const token = this.token(start);
     const check = async () => {
       const response = await this.speechRequest("/health", token, signal);
-      const value = await response.json() as { protocol?: number; profileId?: string; referenceSha256?: string; phase?: string };
+      const value = await response.json() as { protocol?: number; profileId?: string; referenceSha256?: string; phase?: string; capabilities?: string[] };
       if (value.protocol !== 2 || value.profileId !== profile.profileId || value.referenceSha256 !== profile.referenceSha256)
         throw new Error("El servicio tiene otro perfil. No se cambiará la voz de Karen.");
-      return value.phase;
+      return value;
     };
-    try { const phase = await check(); return { token, profile, phase }; }
+    try { const value = await check(); return { token, profile, phase:value.phase, capabilities:value.capabilities }; }
     catch (error) {
       signal.throwIfAborted();
       // Only an unavailable transport can start a service; never replace a
@@ -85,11 +89,25 @@ export class NativeVoice {
     while (Date.now() < deadline) {
       signal.throwIfAborted();
       if (launchError) throw new Error("No se pudo iniciar el servicio de voz original.");
-      try { const phase = await check(); return { token, profile, phase }; }
+      try { const value = await check(); return { token, profile, phase:value.phase, capabilities:value.capabilities }; }
       catch (error) { signal.throwIfAborted(); if (!(error instanceof TypeError)) throw error; }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     throw new Error("El servicio de voz original no pudo iniciar.");
+  }
+  prepare() {
+    const settings = this.settings();
+    if (!settings.voiceEnabled || settings.ttsEngine !== 'local' || settings.lowPower) return Promise.resolve();
+    if (!this.preparing) {
+      this.preparing = (async () => {
+        const signal = AbortSignal.timeout(120000);
+        const {token,profile,capabilities} = await this.sharedService(signal, true);
+        if (capabilities?.includes('prepare')) {
+          await this.speechRequest('/prepare', token, signal, profile);
+        }
+      })().finally(() => {this.preparing = undefined;});
+    }
+    return this.preparing;
   }
   async health() {
     const stt =

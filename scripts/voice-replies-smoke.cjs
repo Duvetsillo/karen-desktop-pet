@@ -67,12 +67,21 @@ const fs = require('node:fs');
     await expect(pet.locator('.capture-clock')).toContainText(/0:1[6-9]/);
     for (const scale of [.5, 1, 2]) {
       await panel.evaluate(scale => window.karen.settings({ scale }), scale);
+      await emit([{type:'chat',final:true,speak:false,message:{id:`qa-layout-${scale}`,role:'assistant',text:'Esta respuesta permanece legible mientras Karen prepara el audio, sin superponerse al indicador de voz.'}}]);
+      await expect(pet.locator('.pet-bubble')).toBeVisible();
+      const layout = await pet.evaluate(() => {
+        const status=document.querySelector('.capture-status').getBoundingClientRect();
+        const bubble=document.querySelector('.pet-bubble').getBoundingClientRect();
+        return {separate:status.bottom+4<=bubble.top,inside:bubble.bottom<=innerHeight&&bubble.left>=0&&bubble.right<=innerWidth};
+      });
+      assert(layout.separate&&layout.inside,'Voice status and reply bubble must not overlap at '+scale);
       const fits = await pet.locator('.pet-toolbar').evaluate(node => { const r = node.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; });
       assert(fits, 'Toolbar must fit the pet at ' + scale);
       await pet.waitForTimeout(180);
       await pet.screenshot({ path: `qa/quick-controls-${scale}.png`, omitBackground: true });
     }
     report.waitClockAndScale = true;
+    report.dialogueDoesNotOverlap = true;
     await emit([{ type: 'capture', status: { kind: 'voice', phase: 'idle' } }]);
     report.phases = await panel.evaluate(() => window.__voicePhases);
     report.mouthEnergy = await panel.evaluate(() => window.__maxVoiceEnergy);

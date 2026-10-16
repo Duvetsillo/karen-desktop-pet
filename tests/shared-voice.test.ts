@@ -4,20 +4,38 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NativeVoice } from "../electron/voice";
 import { defaults } from "../shared/settings";
+import type { Settings } from '../shared/types';
 
 const roots: string[] = [];
 const profile = { profileId: "karen-test", referenceSha256: "a".repeat(64) };
-function fixture() {
+function fixture(settings: Partial<Settings> = {}) {
   const root = mkdtempSync(join(tmpdir(), "karen-voice-"));
   roots.push(root);
   mkdirSync(join(root, "voice-models"));
   writeFileSync(join(root, "voice-models", "active-voice.json"), JSON.stringify({ id: profile.profileId, reference_sha256: profile.referenceSha256 }));
   writeFileSync(join(root, "voice-models", ".expressive-token"), "test-only-local-credential-".repeat(2));
-  return new NativeVoice(root, () => ({ ...defaults, ttsEngine: "local" }));
+  return new NativeVoice(root, () => ({ ...defaults, ttsEngine: "local", ...settings }));
 }
 afterEach(() => { vi.unstubAllGlobals(); roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })); });
 
 describe("voz compartida y fija", () => {
+  it('prepara una sola vez con la identidad fija y sin enviar texto', async () => {
+    const voice = fixture({voiceEnabled:true});
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({protocol:2,...profile,capabilities:['prepare']}))
+      .mockResolvedValueOnce(Response.json({ready:true,...profile}));
+    vi.stubGlobal('fetch',fetcher);
+    await Promise.all([voice.prepare(),voice.prepare()]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const [url,request]=fetcher.mock.calls[1];
+    expect(url).toBe('http://127.0.0.1:18790/prepare');
+    expect(JSON.parse(request.body)).toEqual(profile);
+  });
+  it('no precarga modelos al silenciar la voz o activar bajo consumo', async () => {
+    const fetcher=vi.fn();vi.stubGlobal('fetch',fetcher);
+    await fixture().prepare();
+    await fixture({voiceEnabled:true,lowPower:true}).prepare();
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("envía el mismo perfil y valida la identidad del audio", async () => {
     const voice = fixture();
     const fetcher = vi.fn()

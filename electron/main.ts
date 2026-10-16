@@ -390,6 +390,7 @@ async function ready() {
   handle("disconnect", () => gateway.disconnect());
   handle("send", (value, images) => {
     if (typeof value !== "string") throw new Error("Mensaje inválido.");
+    void voice.prepare().catch(() => {});
     return gateway.send(value, images as never);
   });
   handle("abort", () => {
@@ -471,6 +472,8 @@ async function ready() {
   handle("show", recover);
   handle("context-menu", contextMenu);
   handle("synthesize", (text) => voice.synthesize(text as string));
+  handle("prepare-voice", () => voice.prepare());
+  handle("cancel-synthesis", () => voice.cancelSynthesis());
   handle("transcribe", (pcm) => voice.transcribe(pcm as ArrayBuffer));
   handle('cancel-transcription', () => voice.cancelTranscription());
   handle("voice-health", () => voice.health());

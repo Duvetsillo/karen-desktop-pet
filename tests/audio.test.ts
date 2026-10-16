@@ -32,15 +32,17 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("ciclo real de reproducción", () => {
-  it("muestra preparación, mantiene SPEAKING frente al Gateway y espera al audio antes de continuar", async () => {
+  it("prepara la siguiente frase durante el audio sin reproducirla antes de tiempo", async () => {
     const synthesize = vi.fn(async () => new ArrayBuffer(12));
     const director = new AudioDirector({ synthesize });
-    const first = "Esta primera frase debe reproducirse antes de generar la siguiente.";
+    const first = "Esta primera frase ya puede empezar a sonar.";
     const second = "La segunda frase también conserva su identidad original.";
     const completed = director.speak(`${first} ${second}`);
     expect(useStore.getState().capture.phase).toBe("preparing");
     await vi.waitFor(() => expect(useStore.getState().capture.phase).toBe("speaking"));
-    expect(synthesize).toHaveBeenCalledExactlyOnceWith(first, expect.any(AbortSignal));
+    expect(synthesize).toHaveBeenNthCalledWith(1, first, expect.any(AbortSignal));
+    expect(synthesize).toHaveBeenNthCalledWith(2, second, expect.any(AbortSignal));
+    expect(TestAudio.instances).toHaveLength(1);
     useStore.getState().event({ type: "pet", state: "HAPPY", reason: "Respuesta completada" });
     expect(useStore.getState().state).toBe("SPEAKING");
     TestAudio.instances[0].onended?.();
@@ -58,6 +60,7 @@ describe("ciclo real de reproducción", () => {
     const synthesize = vi.fn((_text: string, _signal: AbortSignal) => new Promise<ArrayBuffer>(resolve => { finish = resolve; }));
     const director = new AudioDirector({ synthesize });
     const pending = director.speak("Hola, soy Karen.");
+    await vi.waitFor(() => expect(synthesize).toHaveBeenCalledTimes(1));
     const signal = synthesize.mock.calls[0]?.[1] as AbortSignal | undefined;
     director.cancel();
     finish(new ArrayBuffer(12));

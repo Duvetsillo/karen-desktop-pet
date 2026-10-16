@@ -122,6 +122,8 @@ export interface DesktopBridge {
   hitTest(interactive: boolean): void;
   drag(action: "start" | "end"): void;
   synthesize(text: string): Promise<ArrayBuffer>;
+  cancelSynthesis?(): Promise<void>;
+  prepareVoice?(): Promise<void>;
   voiceHealth(): Promise<string>;
   transcribe(pcm: ArrayBuffer): Promise<string>;
   cancelTranscription?(): Promise<void>;

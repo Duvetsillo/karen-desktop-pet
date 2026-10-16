@@ -1,3 +1,13 @@
+Karen Desktop Pet 1.5.2 reduces the first audio wait with a shorter opening
+phrase, one phrase of synthesis ahead of playback, and authenticated preparation
+of the original voice while listening to a command or waiting for its reply.
+Preparation retains the model for up to ten idle minutes and is skipped when
+speech is muted or low-power mode is enabled. No voice identity is replaced.
+
+The voice status and reply bubble now share a vertical layout instead of
+overlapping absolute positions. Replies remain visible throughout preparation
+and playback. Native tests cover the layout at 50%, 100% and 200% size.
+
 Karen Desktop Pet 1.5.1 fixes Stop silently disabling addressed-name activation.
 Stopping a response or capture preserves the user's listening preference.
 An idle indicator now shows paused listening, offers an activation button and
