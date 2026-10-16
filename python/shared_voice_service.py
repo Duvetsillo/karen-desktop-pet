@@ -71,8 +71,9 @@ class VoiceEngine:
                 self.model.model.speaker_encoder.to('cuda:0')
                 self.model.device = torch.device('cuda:0')
                 codec = self.model.model.speech_tokenizer
-                codec.model.to('cuda:0')
-                codec.device = torch.device('cuda:0')
+                # Leave VRAM for the desktop and avoid WDDM paging on 6 GB GPUs.
+                codec.model.to('cpu')
+                codec.device = torch.device('cpu')
                 self.prompt = self.model.create_voice_clone_prompt(
                     ref_audio=str(profile.reference), ref_text=profile.reference_text,
                     # Speaker conditioning preserves the fixed identity while

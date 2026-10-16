@@ -5,6 +5,13 @@ const path = require("node:path");
 
 (async () => {
   fs.mkdirSync("qa", { recursive: true });
+  // Hydrating a saved accent replaces the first renderer effect while Pixi's
+  // asynchronous init may still be pending. This must never destroy its
+  // application plugins before they have initialized.
+  fs.mkdirSync(".qa-profile", { recursive: true });
+  const startupSettings = path.resolve(".qa-profile/settings.json");
+  const savedSettings = fs.existsSync(startupSettings) ? JSON.parse(fs.readFileSync(startupSettings, "utf8")) : {};
+  fs.writeFileSync(startupSettings, JSON.stringify({ ...savedSettings, accent: "#b6a0f5" }));
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const launch = () => electron.launch({ args: [path.resolve("."), "--qa"], env });

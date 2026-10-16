@@ -5,6 +5,8 @@ verified; failures do not silently substitute another voice. The native client
 starts the service on demand and diagnostics report the selected profile.
 See docs/SHARED_VOICE.md for operator-owned setup, CUDA requirements and limits.
 No models, private voice references or credentials are included.
+Startup with a saved custom accent also waits for Pixi initialization before
+destroying its previous renderer, keeping the pet and settings visible.
 
 Karen Desktop Pet 1.3 added a Perception panel: Windows WASAPI loopback recording,
 offline speech transcription and reviewed screen/window snapshots sent through

@@ -97,7 +97,7 @@ def main():
         'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(),
         'created_with': 'Qwen3-TTS-12Hz-1.7B-VoiceDesign', 'description': DESCRIPTION,
         'design_seed': 4729, 'human_reference_used': False, 'runtime_model': 'qwen3-stable-base',
-        'conditioning': 'speaker-embedding', 'attention': 'eager', 'runtime_precision': 'float32', 'codec_device': 'cuda',
+        'conditioning': 'speaker-embedding', 'attention': 'eager', 'runtime_precision': 'float32', 'codec_device': 'cpu',
         'generation': {'seed': 42, 'temperature': .55, 'top_p': .9, 'subtalker_temperature': .55, 'subtalker_top_p': .9}}
     (folder / 'profile.json').write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'id': profile['id'], 'audioSeconds': len(wave) / rate, 'elapsedSeconds': time.monotonic() - started}))

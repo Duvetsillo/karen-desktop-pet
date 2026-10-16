@@ -19,6 +19,7 @@ export function PetRenderer({
   const accent = useStore((s) => s.settings.accent);
   useEffect(() => {
     let disposed = false;
+    let initialized = false;
     let app: Application | undefined;
     let observer: ResizeObserver | undefined;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -34,8 +35,9 @@ export function PetRenderer({
         powerPreference: "low-power",
         preference: "webgl",
       });
+      initialized = true;
       if (disposed) {
-        app.destroy(true, { children: true });
+        cleanup();
         return;
       }
       host.current!.appendChild(app.canvas);
@@ -372,9 +374,13 @@ export function PetRenderer({
     let cleanup = () => {
       if (!preview) signals.hitTest = undefined;
       observer?.disconnect();
-      if (app) {
+      // A saved accent can replace this effect while Pixi is still awaiting
+      // its renderer. Application plugins cannot be destroyed before init.
+      // In that case the completed initializer owns deferred cleanup.
+      if (app && initialized) {
         app.destroy(true, { children: true });
         app = undefined;
+        initialized = false;
       }
     };
     void initialize().catch((error) => {

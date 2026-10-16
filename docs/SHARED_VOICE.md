@@ -94,7 +94,8 @@ generation without sending a message.
 
 Reference-code continuation on the tested Turing GPU produced invalid audio.
 The supported runtime uses the fixed speaker embedding, FP32, eager attention
-and GPU codec. Do not switch conditioning or precision without repeating real
+and a CPU audio codec. Keeping the codec off the GPU leaves VRAM for the pet
+and other Windows applications. Do not switch conditioning or precision without repeating real
 audio verification. There is no streaming playback yet; the client waits for
 the generated utterance, and latency depends on text length and hardware.
 
