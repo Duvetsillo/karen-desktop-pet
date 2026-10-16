@@ -262,6 +262,7 @@ async function ready() {
     process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
     () => storage.settings,
     app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/recognize.py") : join(here, "../../python/recognize.py"),
+    app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/shared_voice_service.py") : join(here, "../../python/shared_voice_service.py"),
   );
   loopback = new LoopbackRecorder(
     () => storage.settings.voiceRoot || process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
@@ -405,10 +406,12 @@ async function ready() {
     pet?.webContents.send("desktop-event", { type: "voice-speak", text: "Hola. Soy Karen. Ya puedo hablar contigo." });
   });
   handle("choose-voice-root", async () => {
-    const result = await dialog.showOpenDialog({ title: "Carpeta con voice-runtime y voice-models", properties: ["openDirectory"] });
+    const result = await dialog.showOpenDialog({ title: "Carpeta de recursos de voz", properties: ["openDirectory"] });
     if (result.canceled) return null;
     const root = result.filePaths[0];
-    if (!existsSync(join(root, "voice-runtime/Scripts/python.exe")) || !existsSync(join(root, "voice-models/faster-whisper-small/model.bin"))) throw new Error("Faltan voice-runtime/Scripts/python.exe o voice-models/faster-whisper-small/model.bin.");
+    const hasStt = existsSync(join(root, "voice-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/faster-whisper-small/model.bin"));
+    const hasVoice = existsSync(join(root, "expressive-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/active-voice.json"));
+    if (!hasStt && !hasVoice) throw new Error("La carpeta necesita recursos de reconocimiento o un perfil de voz original compartida.");
     updateSettings({ voiceRoot: root });
     return root;
   });

@@ -835,9 +835,10 @@ function Voice() {
             }
           >
             <option value="system">Voz instalada en Windows</option>
-            <option value="local">Karen expresiva local · puerto 18790</option>
+            <option value="local">Voz original compartida de Karen</option>
           </select>
         </div>
+        {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
         <Range
           label="Volumen"
           value={s.volume}
@@ -873,7 +874,7 @@ function Voice() {
       </Group>
       <Group title="Escucharte, cuando tú decidas">
         <p className="quiet-note">Recursos: {s.voiceRoot || "Directorio de voz de la aplicación / KAREN_PROJECT_ROOT"}</p>
-        <button disabled={runtime !== "desktop"} onClick={() => void action(async () => { await bridge.chooseVoiceRoot(); setHealth(await bridge.voiceHealth()); })}>Elegir carpeta de reconocimiento</button>
+        <button disabled={runtime !== "desktop"} onClick={() => void action(async () => { await bridge.chooseVoiceRoot(); setHealth(await bridge.voiceHealth()); })}>Elegir carpeta de recursos de voz</button>
         <Toggle
           label="Reconocimiento local de voz"
           description="Se activa con el botón de micrófono. Usa faster-whisper de Karen."

@@ -1,0 +1,58 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { NativeVoice } from "../electron/voice";
+import { defaults } from "../shared/settings";
+
+const roots: string[] = [];
+const profile = { profileId: "karen-test", referenceSha256: "a".repeat(64) };
+function fixture() {
+  const root = mkdtempSync(join(tmpdir(), "karen-voice-"));
+  roots.push(root);
+  mkdirSync(join(root, "voice-models"));
+  writeFileSync(join(root, "voice-models", "active-voice.json"), JSON.stringify({ id: profile.profileId, reference_sha256: profile.referenceSha256 }));
+  writeFileSync(join(root, "voice-models", ".expressive-token"), "test-only-local-credential-".repeat(2));
+  return new NativeVoice(root, () => ({ ...defaults, ttsEngine: "local" }));
+}
+afterEach(() => { vi.unstubAllGlobals(); roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })); });
+
+describe("voz compartida y fija", () => {
+  it("envía el mismo perfil y valida la identidad del audio", async () => {
+    const voice = fixture();
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json({ protocol: 2, ...profile }))
+      .mockResolvedValueOnce(new Response("RIFFsynthetic-test", { headers: { "X-Karen-Voice-Id": profile.profileId, "X-Karen-Voice-Sha256": profile.referenceSha256 } }));
+    vi.stubGlobal("fetch", fetcher);
+    expect(Buffer.from(await voice.synthesize("Hola Karen.")).toString()).toBe("RIFFsynthetic-test");
+    const [url, request] = fetcher.mock.calls[1];
+    expect(url).toBe("http://127.0.0.1:18790/speech");
+    expect(JSON.parse(request.body)).toEqual({ text: "Hola Karen.", ...profile });
+  });
+  it("rechaza otra identidad sin cambiar al motor de Windows", async () => {
+    const voice = fixture();
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ protocol: 2, ...profile, profileId: "another-voice" }));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(voice.synthesize("Hola")).rejects.toThrow("otro perfil");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("rechaza un servicio que niega autenticación y un audio de otro perfil", async () => {
+    const voice = fixture();
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response("Forbidden", { status: 403 }));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(voice.synthesize("Hola")).rejects.toThrow("403");
+    fetcher.mockResolvedValueOnce(Response.json({ protocol: 2, ...profile }))
+      .mockResolvedValueOnce(new Response("RIFFwrong-voice", { headers: { "X-Karen-Voice-Id": "another-voice" } }));
+    await expect(voice.synthesize("Hola")).rejects.toThrow("voz fija");
+  });
+  it("cancelar descarta la petición pendiente", async () => {
+    const voice = fixture();
+    const fetcher = vi.fn().mockImplementation((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener("abort", () => reject(new DOMException("Cancelled", "AbortError")));
+    }));
+    vi.stubGlobal("fetch", fetcher);
+    const pending = voice.synthesize("Hola");
+    voice.cancel();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+});

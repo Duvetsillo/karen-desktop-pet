@@ -1,4 +1,12 @@
-Karen Desktop Pet 1.3 adds a Perception panel: Windows WASAPI loopback recording,
+Karen Desktop Pet 1.4 adds an optional shared original voice. The native pet,
+Python desktop client and OpenClaw's local CLI TTS provider can use one fixed
+reference and authenticated service. Profile IDs and reference hashes are
+verified; failures do not silently substitute another voice. The native client
+starts the service on demand and diagnostics report the selected profile.
+See docs/SHARED_VOICE.md for operator-owned setup, CUDA requirements and limits.
+No models, private voice references or credentials are included.
+
+Karen Desktop Pet 1.3 added a Perception panel: Windows WASAPI loopback recording,
 offline speech transcription and reviewed screen/window snapshots sent through
 OpenClaw's real image attachment protocol. System audio transcripts are reviewed
 before sending. The included recognizer handles spoken words, not music or

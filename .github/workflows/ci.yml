@@ -25,6 +25,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:voice:contracts
       - run: npm run build
       - run: npm run audit:source
       - if: runner.os == 'Windows'
