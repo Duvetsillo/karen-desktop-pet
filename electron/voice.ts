@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import type { Settings } from "../shared/types.js";
@@ -122,7 +122,8 @@ export class NativeVoice {
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
-        cwd: this.root,
+        // Windows TTS is independent of optional local model resources.
+        cwd: existsSync(this.root) ? this.root : dirname(process.execPath),
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],
       });

@@ -16,7 +16,7 @@ const fs = require('node:fs');
     for (const page of app.windows()) page.on('pageerror', error => report.rendererErrors.push(error.message));
     const pet = app.windows().find(page => page.url().includes('view=pet'));
     assert(pet);
-    await panel.evaluate(() => window.karen.settings({ voiceEnabled: true, sttEnabled: false, ttsEngine: 'system', outputDevice: '', volume: .4, scale: 1 }));
+    await panel.evaluate(() => window.karen.settings({ voiceRoot:'', wakeWordEnabled:false, voiceEnabled: true, sttEnabled: false, ttsEngine: 'system', outputDevice: '', volume: .4, scale: 1 }));
     await expect(pet.getByRole('button', { name: 'Repetir última respuesta', exact: true })).toBeDisabled();
     await expect(pet.getByRole('button', { name: 'Iniciar o terminar voz', exact: true })).toBeDisabled();
     await panel.evaluate(() => {

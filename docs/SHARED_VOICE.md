@@ -16,6 +16,9 @@ ignores it produces an update error, rather than pretending the style worked.
 Health requests remain read-only; a missing service starts on the first utterance.
 The native process explicitly uses the resource directory as its working folder,
 and recognition errors include a bounded launch error code without stderr logs.
+Windows speech also works without an optional resource directory, using an
+existing executable directory instead. Packaging reuses the installed Electron
+distribution to avoid an extra archive extraction.
 
 Enable local recognition and **Activar al decir Karen o Caren** to opt into a
 continuously open microphone. This implementation uses offline transcription of

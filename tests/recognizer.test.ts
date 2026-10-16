@@ -6,6 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { LocalRecognizer } from '../electron/recognizer';
+import { NativeVoice } from '../electron/voice';
+import { defaults } from '../shared/settings';
+import { existsSync } from 'node:fs';
 vi.mock('node:child_process', async original => ({...await original<typeof import('node:child_process')>(), spawn:vi.fn()}));
 const roots: string[] = [];
 const engines: LocalRecognizer[] = [];
@@ -22,6 +25,16 @@ function fixture() {
   return {root,child,engine,pcm:new Int16Array(16000).buffer};
 }
 describe('reconocedor local persistente',()=>{
+  it('Windows TTS no exige una carpeta de modelos locales',async()=>{
+    const {child}=fixture();
+    const voice=new NativeVoice(join(tmpdir(),'karen-missing-resources-fixture'),()=>({...defaults,ttsEngine:'system'}));
+    const result=voice.synthesize('Hola');
+    child.stdout.write(Buffer.from('RIFFsynthetic').toString('base64'));
+    child.emit('exit',0);
+    expect(Buffer.from(await result).toString()).toBe('RIFFsynthetic');
+    expect(existsSync(vi.mocked(spawn).mock.calls[0][2].cwd as string)).toBe(true);
+    voice.cancel();
+  });
   it('reutiliza el proceso y fija cwd en la carpeta de recursos',async()=>{
     const {root,child,engine,pcm}=fixture();
     const first=engine.transcribe(root,pcm);
