@@ -1,3 +1,8 @@
+Karen Desktop Pet 1.5.3 adds an explicit fast CPU voice using optional local
+Kokoro resources. It uses another fixed timbre and does not replace the original
+shared voice or change WhatsApp. A persistent worker avoids reloading between
+phrases; delivery presets and real audio animation remain available.
+
 Karen Desktop Pet 1.5.2 reduces the first audio wait with a shorter opening
 phrase, one phrase of synthesis ahead of playback, and authenticated preparation
 of the original voice while listening to a command or waiting for its reply.
@@ -91,8 +96,3 @@ There is no maintainer-hosted API or shared account included with the applicatio
 The Windows installer is not Authenticode-signed. Verify SHA256SUMS.txt and use
 only releases from this repository. A real OpenClaw deployment still requires
 your own Gateway authentication and device pairing when required.
-Karen Desktop Pet 1.5.3 adds an explicit fast CPU voice using optional local
-Kokoro resources. It uses another fixed timbre and does not replace the original
-shared voice or change WhatsApp. A persistent worker avoids reloading between
-phrases; delivery presets and real audio animation remain available.
-
