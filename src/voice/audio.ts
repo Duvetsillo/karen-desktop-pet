@@ -130,6 +130,9 @@ export class AudioDirector {
     if (finish) this.status("idle");
   }
   cancel() {
+    // Invalidate an in-flight wake transcription before its cancellation rejects.
+    // resumeWake rearms it; a stale rejection cannot turn off the new listener.
+    this.detector?.pause();
     this.generation++;
     this.speechController?.abort();
     this.speechController = undefined;
