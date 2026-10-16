@@ -2,6 +2,8 @@ import { bridge } from "../native";
 import { useStore, signals, report } from "../state/store";
 import { speechPhrases } from "./replies";
 import type { CaptureStatus } from "../../shared/types";
+import { TranscriptionWakeDetector } from './wake';
+import { pcm16 } from './pcm';
 
 export interface TtsEngine {
   synthesize(text: string, signal: AbortSignal): Promise<ArrayBuffer>;
@@ -10,13 +12,12 @@ export interface SttEngine {
   transcribe(pcm16: ArrayBuffer, signal: AbortSignal): Promise<string>;
 }
 export interface WakeWordDetector {
-  start(onWake: () => void): Promise<void>;
+  start(onWake: (command: string) => void): Promise<void>;
   pause(): void;
   resume(): void;
   stop(): void;
 }
-// An externally supplied detector owns its model and microphone permission.
-// No detector is enabled or imitated by the desktop pet.
+// A detector owns microphone permission; wake is always an explicit setting.
 export class AudioDirector {
   private context?: AudioContext;
   private analyser?: AnalyserNode;
@@ -55,13 +56,32 @@ export class AudioDirector {
   async attachWakeWordDetector(detector: WakeWordDetector) {
     this.detector?.stop();
     this.detector = detector;
-    await detector.start(() => {
+    await detector.start((command) => {
       if (!this.audio && !this.recording && !this.processing) {
+        this.detector?.pause();
         useStore.getState().transition("HAPPY", "Palabra clave detectada");
-        void this.toggleListening();
+        if (command) void bridge.send(command).catch(report).finally(() => this.resumeWake());
+        else void this.toggleListening(10000);
+      } else {
+        this.resumeWake();
       }
     });
   }
+  async configureWake(enabled: boolean, inputDevice: string, sensitivity: number) {
+    this.detector?.stop(); this.detector = undefined;
+    if (!enabled) { useStore.setState({wakeStatus:'off'}); bridge.wakeStatus?.('off'); return; }
+    const detector = new TranscriptionWakeDetector(
+      pcm => this.stt.transcribe(pcm, new AbortController().signal), inputDevice, sensitivity,
+      status => { useStore.setState({wakeStatus:status}); bridge.wakeStatus?.(status); }, report,
+    );
+    await this.attachWakeWordDetector(detector);
+    if (this.processing || this.audio || this.recording) detector.pause();
+  }
+  private resumeWake() {
+    const capture = useStore.getState().capture;
+    if (!this.processing && !this.audio && !this.recording && !(capture.kind === 'system' && capture.phase !== 'idle')) this.detector?.resume();
+  }
+  suspendWake(suspended: boolean) { if (suspended) this.detector?.pause(); else this.resumeWake(); }
   private meter() {
     if (!this.analyser) return;
     const data = new Float32Array(this.analyser.fftSize);
@@ -119,7 +139,7 @@ export class AudioDirector {
     this.recorder = undefined;
     this.recording = false;
     this.cleanup();
-    this.detector?.resume();
+    this.resumeWake();
     useStore.getState().transition("IDLE");
   }
   async speak(text: string) {
@@ -187,14 +207,14 @@ export class AudioDirector {
       if (generation === this.generation) {
         this.processing = false;
         this.cleanup();
-        this.detector?.resume();
+        this.resumeWake();
         useStore.getState().transition("HAPPY", "Voz completada");
       }
     } catch (e) {
       if (generation === this.generation) {
         this.processing = false;
         this.cleanup();
-        this.detector?.resume();
+        this.resumeWake();
         report(e);
         useStore.getState().transition("ERROR", "Motor de voz no disponible");
       }
@@ -202,7 +222,7 @@ export class AudioDirector {
       if (this.speechController === controller) this.speechController = undefined;
     }
   }
-  async toggleListening() {
+  async toggleListening(limitMs = 60000) {
     if (this.recording) {
       if (this.recorder?.state === "recording") this.recorder.stop();
       return;
@@ -217,6 +237,7 @@ export class AudioDirector {
     }
     this.detector?.pause();
     try {
+      await bridge.cancelTranscription?.();
       const settings = useStore.getState().settings;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -258,11 +279,11 @@ export class AudioDirector {
       this.meter();
       this.limit = setTimeout(() => {
         if (this.recorder?.state === "recording") this.recorder.stop();
-      }, 60000);
+      }, limitMs);
     } catch (e) {
       if (generation !== this.generation) return;
       this.cleanup();
-      this.detector?.resume();
+      this.resumeWake();
       report(e);
       useStore.getState().transition("ERROR");
     }
@@ -271,34 +292,13 @@ export class AudioDirector {
     if (this.stopRecording || generation !== this.generation) return;
     this.recording = false;
     this.cleanup();
-    if (blob.size < 100) { useStore.getState().transition("CONFUSED", "No se detectó audio con voz"); this.detector?.resume(); return; }
+    if (blob.size < 100) { useStore.getState().transition("CONFUSED", "No se detectó audio con voz"); this.resumeWake(); return; }
     this.processing = true;
     this.status("transcribing");
     useStore.getState().transition("THINKING", "Transcribiendo en este equipo");
     try {
-      const decoder = new AudioContext();
-      let decoded: AudioBuffer;
-      try {
-        decoded = await decoder.decodeAudioData(await blob.arrayBuffer());
-      } finally {
-        await decoder.close();
-      }
-      const offline = new OfflineAudioContext(
-        1,
-        Math.ceil(decoded.duration * 16000),
-        16000,
-      );
-      const src = offline.createBufferSource();
-      src.buffer = decoded;
-      src.connect(offline.destination);
-      src.start();
-      const rendered = await offline.startRendering();
-      const floats = rendered.getChannelData(0);
-      const pcm = new Int16Array(floats.length);
-      for (let i = 0; i < floats.length; i++)
-        pcm[i] = Math.max(-1, Math.min(1, floats[i])) * 32767;
       const text = await this.stt.transcribe(
-        pcm.buffer,
+        await pcm16(blob),
         new AbortController().signal,
       );
       if (generation !== this.generation) return;
@@ -315,11 +315,12 @@ export class AudioDirector {
     } finally {
       this.processing = false;
       if (generation === this.generation) this.status("idle");
-      this.detector?.resume();
+      this.resumeWake();
     }
   }
   dispose() {
-    this.cancel();
     this.detector?.stop();
+    this.detector = undefined;
+    this.cancel();
   }
 }

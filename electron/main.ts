@@ -27,6 +27,7 @@ import {
   type Settings,
   type Snapshot,
   type CaptureStatus,
+  type WakeStatus,
 } from "../shared/types.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,7 @@ let cursorTimer: ReturnType<typeof setInterval>,
 const diagnostics: Diagnostic[] = [];
 const screenCapture = new ScreenCapture();
 let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
+let wakeStatus: WakeStatus = 'off';
 let loopback: LoopbackRecorder;
 let captureOwner: number | undefined;
 let perceptionEpoch = 0;
@@ -372,6 +374,7 @@ async function ready() {
       native: true,
       version: app.getVersion(),
       capture,
+      wakeStatus,
     }),
   );
   handle("settings", (patch) => {
@@ -390,6 +393,7 @@ async function ready() {
     return gateway.send(value, images as never);
   });
   handle("abort", () => {
+    if (storage.settings.wakeWordEnabled) updateSettings({wakeWordEnabled:false});
     stopPerception();
     return gateway.abort();
   });
@@ -453,12 +457,21 @@ async function ready() {
     capture = { kind: status.kind, phase: status.phase, startedAt: status.phase === "idle" ? undefined : unchanged ? capture.startedAt ?? Date.now() : Date.now() };
     emit({ type: "capture", status: capture });
   });
+  ipcMain.on('wake-status', (event, status: WakeStatus) => {
+    if (event.sender.id !== pet?.webContents.id || event.senderFrame !== event.sender.mainFrame ||
+        !['off','listening','processing','paused','error'].includes(status)) return;
+    wakeStatus = status;
+    // The renderer already suspends Pixi when hidden. Keep only wake timers alive.
+    pet.webContents.setBackgroundThrottling(status === 'off' || status === 'error');
+    emit({type:'wake-status',status});
+  });
   handle("open-settings", openSettings);
   handle("hide", hidePet);
   handle("show", recover);
   handle("context-menu", contextMenu);
   handle("synthesize", (text) => voice.synthesize(text as string));
   handle("transcribe", (pcm) => voice.transcribe(pcm as ArrayBuffer));
+  handle('cancel-transcription', () => voice.cancelTranscription());
   handle("voice-health", () => voice.health());
   handle("demo", (state) => {
     if (!PET_STATES.includes(state as never))

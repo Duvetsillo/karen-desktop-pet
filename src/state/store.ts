@@ -7,6 +7,7 @@ import type {
   PetState,
   Settings,
   CaptureStatus,
+  WakeStatus,
 } from "../../shared/types";
 import { defaults } from "../../shared/settings";
 import { PetMachine } from "./machine";
@@ -32,6 +33,7 @@ interface Store {
   tab: string;
   capture: CaptureStatus;
   transcript: string;
+  wakeStatus: WakeStatus;
   transition: (state: PetState, reason?: string) => void;
   event: (event: DesktopEvent) => void;
 }
@@ -50,12 +52,14 @@ export const useStore = create<Store>((set, get) => ({
   tab: "Conversación",
   capture: { kind: "microphone", phase: "idle" },
   transcript: "",
+  wakeStatus: 'off',
   transition: (state, reason = "") => {
     machine.transition(state);
     set({ state, reason });
   },
   event: (event) => {
-    if (event.type === "settings") set({ settings: event.settings });
+    if (event.type === 'wake-status') set({wakeStatus:event.status});
+    else if (event.type === "settings") set({ settings: event.settings });
     else if (event.type === "capture") set({ capture: event.status });
     else if (event.type === "transcript") set({ transcript: event.text, tab: "Percepción" });
     else if (event.type === "error") set({ error: event.message });

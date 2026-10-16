@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 
 from voice_profile import load_profile
+from voice_style import validate_style
 
 START_LOCK = threading.Lock()
 URL = 'http://127.0.0.1:18790'
@@ -55,7 +56,7 @@ def ensure_service(root, opener, token, profile):
         subprocess.Popen([str(python), str(Path(__file__).with_name('shared_voice_service.py')), str(root)],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
-                         creationflags=0x08000000 if os.name == 'nt' else 0)
+                         creationflags=0x08000000 if os.name == 'nt' else 0, cwd=str(Path(root)))
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             try:
@@ -66,7 +67,8 @@ def ensure_service(root, opener, token, profile):
         raise RuntimeError('El servicio de voz fija no pudo iniciar')
 
 
-def synthesize(root, text, cancelled):
+def synthesize(root, text, cancelled, style='neutral'):
+    validate_style(style)
     if cancelled.is_set():
         return b''
     if not isinstance(text, str) or not text.strip() or len(text) > 4096:
@@ -81,9 +83,11 @@ def synthesize(root, text, cancelled):
             if cancelled.is_set():
                 results.put((b'', None))
                 return
-            with request(opener, token, '/speech', {'text': text, **profile.public()}, timeout=600) as response:
+            with request(opener, token, '/speech', {'text': text, 'style': style, **profile.public()}, timeout=600) as response:
                 if response.headers.get('X-Karen-Voice-Id') != profile.id or response.headers.get('X-Karen-Voice-Sha256') != profile.reference_sha256:
                     raise RuntimeError('El audio recibido pertenece a otro perfil de voz')
+                if style != 'neutral' and response.headers.get('X-Karen-Voice-Style') != style:
+                    raise RuntimeError('Actualiza el servicio compartido para usar estilos de voz')
                 audio = response.read(24_000_001)
                 if len(audio) > 24_000_000 or not audio.startswith(b'RIFF'):
                     raise RuntimeError('Audio de voz inválido')

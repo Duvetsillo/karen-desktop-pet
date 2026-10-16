@@ -846,6 +846,18 @@ function Voice() {
           </select>
         </div>
         {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
+        <div className="input-field">
+          <label htmlFor="voice-style">Estilo de la voz original</label>
+          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine !== 'local'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
+            <option value="serene">Serena · madura y pausada</option>
+            <option value="warm">Cercana · cálida</option>
+            <option value="serious">Seria · sobria</option>
+            <option value="bright">Alegre · ligera</option>
+            <option value="wry">Ironía suave · pausada</option>
+            <option value="neutral">Original · sin ajustar</option>
+          </select>
+          <p className="quiet-note">Ajusta ritmo y tono conservando el perfil. La intención emocional y el sarcasmo dependen del texto del asistente.</p>
+        </div>
         <Range
           label="Volumen"
           value={s.volume}
@@ -889,6 +901,7 @@ function Voice() {
           onChange={(sttEnabled) => void patch({ sttEnabled })}
         />
         <button disabled={runtime !== "desktop" || !s.sttEnabled} onClick={() => void action(() => bridge.listen())}>Iniciar o finalizar micrófono</button>
+        <Toggle label="Activar al decir Karen o Caren" description="Escucha local continua mientras está activado. Solo una frase dirigida a Karen/Caren envía la orden; se pausa al hablar y al capturar el PC." value={s.wakeWordEnabled} disabled={runtime !== 'desktop' || !s.sttEnabled} onChange={wakeWordEnabled => void patch({wakeWordEnabled})} />
         <div className="input-field">
           <label htmlFor="input">Micrófono</label>
           <select
@@ -1288,6 +1301,15 @@ function PetApp() {
   );
 }
 function Root() {
+  const ready = useStore(s => s.ready);
+  const runtime = useStore(s => s.runtime);
+  const wakeEnabled = useStore(s => s.settings.wakeWordEnabled);
+  const sttEnabled = useStore(s => s.settings.sttEnabled);
+  const inputDevice = useStore(s => s.settings.inputDevice);
+  const sensitivity = useStore(s => s.settings.sensitivity);
+  useEffect(() => {
+    if (audio && ready) void audio.configureWake(runtime === 'desktop' && wakeEnabled && sttEnabled, inputDevice, sensitivity).catch(report);
+  }, [ready, runtime, wakeEnabled, sttEnabled, inputDevice, sensitivity]);
   useEffect(() => {
     let alive = true;
     let connectionSeen = false;
@@ -1298,6 +1320,7 @@ function Root() {
       if (e.type === "settings") settingsSeen = true;
       if (e.type === "capture") captureSeen = true;
       useStore.getState().event(e);
+      if (e.type === 'capture' && e.status.kind === 'system') audio?.suspendWake(e.status.phase !== 'idle');
       if (
         e.type === "chat" &&
         e.final && e.speak !== false
@@ -1332,6 +1355,7 @@ function Root() {
             hasCredential: snapshot.hasCredential,
             ready: true,
             capture: captureSeen ? useStore.getState().capture : snapshot.capture || { kind: "microphone", phase: "idle" },
+            wakeStatus: snapshot.wakeStatus || 'off',
           });
       })
       .catch(report);

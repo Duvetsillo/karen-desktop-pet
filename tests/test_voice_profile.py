@@ -10,9 +10,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'python'))
 from voice_profile import load_profile
 from shared_voice_service import speech_chunks
 from design_voice import activate
+from wake_word import wake_command
+from dialogue_style import personality
+from voice_style import validate_style, style_audio
 
 
 class ProfileTests(unittest.TestCase):
+    def test_wake_aliases_and_addressed_name_only(self):
+        for text, expected in [('Karen, seguimos', 'seguimos'), ('Caren', ''), ('Hola, Caren. ¿Seguimos?', 'Seguimos?'), ('El video de Karen', None), ('Karenina', None)]:
+            self.assertEqual(wake_command(text), expected)
+
+    def test_neutral_style_does_not_change_whatsapp_audio(self):
+        self.assertEqual(style_audio(b'unchanged-audio', '.', 'neutral'), b'unchanged-audio')
+        with self.assertRaises(ValueError):
+            validate_style('invented-style')
+
+    def test_personality_respects_explicit_sarcasm_and_suggestion_switches(self):
+        text = personality('serious', False, False)
+        self.assertIn('profesional', text)
+        self.assertIn('No uses sarcasmo', text)
+        self.assertIn('no solicitados', text)
+        self.assertIn('No afirmes haber ejecutado', text)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

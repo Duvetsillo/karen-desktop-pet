@@ -1,5 +1,58 @@
 # One original Karen voice
 
+## 1.5: delivery styles and addressed-name activation
+
+Voice settings now offer Original, Serene, Warm, Serious, Bright and Gentle irony.
+Serene is the default delivery for the pet and the updated Karen Local client.
+The same pinned speaker reference remains in use. The presets apply restrained
+tempo, pitch and EQ adjustments with FFmpeg's formant-preserving Rubber Band
+filter. They are prosody presets, not a claim of neural emotion instruction
+support: Qwen Base does not expose that API. The words and contextual emotion
+come from the existing assistant. WhatsApp requests default to neutral delivery,
+so existing notes retain their prior processing and provider configuration.
+
+The native client requests and verifies the selected style. An old service that
+ignores it produces an update error, rather than pretending the style worked.
+Health requests remain read-only; a missing service starts on the first utterance.
+The native process explicitly uses the resource directory as its working folder,
+and recognition errors include a bounded launch error code without stderr logs.
+
+Enable local recognition and **Activar al decir Karen o Caren** to opt into a
+continuously open microphone. This implementation uses offline transcription of
+voice-activity-gated segments, not an uncalibrated ONNX wake model. Quiet windows
+are discarded without inference. Only an addressed name at the start of a phrase
+(optionally after Hola/Oye/Hey/OK) activates it. An unrelated mention such as
+"el vídeo de Karen" does not. Both spellings are accepted. A command following
+the name is retained; the name alone opens a ten-second command window. ASR can
+mishear words, especially poor synthetic audio, noise or distant microphones;
+this is not speaker authentication or guaranteed instantaneous wake detection.
+
+An indicator shows when the pet is listening locally. **Pausar escucha** closes
+it; the overall Stop action also disables continuous wake listening. Input is
+closed during the pet's playback, manual capture and PC-audio capture. Stale
+capture callbacks cannot reopen a paused detector. Nothing before activation
+is sent to OpenClaw or written to a recording file. Recognition keeps one CPU
+model warm between utterances and releases the worker after two idle minutes.
+
+## Original Karen application
+
+The local Python application can consume `python/dialogue_style.py`,
+`python/wake_word.py` and the same `shared_voice_client.synthesize(..., style=...)`.
+The original installation updated in this session uses `karen_personality.py` as
+its adapter. Its settings expose a mature, serene persona, delivery styles,
+useful-suggestion and gentle-sarcasm switches, transcript/ONNX/manual activation,
+and optional startup listening. These are explicit preferences; they do not infer
+the user's private emotions. The Ollama client's existing system message carries
+the personality preferences. The separate personalized remote API continues to
+own its own persona. The pet still uses OpenClaw's existing conversation logic;
+its delivery selector does not secretly rewrite Gateway instructions.
+
+When running both clients, enable continuous listening in the interface you
+intend to address. They are separate audio clients; no cross-process microphone
+ownership or cross-client echo cancellation is claimed. Startup listening in
+Karen Local remains optional. No Gateway restart, WhatsApp message or provider
+reconfiguration is required for these features.
+
 Karen Local, OpenClaw WhatsApp notes and the desktop pet can use one fixed,
 original reference. Qwen VoiceDesign creates the identity once; Qwen Base
 0.6B uses its speaker embedding for subsequent utterances. No human reference

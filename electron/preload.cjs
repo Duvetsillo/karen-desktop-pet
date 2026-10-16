@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('karen', {
   synthesize: text => ipcRenderer.invoke('synthesize', text),
   voiceHealth: () => ipcRenderer.invoke('voice-health'),
   transcribe: pcm => ipcRenderer.invoke('transcribe', pcm),
+  cancelTranscription: () => ipcRenderer.invoke('cancel-transcription'),
   demo: state => ipcRenderer.invoke('demo', state),
   energy: value => ipcRenderer.send('energy', value),
   listen: () => ipcRenderer.invoke('listen'),
@@ -25,5 +26,6 @@ contextBridge.exposeInMainWorld('karen', {
   captureScreen: id => ipcRenderer.invoke('capture-screen', id),
   systemAudio: action => ipcRenderer.invoke('system-audio', action),
   captureStatus: status => ipcRenderer.send('capture-status', status),
+  wakeStatus: status => ipcRenderer.send('wake-status', status),
   event: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('desktop-event', listener); return () => ipcRenderer.removeListener('desktop-event', listener); }
 });

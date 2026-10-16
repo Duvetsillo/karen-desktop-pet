@@ -1,3 +1,18 @@
+Karen Desktop Pet 1.5.0 adds offline addressed-name activation for Karen/Caren,
+with explicit continuous-listening controls and a visible microphone indicator.
+It preserves a command after the name and opens a ten-second command window
+after the name alone. Listening closes during playback, manual recording and
+PC-audio capture. Recognition uses one warm CPU worker with bounded input and
+idle shutdown; launch errors now identify missing resources and safe error codes.
+Native voice processes explicitly start in the configured resource directory.
+
+Six delivery styles preserve the original pinned identity: original, serene,
+warm, serious, bright and gentle irony. These use restrained FFmpeg prosody
+adjustments, not unsupported Qwen Base emotion instructions. Existing WhatsApp
+notes retain neutral processing. The shared Python modules also support the
+original Karen application's explicit personality and activation preferences.
+No voice reference, credential or model is bundled or regenerated.
+
 Karen Desktop Pet 1.4.2 adds quick voice controls on the pet. Toggle spoken
 replies or replay the last completed reply without another Gateway/model request.
 The microphone reflects recording state and is disabled until recognition is

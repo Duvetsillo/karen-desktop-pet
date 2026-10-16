@@ -11,6 +11,7 @@ import threading
 import time
 
 from voice_profile import load_profile
+from voice_style import STYLES, style_audio, validate_style
 
 
 def speech_chunks(text, limit=200):
@@ -37,7 +38,8 @@ class VoiceEngine:
         self.cache = OrderedDict()
         self.phase = 'cold'
 
-    def synthesize(self, text, expected_id, expected_hash):
+    def synthesize(self, text, expected_id, expected_hash, style='neutral'):
+        validate_style(style)
         import numpy as np
         import soundfile as sf
         import torch
@@ -51,7 +53,7 @@ class VoiceEngine:
             self.last_used = time.monotonic()
             if key in self.cache:
                 self.cache.move_to_end(key)
-                return self.cache[key], profile
+                return style_audio(self.cache[key], self.root, style), profile
             if signature != self.signature:
                 self.model = self.prompt = None
                 self.cache.clear()
@@ -104,7 +106,7 @@ class VoiceEngine:
                 self.cache.popitem(last=False)
             self.last_used = time.monotonic()
             self.phase = 'ready'
-            return audio, profile
+            return style_audio(audio, self.root, style), profile
 
     def cleanup(self):
         while True:
@@ -154,7 +156,8 @@ def serve(root):
             try:
                 profile = load_profile(root)
                 self.reply(200, {'engine': 'qwen3-stable-spanish', 'protocol': 2,
-                                'modelLoaded': engine.model is not None, 'phase': engine.phase, **profile.public()})
+                                'modelLoaded': engine.model is not None, 'phase': engine.phase,
+                                'styles': list(STYLES), 'styleRevision': 1, **profile.public()})
             except Exception:
                 self.reply(503, {'error': 'Configura y verifica el perfil fijo de voz'})
 
@@ -171,6 +174,7 @@ def serve(root):
                     raise ValueError()
                 request = json.loads(self.rfile.read(length))
                 text = request['text']
+                style = validate_style(request.get('style', 'neutral'))
                 if not isinstance(text, str) or not text.strip() or len(text) > 4096:
                     raise ValueError()
                 profile = load_profile(root)
@@ -181,12 +185,13 @@ def serve(root):
                 self.reply(400, {'error': 'Petición o perfil de voz inválido'})
                 return
             try:
-                audio, profile = engine.synthesize(text.strip(), profile.id, profile.reference_sha256)
+                audio, profile = engine.synthesize(text.strip(), profile.id, profile.reference_sha256, style)
                 self.send_response(200)
                 self.send_header('Content-Type', 'audio/wav')
                 self.send_header('Content-Length', str(len(audio)))
                 self.send_header('X-Karen-Voice-Id', profile.id)
                 self.send_header('X-Karen-Voice-Sha256', profile.reference_sha256)
+                self.send_header('X-Karen-Voice-Style', style)
                 self.end_headers()
                 self.wfile.write(audio)
             except (BrokenPipeError, ConnectionResetError):

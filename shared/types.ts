@@ -10,6 +10,9 @@ export const PET_STATES = [
   "DRAGGING",
 ] as const;
 export type PetState = (typeof PET_STATES)[number];
+export const VOICE_STYLES = ['neutral', 'serene', 'warm', 'serious', 'bright', 'wry'] as const;
+export type VoiceStyle = (typeof VOICE_STYLES)[number];
+export type WakeStatus = 'off' | 'listening' | 'processing' | 'paused' | 'error';
 export type ConnectionState =
   | "disconnected"
   | "connecting"
@@ -32,6 +35,8 @@ export interface Settings {
   bubbles: boolean;
   voiceEnabled: boolean;
   ttsEngine: "system" | "local";
+  voiceStyle: VoiceStyle;
+  wakeWordEnabled: boolean;
   inputDevice: string;
   outputDevice: string;
   volume: number;
@@ -75,6 +80,7 @@ export interface CaptureStatus {
   startedAt?: number;
 }
 export type DesktopEvent =
+  | { type: 'wake-status'; status: WakeStatus }
   | { type: "connection"; info: ConnectionInfo }
   | { type: "pet"; state: PetState; reason?: string }
   | { type: "chat"; message: ChatMessage; final: boolean; speak?: boolean }
@@ -99,6 +105,7 @@ export interface Snapshot {
   runtime?: "desktop" | "server" | "preview";
   version: string;
   capture?: CaptureStatus;
+  wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
   snapshot(): Promise<Snapshot>;
@@ -117,6 +124,7 @@ export interface DesktopBridge {
   synthesize(text: string): Promise<ArrayBuffer>;
   voiceHealth(): Promise<string>;
   transcribe(pcm: ArrayBuffer): Promise<string>;
+  cancelTranscription?(): Promise<void>;
   demo(state: PetState): Promise<void>;
   energy(value: number): void;
   listen(): Promise<void>;
@@ -126,5 +134,6 @@ export interface DesktopBridge {
   captureScreen(id: string): Promise<ImageAttachment>;
   systemAudio(action: "start" | "finish"): Promise<void>;
   captureStatus(status: CaptureStatus): void;
+  wakeStatus?(status: WakeStatus): void;
   event(callback: (event: DesktopEvent) => void): () => void;
 }

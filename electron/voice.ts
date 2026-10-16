@@ -1,10 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import type { Settings } from "../shared/types.js";
+import { LocalRecognizer } from './recognizer.js';
 export class NativeVoice {
+  private recognizer: LocalRecognizer;
   private controller?: AbortController;
   private child?: ChildProcess;
   constructor(
@@ -12,9 +14,11 @@ export class NativeVoice {
     private settings: () => Settings,
     private worker?: string,
     private serviceWorker?: string,
-  ) {}
-  private get root() { return this.settings().voiceRoot || this.defaultRoot; }
+  ) { this.recognizer = new LocalRecognizer(worker); }
+  private get root() { return resolve(this.settings().voiceRoot || this.defaultRoot); }
+  cancelTranscription() { this.recognizer.cancelActive(); }
   cancel() {
+    this.recognizer.cancelActive();
     this.controller?.abort();
     this.child?.kill();
     this.controller = undefined;
@@ -73,7 +77,7 @@ export class NativeVoice {
     const python = join(this.root, "expressive-runtime", "Scripts", "python.exe");
     const script = this.serviceWorker || join(this.root, "expressive_service.py");
     if (!existsSync(python) || !existsSync(script)) throw new Error("Falta instalar el motor de voz original y sus modelos locales.");
-    const child = spawn(python, [script, this.root], { windowsHide: true, detached: true, stdio: "ignore", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
+    const child = spawn(python, [script, this.root], { cwd: this.root, windowsHide: true, detached: true, stdio: "ignore", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } });
     let launchError = false;
     child.on("error", () => { launchError = true; });
     child.unref();
@@ -118,6 +122,7 @@ export class NativeVoice {
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       const child = spawn(command, args, {
+        cwd: this.root,
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -136,7 +141,7 @@ export class NativeVoice {
         child.kill();
         end("El motor de voz superó el tiempo de espera.");
       }, timeout);
-      child.on("error", () => end("No se pudo iniciar el motor de voz local."));
+      child.on("error", (error: NodeJS.ErrnoException) => end(`No se pudo iniciar el motor de voz local (${error.code || 'SPAWN'}). Revisa su carpeta de recursos.`));
       child.stdout?.on("data", (data: Buffer) => {
         output += data.toString();
         if (output.length > 32_000_000) {
@@ -161,9 +166,12 @@ export class NativeVoice {
       this.controller = controller;
       try {
         const { token, profile } = await this.sharedService(controller.signal, true);
-        const response = await this.speechRequest("/speech", token, controller.signal, { text, ...profile });
+        const style = this.settings().voiceStyle;
+        const response = await this.speechRequest("/speech", token, controller.signal, { text, style, ...profile });
         if (response.headers.get("X-Karen-Voice-Id") !== profile.profileId || response.headers.get("X-Karen-Voice-Sha256") !== profile.referenceSha256)
           throw new Error("El audio recibido no pertenece a la voz fija de Karen.");
+        if (style !== 'neutral' && response.headers.get('X-Karen-Voice-Style') !== style)
+          throw new Error('Actualiza el servicio de voz compartida para usar estilos.');
         const bytes = await response.arrayBuffer();
         if (bytes.byteLength > 24_000_000 || Buffer.from(bytes).subarray(0, 4).toString() !== "RIFF") throw new Error("El servicio devolvió audio inválido.");
         return bytes;
@@ -188,31 +196,6 @@ export class NativeVoice {
     ) as ArrayBuffer;
   }
   async transcribe(pcm: ArrayBuffer): Promise<string> {
-    this.cancel();
-    if (
-      !(pcm instanceof ArrayBuffer) ||
-      pcm.byteLength < 3200 ||
-      pcm.byteLength > 1_920_000
-    )
-      throw new Error("Audio inválido. Graba entre 0,1 y 60 segundos.");
-    const result = await this.run(
-      join(this.root, "voice-runtime", "Scripts", "python.exe"),
-      this.worker ? [this.worker, this.root] : [join(this.root, "voice_worker.py")],
-      JSON.stringify({
-        operation: "stt",
-        engine: "faster-small",
-        audio: Buffer.from(pcm).toString("base64"),
-      }) + "\n",
-      180000,
-    );
-    const value = JSON.parse(result.split("\n").at(-1) || "{}") as {
-      text?: string;
-      error?: string;
-    };
-    if (value.error || typeof value.text !== "string")
-      throw new Error(
-        "El reconocimiento local no pudo transcribir. Revisa los modelos de voz.",
-      );
-    return value.text.trim().slice(0, 16000);
+    return this.recognizer.transcribe(this.root, pcm);
   }
 }

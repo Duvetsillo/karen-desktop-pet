@@ -1,4 +1,5 @@
 import type { Settings } from "./types.js";
+import { VOICE_STYLES } from './types.js';
 import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
   scale: 1,
@@ -16,6 +17,8 @@ export const defaults: Settings = {
   bubbles: true,
   voiceEnabled: false,
   ttsEngine: "system",
+  voiceStyle: 'serene',
+  wakeWordEnabled: false,
   inputDevice: "",
   outputDevice: "",
   volume: 0.8,
@@ -58,6 +61,7 @@ export function validateSettings(
     "bubbles",
     "voiceEnabled",
     "sttEnabled",
+    "wakeWordEnabled",
     "alwaysOnTop",
     "autoStart",
     "lowPower",
@@ -106,5 +110,9 @@ export function validateSettings(
     s.authSource = raw.authSource;
   if (raw.ttsEngine === "system" || raw.ttsEngine === "local")
     s.ttsEngine = raw.ttsEngine;
+  if (raw.voiceStyle !== undefined) {
+    if (!VOICE_STYLES.includes(raw.voiceStyle)) throw new Error('Estilo de voz desconocido.');
+    s.voiceStyle = raw.voiceStyle;
+  }
   return s;
 }

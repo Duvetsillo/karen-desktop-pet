@@ -22,12 +22,18 @@ describe("voz compartida y fija", () => {
     const voice = fixture();
     const fetcher = vi.fn()
       .mockResolvedValueOnce(Response.json({ protocol: 2, ...profile }))
-      .mockResolvedValueOnce(new Response("RIFFsynthetic-test", { headers: { "X-Karen-Voice-Id": profile.profileId, "X-Karen-Voice-Sha256": profile.referenceSha256 } }));
+      .mockResolvedValueOnce(new Response("RIFFsynthetic-test", { headers: { "X-Karen-Voice-Id": profile.profileId, "X-Karen-Voice-Sha256": profile.referenceSha256, 'X-Karen-Voice-Style':'serene' } }));
     vi.stubGlobal("fetch", fetcher);
     expect(Buffer.from(await voice.synthesize("Hola Karen.")).toString()).toBe("RIFFsynthetic-test");
     const [url, request] = fetcher.mock.calls[1];
     expect(url).toBe("http://127.0.0.1:18790/speech");
-    expect(JSON.parse(request.body)).toEqual({ text: "Hola Karen.", ...profile });
+    expect(JSON.parse(request.body)).toEqual({ text: "Hola Karen.", style:'serene', ...profile });
+  });
+  it('rechaza un servicio antiguo que ignore el estilo solicitado', async () => {
+    const voice = fixture();
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(Response.json({protocol:2,...profile}))
+      .mockResolvedValueOnce(new Response('RIFFfixture',{headers:{'X-Karen-Voice-Id':profile.profileId,'X-Karen-Voice-Sha256':profile.referenceSha256}})));
+    await expect(voice.synthesize('Hola')).rejects.toThrow('Actualiza');
   });
   it("rechaza otra identidad sin cambiar al motor de Windows", async () => {
     const voice = fixture();
