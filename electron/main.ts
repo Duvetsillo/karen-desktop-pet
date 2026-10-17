@@ -387,13 +387,17 @@ async function ready() {
     storage.setCredential(value);
   });
   handle("connect", () => gateway.connect());
+  handle('models', () => gateway.models());
+  handle('select-model', model => gateway.selectModel(model));
   handle("disconnect", () => gateway.disconnect());
   handle("send", (value, images) => {
     if (typeof value !== "string") throw new Error("Mensaje inválido.");
+    void voice.prepare().catch(() => {});
     return gateway.send(value, images as never);
   });
   handle("abort", () => {
-    if (storage.settings.wakeWordEnabled) updateSettings({wakeWordEnabled:false});
+    // Stop the current reply/capture without changing the user's wake preference.
+    // Continuous listening has its own explicit pause control.
     stopPerception();
     return gateway.abort();
   });
@@ -415,7 +419,8 @@ async function ready() {
     const root = result.filePaths[0];
     const hasStt = existsSync(join(root, "voice-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/faster-whisper-small/model.bin"));
     const hasVoice = existsSync(join(root, "expressive-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/active-voice.json"));
-    if (!hasStt && !hasVoice) throw new Error("La carpeta necesita recursos de reconocimiento o un perfil de voz original compartida.");
+    const hasFast = existsSync(join(root,'voice-runtime/Scripts/python.exe')) && existsSync(join(root,'voice-models/kokoro-v1.0.onnx')) && existsSync(join(root,'voice-models/voices-v1.0.bin'));
+    if (!hasStt && !hasVoice && !hasFast) throw new Error("La carpeta necesita recursos de reconocimiento, Kokoro o un perfil de voz original compartida.");
     updateSettings({ voiceRoot: root });
     return root;
   });
@@ -470,6 +475,8 @@ async function ready() {
   handle("show", recover);
   handle("context-menu", contextMenu);
   handle("synthesize", (text) => voice.synthesize(text as string));
+  handle("prepare-voice", () => voice.prepare());
+  handle("cancel-synthesis", () => voice.cancelSynthesis());
   handle("transcribe", (pcm) => voice.transcribe(pcm as ArrayBuffer));
   handle('cancel-transcription', () => voice.cancelTranscription());
   handle("voice-health", () => voice.health());
@@ -539,7 +546,7 @@ else {
   app.on("window-all-closed", () => {});
   app.on("before-quit", () => {
     quitting = true;
-    voice?.cancel();
+    voice?.dispose();
     loopback?.cancel();
     gateway?.disconnect(false);
     clearInterval(cursorTimer);

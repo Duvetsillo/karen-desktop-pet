@@ -37,7 +37,7 @@ export class VoiceReplies {
   }
 }
 
-/** Short natural phrases let playback begin before the whole reply is generated. */
+/** A short first phrase reduces the first audio wait; later phrases keep cadence. */
 export function speechPhrases(text: string, limit = 180): string[] {
   const plain = text
     .replace(/```[\s\S]*?(?:```|$)/g, " ")
@@ -50,15 +50,18 @@ export function speechPhrases(text: string, limit = 180): string[] {
   const result: string[] = [];
   let phrase = "";
   for (const word of plain.split(/\s+/).filter(Boolean)) {
-    if (phrase && phrase.length + word.length + 1 > limit) {
-      result.push(phrase);
-      phrase = "";
-    }
-    // Bound even a long URL-free word to the synthesis request size.
-    for (let i = 0; i < word.length; i += limit) {
-      const part = word.slice(i, i + limit);
+    let remaining = word;
+    while (remaining) {
+      const bound = result.length ? limit : Math.min(limit, 64);
+      const part = remaining.slice(0, bound);
+      if (phrase && phrase.length + part.length + 1 > bound) {
+        result.push(phrase);
+        phrase = "";
+        continue;
+      }
       phrase = [phrase, part].filter(Boolean).join(" ");
-      if (phrase.length >= limit || (phrase.length >= 40 && /[.!?…]$/.test(part))) {
+      remaining = remaining.slice(part.length);
+      if (phrase.length >= bound || (phrase.length >= (result.length ? 40 : 8) && /[.!?…]$/.test(part))) {
         result.push(phrase);
         phrase = "";
       }

@@ -123,6 +123,16 @@ async function setup() {
   return { runtime, call, login, root };
 }
 describe("servidor autónomo", () => {
+  it('protege el selector de modelos con sesión, origen y cabecera de cliente', async () => {
+    const t = await setup();
+    for (const path of ['/api/models', '/api/select-model']) {
+      expect((await t.call(path, {method:'POST', origin:'http://localhost', client:true, body:{model:null}})).status).toBe(401);
+      const cookie = await t.login();
+      expect((await t.call(path, {method:'POST', origin:'https://attacker.example', cookie, client:true, body:{model:null}})).status).toBe(403);
+      expect((await t.call(path, {method:'POST', origin:'http://localhost', cookie, body:{model:null}})).status).toBe(403);
+      expect((await t.call(path, {method:'POST', origin:'http://localhost', cookie, client:true, body:{model:null}})).status).toBe(400);
+    }
+  });
   it("exige autenticación y separa el token del Gateway del acceso al navegador", async () => {
     const t = await setup();
     expect((await t.call("/healthz")).status).toBe(200);

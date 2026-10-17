@@ -1,5 +1,41 @@
 # One original Karen voice
 
+## 1.5.3: optional fast local voice
+
+Select **Rápida local · Kokoro (otro timbre)** in Voice to prioritize latency.
+This is a distinct fixed synthetic timbre, not a clone of the Qwen reference.
+The original shared voice stays selectable and WhatsApp is unchanged. There is
+no automatic fallback or silent migration between voices.
+
+Bring your own `voice-runtime` Python environment with `kokoro-onnx` and
+`soundfile`, `voice-models/kokoro-v1.0.onnx`, `voice-models/voices-v1.0.bin`, and
+FFmpeg with Rubber Band for delivery presets. The application downloads none
+of these. A CPU worker reuses the model and exits after two idle minutes.
+No GPU, API key or external speech service is required. The same delivery
+presets and real energy-driven mouth animation work with this option.
+
+## 1.5.2: first audio and layout
+
+The pet starts with a short natural phrase (at most 64 characters), then prepares
+one following phrase during playback. The queue stays bounded and cancellation
+aborts the pet's own synthesis request without cancelling a Gateway action.
+Replies remain visible while their audio is preparing or playing. The status
+and reply share a vertical column, including at 50% size.
+
+With local speech enabled, microphone capture and message submission request
+authenticated `/prepare` on Karen's own loopback voice service. It loads the
+same pinned reference without synthesizing text, overlapping startup with the
+user's command and the assistant's response. The model may remain in GPU memory
+for ten minutes after preparation; idle inference consumes no generation CPU.
+Low-power mode and muted speech skip preparation. Other voice clients retain
+their settings. This extension is advertised through a health capability and
+does not add or alter any OpenClaw endpoint.
+
+This reduces time to the first phrase and some gaps between phrases. It is not
+true audio streaming or an instantaneous TTS engine. New phrases still require
+local inference; cold startup and cached repeats must be measured separately.
+The stable FP32 path, CPU codec and original voice identity remain in use.
+
 ## 1.5: delivery styles and addressed-name activation
 
 Voice settings now offer Original, Serene, Warm, Serious, Bright and Gentle irony.
@@ -13,7 +49,8 @@ so existing notes retain their prior processing and provider configuration.
 
 The native client requests and verifies the selected style. An old service that
 ignores it produces an update error, rather than pretending the style worked.
-Health requests remain read-only; a missing service starts on the first utterance.
+Health requests remain read-only; enabled local voice can start the service
+when preparing a command or synthesizing an utterance.
 The native process explicitly uses the resource directory as its working folder,
 and recognition errors include a bounded launch error code without stderr logs.
 Windows speech also works without an optional resource directory, using an
@@ -30,8 +67,11 @@ the name is retained; the name alone opens a ten-second command window. ASR can
 mishear words, especially poor synthetic audio, noise or distant microphones;
 this is not speaker authentication or guaranteed instantaneous wake detection.
 
-An indicator shows when the pet is listening locally. **Pausar escucha** closes
-it; the overall Stop action also disables continuous wake listening. Input is
+An indicator shows when the pet is listening locally. Say only **Karen**;
+**Caren** is an accepted spelling from recognition, not a second required word.
+**Pausar escucha** closes the microphone; **Activar escucha** restores it.
+**Detener** cancels the current response or capture while preserving the chosen
+wake setting. A microphone error stays visible with a retry control. Input is
 closed during the pet's playback, manual capture and PC-audio capture. Stale
 capture callbacks cannot reopen a paused detector. Nothing before activation
 is sent to OpenClaw or written to a recording file. Recognition keeps one CPU

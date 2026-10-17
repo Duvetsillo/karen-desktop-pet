@@ -4,6 +4,7 @@ import { speechPhrases } from "./replies";
 import type { CaptureStatus } from "../../shared/types";
 import { TranscriptionWakeDetector } from './wake';
 import { pcm16 } from './pcm';
+import { speechAudio } from './pipeline';
 
 export interface TtsEngine {
   synthesize(text: string, signal: AbortSignal): Promise<ArrayBuffer>;
@@ -47,7 +48,13 @@ export class AudioDirector {
   }
   constructor(
     private tts: TtsEngine = {
-      synthesize: async (text) => bridge.synthesize(text),
+      synthesize: async (text, signal) => {
+        const cancel = () => { void bridge.cancelSynthesis?.().catch(() => {}); };
+        signal.throwIfAborted();
+        signal.addEventListener('abort', cancel, {once:true});
+        try { return await bridge.synthesize(text); }
+        finally { signal.removeEventListener('abort', cancel); }
+      },
     },
     private stt: SttEngine = {
       transcribe: async (pcm) => bridge.transcribe(pcm),
@@ -130,6 +137,9 @@ export class AudioDirector {
     if (finish) this.status("idle");
   }
   cancel() {
+    // Invalidate an in-flight wake transcription before its cancellation rejects.
+    // resumeWake rearms it; a stale rejection cannot turn off the new listener.
+    this.detector?.pause();
     this.generation++;
     this.speechController?.abort();
     this.speechController = undefined;
@@ -155,14 +165,9 @@ export class AudioDirector {
     this.speechController = controller;
     this.detector?.pause();
     try {
-      for (const phrase of phrases) {
-        if (generation !== this.generation) return;
-        useStore.getState().transition("THINKING", "Preparando voz original");
-        this.status("preparing");
-        const bytes = await this.tts.synthesize(
-          phrase,
-          controller.signal,
-        );
+      useStore.getState().transition("THINKING", "Preparando voz original");
+      this.status("preparing");
+      for await (const bytes of speechAudio(phrases, (phrase, signal) => this.tts.synthesize(phrase, signal), controller.signal)) {
         if (generation !== this.generation) return;
         this.context = new AudioContext();
         const outputContext = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
@@ -203,6 +208,8 @@ export class AudioDirector {
         if (generation !== this.generation) return;
         // Keep ownership between phrases so another reply cannot overtake us.
         this.cleanup(false);
+        useStore.getState().transition("THINKING", "Preparando voz original");
+        this.status("preparing");
       }
       if (generation === this.generation) {
         this.processing = false;
@@ -238,6 +245,7 @@ export class AudioDirector {
     this.detector?.pause();
     try {
       await bridge.cancelTranscription?.();
+      void bridge.prepareVoice?.().catch(() => {});
       const settings = useStore.getState().settings;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {

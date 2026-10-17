@@ -38,6 +38,8 @@ import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
 import { PET_SCALE } from "../shared/pet-layout";
 import { Perception, CaptureIndicator } from "./Perception";
+import { ModelPicker } from './ModelPicker';
+import { StylePicker } from './pet/StylePicker';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -380,6 +382,7 @@ function Conversation() {
         <h2>Tu espacio con Karen</h2>
         <Status compact />
       </div>
+      <ModelPicker />
       <div className="messages" role="log" aria-label="Conversación con Karen">
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -486,6 +489,9 @@ function Appearance() {
   const s = useStore((x) => x.settings);
   return (
     <>
+      <Group title="Tres formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
+        <StylePicker value={s.petStyle} onChange={petStyle => void patch({petStyle})}/>
+      </Group>
       <Group
         title="Tamaño del PET"
         description="Cambia al instante y se recuerda al volver a abrir Karen."
@@ -650,6 +656,7 @@ function OpenClaw() {
         description="La dirección, el agente y los secretos se configuran mediante variables de entorno o archivos privados del administrador."
       >
         <Status />
+        <ModelPicker />
         <dl className="service-list">
           <div>
             <dt>Gateway</dt>
@@ -674,6 +681,7 @@ function OpenClaw() {
     );
   return (
     <>
+      <Group title="Modelo para esta conversación"><ModelPicker /></Group>
       <Group title="Gateway">
         <div className="gateway-status">
           <Radio size={21} />
@@ -843,12 +851,14 @@ function Voice() {
           >
             <option value="system">Voz instalada en Windows</option>
             <option value="local">Voz original compartida de Karen</option>
+            <option value="fast">Rápida local · Kokoro (otro timbre)</option>
           </select>
         </div>
         {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
+        {s.ttsEngine === 'fast' && <p className="quiet-note">Prioriza rapidez con Kokoro en CPU. Usa otro timbre fijo; no es la referencia original de WhatsApp. Requiere tus modelos locales de Kokoro.</p>}
         <div className="input-field">
           <label htmlFor="voice-style">Estilo de la voz original</label>
-          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine !== 'local'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
+          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine === 'system'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
             <option value="serene">Serena · madura y pausada</option>
             <option value="warm">Cercana · cálida</option>
             <option value="serious">Seria · sobria</option>
@@ -1110,13 +1120,15 @@ function PetApp() {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
   const last = messages.filter((m) => m.role === "assistant").at(-1);
+  const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
   useEffect(() => {
-    if (last) {
-      setBubble(true);
-      const timer = setTimeout(() => setBubble(false), 16000);
-      return () => clearTimeout(timer);
-    }
+    if (last) setBubble(true);
   }, [last?.text]);
+  useEffect(() => {
+    if (!bubble || voiceActive) return;
+    const timer = setTimeout(() => setBubble(false), 16000);
+    return () => clearTimeout(timer);
+  }, [bubble, last?.text, voiceActive]);
   useEffect(() => {
     const check = (x: number, y: number) => {
       const r = root.current?.getBoundingClientRect();
@@ -1155,6 +1167,7 @@ function PetApp() {
       }}
     >
       <PetRenderer />
+      <div className="pet-dialogue">
       <CaptureIndicator />
       {s.bubbles && bubble && last && !compose && (
         <div
@@ -1171,6 +1184,7 @@ function PetApp() {
           </p>
         </div>
       )}
+      </div>
       <button
         className="pet-hit-area"
         aria-label={`Karen: ${labels[state]}. Arrastra para mover, doble clic para ajustes.`}

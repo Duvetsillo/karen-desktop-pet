@@ -26,6 +26,8 @@ const preview: DesktopBridge = {
   settings: async (patch) => ({ ...defaults, ...patch }),
   credential: unavailable,
   connect: unavailable,
+  models: unavailable,
+  selectModel: unavailable,
   disconnect: unavailable,
   send: unavailable,
   abort: unavailable,

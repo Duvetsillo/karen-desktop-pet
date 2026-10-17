@@ -8,6 +8,16 @@ import {
   mergeMessages,
 } from "../shared/protocol";
 describe("configuración", () => {
+  it('migra la apariencia existente y valida las tres formas sin cambiar voz o conexión', () => {
+    expect(validateSettings({}).petStyle).toBe('crystal');
+    for (const petStyle of ['crystal', 'cloud', 'orbit'] as const) {
+      const settings = validateSettings({petStyle});
+      expect(settings.petStyle).toBe(petStyle);
+      expect(settings.ttsEngine).toBe(defaults.ttsEngine);
+      expect(settings.gatewayUrl).toBe(defaults.gatewayUrl);
+    }
+    expect(() => validateSettings({petStyle: 'unknown' as never})).toThrow('Apariencia');
+  });
   it("acota recursos y rechaza entradas inválidas", () => {
     expect(validateSettings({ scale: 99, brightness: -1 }).scale).toBe(2);
     expect(validateSettings({ brightness: -1 }).brightness).toBe(0.35);
