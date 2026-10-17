@@ -387,6 +387,8 @@ async function ready() {
     storage.setCredential(value);
   });
   handle("connect", () => gateway.connect());
+  handle('models', () => gateway.models());
+  handle('select-model', model => gateway.selectModel(model));
   handle("disconnect", () => gateway.disconnect());
   handle("send", (value, images) => {
     if (typeof value !== "string") throw new Error("Mensaje inválido.");

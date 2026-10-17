@@ -38,6 +38,8 @@ import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
 import { PET_SCALE } from "../shared/pet-layout";
 import { Perception, CaptureIndicator } from "./Perception";
+import { ModelPicker } from './ModelPicker';
+import { StylePicker } from './pet/StylePicker';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -380,6 +382,7 @@ function Conversation() {
         <h2>Tu espacio con Karen</h2>
         <Status compact />
       </div>
+      <ModelPicker />
       <div className="messages" role="log" aria-label="Conversación con Karen">
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -486,6 +489,9 @@ function Appearance() {
   const s = useStore((x) => x.settings);
   return (
     <>
+      <Group title="Tres formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
+        <StylePicker value={s.petStyle} onChange={petStyle => void patch({petStyle})}/>
+      </Group>
       <Group
         title="Tamaño del PET"
         description="Cambia al instante y se recuerda al volver a abrir Karen."
@@ -650,6 +656,7 @@ function OpenClaw() {
         description="La dirección, el agente y los secretos se configuran mediante variables de entorno o archivos privados del administrador."
       >
         <Status />
+        <ModelPicker />
         <dl className="service-list">
           <div>
             <dt>Gateway</dt>
@@ -674,6 +681,7 @@ function OpenClaw() {
     );
   return (
     <>
+      <Group title="Modelo para esta conversación"><ModelPicker /></Group>
       <Group title="Gateway">
         <div className="gateway-status">
           <Radio size={21} />

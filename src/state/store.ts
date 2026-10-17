@@ -8,6 +8,7 @@ import type {
   Settings,
   CaptureStatus,
   WakeStatus,
+  ModelSelection,
 } from "../../shared/types";
 import { defaults } from "../../shared/settings";
 import { PetMachine } from "./machine";
@@ -19,6 +20,7 @@ export const signals: {
   hitTest?: (x: number, y: number) => boolean;
 } = { energy: 0, cursor: { x: 0.5, y: 0.5 }, fps: 0 };
 interface Store {
+  models?: ModelSelection;
   settings: Settings;
   connection: ConnectionInfo;
   state: PetState;
@@ -58,7 +60,8 @@ export const useStore = create<Store>((set, get) => ({
     set({ state, reason });
   },
   event: (event) => {
-    if (event.type === 'wake-status') set({wakeStatus:event.status});
+    if (event.type === 'models') set({models:event.selection});
+    else if (event.type === 'wake-status') set({wakeStatus:event.status});
     else if (event.type === "settings") set({ settings: event.settings });
     else if (event.type === "capture") set({ capture: event.status });
     else if (event.type === "transcript") set({ transcript: event.text, tab: "Percepción" });

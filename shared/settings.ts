@@ -1,7 +1,8 @@
 import type { Settings } from "./types.js";
-import { VOICE_STYLES } from './types.js';
+import { PET_STYLES, VOICE_STYLES } from './types.js';
 import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
+  petStyle: 'crystal',
   scale: 1,
   brightness: 1,
   opacity: 0.94,
@@ -54,6 +55,10 @@ export function validateSettings(
   current: Settings = defaults,
 ): Settings {
   const s = { ...current };
+  if (raw.petStyle !== undefined) {
+    if (!PET_STYLES.includes(raw.petStyle)) throw new Error('Apariencia desconocida.');
+    s.petStyle = raw.petStyle;
+  }
   for (const key of [
     "particles",
     "animations",

@@ -10,6 +10,21 @@ export const PET_STATES = [
   "DRAGGING",
 ] as const;
 export type PetState = (typeof PET_STATES)[number];
+export const PET_STYLES = ['crystal', 'cloud', 'orbit'] as const;
+export type PetStyle = (typeof PET_STYLES)[number];
+export interface ModelOption {
+  id: string;
+  name: string;
+  provider: string;
+  available: boolean;
+}
+export interface ModelSelection {
+  busy: boolean;
+  sessionKey: string;
+  selected: string | null;
+  effective: string | null;
+  models: ModelOption[];
+}
 export const VOICE_STYLES = ['neutral', 'serene', 'warm', 'serious', 'bright', 'wry'] as const;
 export type VoiceStyle = (typeof VOICE_STYLES)[number];
 export type WakeStatus = 'off' | 'listening' | 'processing' | 'paused' | 'error';
@@ -20,6 +35,7 @@ export type ConnectionState =
   | "reconnecting"
   | "action-required";
 export interface Settings {
+  petStyle: PetStyle;
   scale: number;
   brightness: number;
   opacity: number;
@@ -80,6 +96,7 @@ export interface CaptureStatus {
   startedAt?: number;
 }
 export type DesktopEvent =
+  | { type: 'models'; selection: ModelSelection }
   | { type: 'wake-status'; status: WakeStatus }
   | { type: "connection"; info: ConnectionInfo }
   | { type: "pet"; state: PetState; reason?: string }
@@ -108,6 +125,8 @@ export interface Snapshot {
   wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
+  models(): Promise<ModelSelection>;
+  selectModel(model: string | null): Promise<ModelSelection>;
   snapshot(): Promise<Snapshot>;
   settings(patch: Partial<Settings>): Promise<Settings>;
   credential(value: string): Promise<void>;

@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('karen', {
   settings: patch => ipcRenderer.invoke('settings', patch),
   credential: value => ipcRenderer.invoke('credential', value),
   connect: () => ipcRenderer.invoke('connect'),
+  models: () => ipcRenderer.invoke('models'),
+  selectModel: model => ipcRenderer.invoke('select-model', model),
   disconnect: () => ipcRenderer.invoke('disconnect'),
   send: (text, images) => ipcRenderer.invoke('send', text, images),
   abort: () => ipcRenderer.invoke('abort'),

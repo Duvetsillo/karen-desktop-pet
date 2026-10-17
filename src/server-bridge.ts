@@ -3,6 +3,7 @@ import type {
   DesktopEvent,
   Snapshot,
   Settings,
+  ModelSelection,
 } from "../shared/types";
 export function serverBridge(): DesktopBridge {
   const request = async <T>(path: string, body?: unknown): Promise<T> => {
@@ -34,6 +35,8 @@ export function serverBridge(): DesktopBridge {
     settings: (patch) => request<Settings>("settings", { patch }),
     credential: unsupported,
     connect: () => request<void>("connect", {}),
+    models: () => request<ModelSelection>('models', {}),
+    selectModel: model => request<ModelSelection>('select-model', {model}),
     disconnect: () => request<void>("disconnect", {}),
     send: (text, images) => images?.length ? unsupported() : request<void>("send", { text }),
     abort: () => request<void>("abort", {}),

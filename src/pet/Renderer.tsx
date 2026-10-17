@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite } from "pixi.js";
 import "pixi.js/unsafe-eval";
 import { createPetTextures } from "./textures";
+import { petStyles } from '../../shared/pet-styles';
 import { gazeTarget } from "./gaze";
 import { signals, useStore } from "../state/store";
 
@@ -17,6 +18,7 @@ export function PetRenderer({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const accent = useStore((s) => s.settings.accent);
+  const petStyle = useStore((s) => s.settings.petStyle);
   useEffect(() => {
     let disposed = false;
     let initialized = false;
@@ -42,7 +44,7 @@ export function PetRenderer({
       }
       host.current!.appendChild(app.canvas);
       app.canvas.setAttribute("aria-hidden", "true");
-      const tex = createPetTextures(accent);
+      const tex = createPetTextures(accent, petStyle);
       const scene = new Container();
       app.stage.addChild(scene);
       const make = (
@@ -398,13 +400,13 @@ export function PetRenderer({
       disposed = true;
       cleanup();
     };
-  }, [accent, preview]);
+  }, [accent, petStyle, preview]);
   return (
     <div
       ref={host}
       className={`pet-renderer ${className}`}
       role="img"
-      aria-label="Karen, criatura holográfica de cristal azul con aletas de luz y ojos expresivos"
+      aria-label={`Karen, estilo ${petStyles[petStyle].name}, con ojos expresivos`}
     />
   );
 }

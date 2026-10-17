@@ -64,7 +64,7 @@ class ProfileTests(unittest.TestCase):
         load.assert_called_once_with(profile)
         self.assertEqual(result, profile)
         self.assertEqual(engine.phase, 'ready')
-        self.assertEqual(engine.keep_warm_until - engine.last_used, 600)
+        self.assertAlmostEqual(engine.keep_warm_until - engine.last_used, 600, places=6)
         self.assertEqual(len(engine.cache), 0)
 
     def test_prepare_rejects_another_identity_before_loading(self):

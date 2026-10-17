@@ -44,6 +44,9 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - Activa opcionalmente inicio con Windows, prioridad de ventana y bajo consumo.
 - Los nueve estados incluyen reposo, escucha, procesamiento, habla y errores.
 - **Apariencia → Tamaño del PET:** escala de 50 a 200 %, presets y vista previa en directo.
+- **Apariencia → Tres formas:** Cristal, Nube y Órbita. Siluetas y materiales propios, cambio inmediato y selección guardada.
+- **Conversación / OpenClaw → Modelo de IA:** catálogo real por proveedor, modelo actual y regreso al predeterminado del agente.
+- El modelo se cambia para la sesión actual. Otros clientes de esa sesión comparten el cambio; no se modifica la configuración global.
 - El tamaño se recuerda al abrir y se limita al monitor sin deformar la mascota.
 - Pupilas independientes, cejas y ojos asimétricos hacen más visibles la mirada y las expresiones.
 - El modo de bajo consumo y el reposo limitan el renderizado a 15 FPS.
@@ -52,6 +55,7 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - **Percepción:** transcribe audio del PC por WASAPI y revisa capturas antes de enviarlas al modelo con visión.
 - [Configurar micrófono, audio del PC y pantalla](docs/PERCEPTION.md).
 - [Crear una voz original compartida con Karen Local y WhatsApp](docs/SHARED_VOICE.md).
+- [Estilos del PET y selección de modelos](docs/STYLES_AND_MODELS.md).
 
 ## Servidor Linux / Docker
 

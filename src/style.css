@@ -10,6 +10,31 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   color-scheme: dark;
 }
+.pet-styles { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pet-style-card { position: relative; display: flex; flex-direction: column; padding: 10px; border: 1px solid #394259; border-radius: 14px; background: #161d2b; cursor: pointer; transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 160ms var(--ease-out); }
+.pet-style-card:hover { border-color: #8794b7; background: #202a3b; }
+.pet-style-card.selected { border-color: #b7b2f5; background: #292c43; }
+.pet-style-card:has(input:focus-visible) { outline: 2px solid #c7c0ff; outline-offset: 3px; }
+.pet-style-card:active { transform: scale(.97); }
+.pet-style-card input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.pet-style-card svg { display: block; width: 100%; height: 106px; }
+.pet-style-name { display: flex; align-items: center; justify-content: space-between; font-weight: 600; margin: 7px 0; }
+.pet-style-name svg { width: 14px; height: 14px; color: #c7c0ff; }
+.pet-style-card small { color: #bac3d9; line-height: 1.5; font-size: 12px; }
+.model-picker { border: 1px solid var(--line); border-radius: 12px; background: #151b29; padding: 12px 14px; flex: none; }
+.model-picker-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.model-picker-heading label { font-size: 13px; font-weight: 600; }
+.model-picker-heading span { color: var(--muted); font-size: 11px; }
+.model-picker-controls { display: flex; gap: 8px; }
+.model-picker-controls select { min-width: 0; text-overflow: ellipsis; }
+.model-picker-controls button { flex: none; }
+.model-picker .quiet-note { margin: 6px 0 0; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.model-picker .model-current { color: #ced9ee; }
+.model-error { color: #ffd0b1; margin-top: 8px; font-size: 12px; }
+.conversation .messages { min-height: 140px; }
+.conversation .empty-chat { min-height: 170px; padding: 20px 0; }
+@media (max-width: 580px) { .pet-styles { grid-template-columns: 1fr; } .pet-style-card svg { height: 90px; } }
+@media (prefers-reduced-motion: reduce) { .pet-style-card { transition: none; } .pet-style-card:active { transform: none; } }
 * {
   box-sizing: border-box;
 }

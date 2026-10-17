@@ -8,6 +8,8 @@ import type {
   DesktopEvent,
   Settings,
   ImageAttachment,
+  ModelOption,
+  ModelSelection,
 } from "../shared/types.js";
 import { validateImages } from "../shared/attachments.js";
 import {
@@ -31,6 +33,7 @@ export class OpenClawAdapter {
   private watchdog?: ReturnType<typeof setTimeout>;
   private accepted = false;
   private pending = false;
+  private modelChanging = false;
   private knownRuns = new Set<string>();
   private rawText = new Map<string, string>();
   constructor(
@@ -48,6 +51,46 @@ export class OpenClawAdapter {
   private status(info: ConnectionInfo) {
     this.info = info;
     this.emit({ type: "connection", info });
+  }
+  /** Official protocol v4: catalog read + session-only model override. */
+  async models(): Promise<ModelSelection> {
+    if (this.info.state !== 'connected' || !this.client)
+      throw new Error('Conecta OpenClaw para consultar los modelos.');
+    const client = this.client, epoch = this.epoch, sessionKey = this.sessionKey;
+    const [catalog, sessions] = await Promise.all([
+      client.request<{ models: { id: string; name: string; provider: string; available?: boolean }[] }>('models.list', {agentId: this.storage.settings.agentId, view: 'configured'}),
+      client.request<{ sessions: {key: string; model?: string; modelProvider?: string; modelOverrideSource?: string; modelOverride?: string; providerOverride?: string; hasActiveRun?: boolean}[]; defaults?: { model?: string; modelProvider?: string } }>('sessions.list', {search: sessionKey, limit: 50}),
+    ]);
+    if (epoch !== this.epoch || client !== this.client || this.info.state !== 'connected')
+      throw new Error('La conexión cambió. Actualiza los modelos.');
+    if (!Array.isArray(catalog.models) || !Array.isArray(sessions.sessions))
+      throw new Error('El Gateway no devolvió un catálogo compatible.');
+    const canonical = (provider?: string, id?: string) => id ? (provider && !id.startsWith(provider + '/') ? `${provider}/${id}` : id) : null;
+    const models: ModelOption[] = catalog.models
+      .filter(m => typeof m.id === 'string' && typeof m.provider === 'string' && typeof m.name === 'string')
+      .map(m => ({id: canonical(m.provider, m.id)!, name: m.name, provider: m.provider, available: m.available !== false}));
+    const row = sessions.sessions.find(s => s.key === sessionKey);
+    const effective = canonical(row?.modelProvider, row?.model) ?? canonical(sessions.defaults?.modelProvider, sessions.defaults?.model);
+    const selected = row?.modelOverrideSource === 'user' || row?.modelOverride || row?.providerOverride ? effective : null;
+    const selection = {sessionKey, effective, selected, models, busy: row?.hasActiveRun === true};
+    this.emit({type: 'models', selection});
+    return selection;
+  }
+  async selectModel(model: unknown): Promise<ModelSelection> {
+    if (model !== null && (typeof model !== 'string' || model.length > 512))
+      throw new Error('Modelo inválido.');
+    if (this.pending || this.modelChanging)
+      throw new Error('Espera a que termine la respuesta o el cambio actual.');
+    this.modelChanging = true;
+    try {
+      const selection = await this.models();
+      if (selection.busy) throw new Error('La sesión tiene una tarea activa. Espera a que termine.');
+      if (model !== null && !selection.models.some(m => m.id === model && m.available))
+        throw new Error('Elige un modelo disponible del catálogo de OpenClaw.');
+      await this.client!.request('sessions.patch', {key: selection.sessionKey, model});
+      this.log('info', 'OpenClaw', 'Modelo de la sesión actualizado; configuración global conservada.');
+      return await this.models();
+    } finally { this.modelChanging = false; }
   }
   async connect() {
     this.disconnect(false);
@@ -243,7 +286,7 @@ export class OpenClawAdapter {
       throw new Error("Escribe un mensaje de hasta 16.000 caracteres.");
     if (this.info.state !== "connected" || !this.client)
       throw new Error("Conecta OpenClaw antes de enviar.");
-    if (this.pending)
+    if (this.pending || this.modelChanging)
       throw new Error(
         "Hay una respuesta en curso. Puedes detenerla antes de enviar otra orden.",
       );

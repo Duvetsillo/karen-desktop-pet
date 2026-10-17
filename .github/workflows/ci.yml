@@ -39,6 +39,8 @@ jobs:
         run: npm run test:voice:replies
       - if: runner.os == 'Windows'
         run: npm run test:wake:controls
+      - if: runner.os == 'Windows'
+        run: npm run test:styles
       - if: runner.os == 'Linux'
         run: npx playwright install --with-deps chromium
       - if: runner.os == 'Linux'

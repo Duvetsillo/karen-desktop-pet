@@ -1,4 +1,5 @@
 import { Texture } from "pixi.js";
+import type { PetStyle } from '../../shared/types';
 type Painter = (ctx: CanvasRenderingContext2D) => void;
 function paint(w: number, h: number, draw: Painter): Texture {
   const canvas = document.createElement("canvas");
@@ -8,8 +9,24 @@ function paint(w: number, h: number, draw: Painter): Texture {
   draw(ctx);
   return Texture.from(canvas);
 }
-function bodyPath(c: CanvasRenderingContext2D) {
+function bodyPath(c: CanvasRenderingContext2D, style: PetStyle) {
   c.beginPath();
+  if (style === 'orbit') {
+    c.roundRect(112, 133, 288, 245, [105, 105, 80, 80]);
+    return;
+  }
+  if (style === 'cloud') {
+    c.moveTo(256, 139);
+    c.bezierCurveTo(312, 95, 371, 134, 372, 181);
+    c.bezierCurveTo(430, 189, 437, 263, 399, 292);
+    c.bezierCurveTo(421, 346, 369, 398, 321, 374);
+    c.bezierCurveTo(285, 417, 227, 410, 203, 377);
+    c.bezierCurveTo(145, 403, 95, 359, 113, 311);
+    c.bezierCurveTo(69, 277, 86, 204, 133, 193);
+    c.bezierCurveTo(134, 140, 207, 111, 256, 139);
+    c.closePath();
+    return;
+  }
   c.moveTo(256, 126);
   c.bezierCurveTo(339, 117, 393, 155, 405, 233);
   c.bezierCurveTo(416, 285, 391, 319, 375, 340);
@@ -22,21 +39,19 @@ function bodyPath(c: CanvasRenderingContext2D) {
   c.bezierCurveTo(140, 146, 184, 120, 256, 126);
   c.closePath();
 }
-export function createPetTextures(accent: string) {
+export function createPetTextures(accent: string, style: PetStyle = 'crystal') {
   const body = paint(512, 512, (c) => {
-    bodyPath(c);
+    bodyPath(c, style);
     c.shadowColor = accent;
     c.shadowBlur = 22;
     const outer = c.createLinearGradient(125, 140, 370, 385);
-    outer.addColorStop(0, "#edfaff");
-    outer.addColorStop(0.25, "#a7def6");
-    outer.addColorStop(0.6, "#77badb");
-    outer.addColorStop(1, "#c0b5ef");
+    const colors = style === 'cloud' ? ['#fff8ff', '#e9dff5', '#c1b8db', '#f0e2ef'] : style === 'orbit' ? ['#d9e7f5', '#9badc6', '#536780', '#abb7d4'] : ['#edfaff', '#a7def6', '#77badb', '#c0b5ef'];
+    [0, 0.25, 0.6, 1].forEach((stop, i) => outer.addColorStop(stop, colors[i]));
     c.fillStyle = outer;
     c.fill();
     c.shadowBlur = 0;
     c.save();
-    bodyPath(c);
+    bodyPath(c, style);
     c.clip();
     const sheen = c.createRadialGradient(205, 173, 12, 256, 270, 180);
     sheen.addColorStop(0, "#f5ffff");
@@ -50,12 +65,12 @@ export function createPetTextures(accent: string) {
     belly.addColorStop(1, "#a59cff00");
     c.fillStyle = belly;
     c.fillRect(110, 270, 300, 145);
-    for (let y = 130; y < 405; y += 6) {
+    for (let y = 130; style === 'crystal' && y < 405; y += 6) {
       c.fillStyle = y % 12 === 0 ? "#ffffff09" : "#162a5906";
       c.fillRect(100, y, 320, 1);
     }
     c.restore();
-    bodyPath(c);
+    bodyPath(c, style);
     c.strokeStyle = "#e1fbffc9";
     c.lineWidth = 2.5;
     c.stroke();
@@ -106,9 +121,35 @@ export function createPetTextures(accent: string) {
     c.bezierCurveTo(274, 345, 272, 328, 256, 340);
     c.fillStyle = "#efffff9c";
     c.fill();
+    if (style === 'orbit') {
+      c.beginPath();
+      c.roundRect(222, 338, 68, 15, 7);
+      c.fillStyle = '#132c49';
+      c.fill();
+      for (let x = 231; x <= 276; x += 15) {
+        c.fillStyle = accent;
+        c.fillRect(x, 343, 8, 5);
+      }
+      c.beginPath();
+      c.moveTo(137, 317); c.quadraticCurveTo(256, 380, 375, 317);
+      c.strokeStyle = '#f2fbff88'; c.lineWidth = 3; c.stroke();
+    } else if (style === 'cloud') {
+      for (const x of [162, 350]) {
+        c.beginPath(); c.ellipse(x, 297, 15, 7, 0, 0, Math.PI * 2);
+        c.fillStyle = '#edaddb66'; c.fill();
+      }
+    }
   });
   const fin = paint(150, 260, (c) => {
     c.beginPath();
+    if (style === 'cloud') {
+      c.moveTo(76, 239);
+      c.bezierCurveTo(14, 195, 20, 104, 64, 94);
+      c.bezierCurveTo(109, 81, 125, 189, 76, 239);
+      c.closePath();
+    } else if (style === 'orbit') {
+      c.roundRect(65, 94, 18, 143, 9);
+    } else {
     c.moveTo(76, 239);
     c.bezierCurveTo(50, 208, 20, 189, 26, 149);
     c.bezierCurveTo(29, 115, 66, 109, 44, 47);
@@ -116,6 +157,7 @@ export function createPetTextures(accent: string) {
     c.bezierCurveTo(102, 61, 119, 122, 106, 166);
     c.bezierCurveTo(100, 195, 90, 217, 76, 239);
     c.closePath();
+    }
     const g = c.createLinearGradient(30, 40, 100, 236);
     g.addColorStop(0, "#e7e1ff");
     g.addColorStop(0.32, "#b3a6ed");
@@ -129,6 +171,14 @@ export function createPetTextures(accent: string) {
     c.strokeStyle = "#edffffad";
     c.lineWidth = 2;
     c.stroke();
+    if (style === 'orbit') {
+      c.beginPath(); c.arc(74, 90, 25, 0, Math.PI * 2);
+      c.fillStyle = '#e6ffff'; c.shadowColor = accent; c.shadowBlur = 16;
+      c.fill(); c.shadowBlur = 0;
+      c.beginPath(); c.arc(74, 90, 13, 0, Math.PI * 2);
+      c.fillStyle = accent; c.fill();
+      return;
+    }
     c.beginPath();
     c.moveTo(74, 217);
     c.bezierCurveTo(88, 157, 85, 107, 61, 59);
@@ -144,11 +194,17 @@ export function createPetTextures(accent: string) {
   });
   const arm = paint(140, 130, (c) => {
     c.beginPath();
+    if (style === 'orbit') {
+      c.roundRect(22, 35, 99, 49, 22);
+    } else if (style === 'cloud') {
+      c.ellipse(70, 62, 44, 30, -0.2, 0, Math.PI * 2);
+    } else {
     c.moveTo(120, 40);
     c.bezierCurveTo(75, 28, 54, 25, 23, 56);
     c.bezierCurveTo(0, 80, 34, 103, 70, 84);
     c.bezierCurveTo(89, 74, 108, 70, 120, 40);
     c.closePath();
+    }
     const g = c.createLinearGradient(20, 40, 110, 90);
     g.addColorStop(0, "#c9c4f8");
     g.addColorStop(0.5, "#c5f3fc");
