@@ -4,6 +4,7 @@ import "pixi.js/unsafe-eval";
 import { createPetTextures } from "./textures";
 import { petStyles } from '../../shared/pet-styles';
 import { gazeTarget } from "./gaze";
+import { SpeechMotion } from "./speech-motion";
 import { machine, signals, useStore } from "../state/store";
 
 function damp(value: number, target: number, dt: number, rate = 9) {
@@ -173,6 +174,7 @@ export function PetRenderer({
         quality = 1,
         bodyTint = 0xffffff,
         haloTint = 0xffffff;
+      const speechMotion = new SpeechMotion();
       const visibility = () => {
         if (document.hidden) app?.stop();
         else app?.start();
@@ -205,6 +207,7 @@ export function PetRenderer({
         const expressiveAge = Math.max(0, (Date.now() - machine.snapshot.since) / 1000);
         const entrance = motion ? Math.max(0, 1 - expressiveAge / 0.7) : 0;
         const voiceEnergy = speaking ? Math.sqrt(Math.max(0, Math.min(1, signals.energy))) : 0;
+        const speech = speechMotion.update(voiceEnergy, dt, speaking, motion);
         if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.5 * s.scale);
         const activity = motion ? s.activity : 0;
         let targetTilt =
@@ -220,9 +223,10 @@ export function PetRenderer({
                 : surprised ? 0.06
                 : 0;
         const gaze = gazeTarget(signals.cursor, s.cursorTracking && !sleeping);
-        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + (speaking ? Math.sin(t * 4) * voiceEnergy * 0.035 : 0);
+        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + Math.sin(t * 2.8) * speech.envelope * 0.045 + speech.side * speech.gesture * 0.055;
         tilt = damp(tilt, motion ? targetTilt : 0, dt, 7);
         root.rotation = tilt;
+        root.x = damp(root.x, motion ? Math.sin(t * 2.8) * speech.envelope * 6 + speech.side * speech.gesture * 4 : 0, dt, 8);
         const bob =
           activity *
           (sleeping
@@ -236,7 +240,7 @@ export function PetRenderer({
           float,
           bob +
             happy +
-            laughBounce + proudLift + surpriseLift +
+            laughBounce + proudLift + surpriseLift - speech.envelope * 8 - speech.gesture * 5 +
             (motion && state === "LISTENING" ? -5 : 0) +
             (motion && state === "DRAGGING" ? -12 : 0),
           dt,
@@ -245,7 +249,7 @@ export function PetRenderer({
         root.y = float;
         const breathe =
           1 + (motion ? Math.sin(t * (sleeping ? 1.2 : 2.3)) * 0.009 : 0);
-        const voicePulse = motion ? voiceEnergy * 0.028 : 0;
+        const voicePulse = motion ? speech.envelope * 0.028 : 0;
         root.scale.set(breathe - voicePulse, 2 - breathe + voicePulse);
         root.alpha = damp(
           root.alpha,
@@ -256,7 +260,7 @@ export function PetRenderer({
         bodyTint = dampTint(bodyTint, state === "ERROR" ? 0xffceb3 : angry ? 0xffd5ce : sad ? 0xdce7ff : 0xffffff, dt, reduced.matches ? 28 : 10);
         body.tint = bodyTint;
         halo.alpha =
-          (sleeping ? 0.08 : 0.22 + voiceEnergy * 0.07) * s.brightness * (s.nightMode ? 0.6 : 1);
+          (sleeping ? 0.08 : 0.22 + speech.envelope * 0.13) * s.brightness * (s.nightMode ? 0.6 : 1);
         haloTint = dampTint(haloTint, state === "ERROR" ? 0xffb473 : angry ? 0xff8b7a : sad ? 0x96adff : proud ? 0xffd78c : 0xffffff, dt, reduced.matches ? 28 : 10);
         halo.tint = haloTint;
         shadow.scale.set(0.85 - float * 0.002, 0.85 - float * 0.002);
@@ -274,7 +278,7 @@ export function PetRenderer({
                   : sad ? -0.35
                   : surprised ? 0.32
                   : 0) +
-            Math.sin(t * 1.7) * 0.04 * activity - (motion ? voiceEnergy * 0.1 : 0),
+            Math.sin(t * 1.7) * 0.04 * activity - speech.envelope * 0.17 - speech.gesture * 0.1,
           dt,
           7,
         );
@@ -291,18 +295,20 @@ export function PetRenderer({
                   : sad ? 0.35
                   : surprised ? -0.32
                   : 0) -
-            Math.sin(t * 1.7 + 0.6) * 0.04 * activity + (motion ? voiceEnergy * 0.1 : 0),
+            Math.sin(t * 1.7 + 0.6) * 0.04 * activity + speech.envelope * 0.17 + speech.gesture * 0.1,
           dt,
           7,
         );
-        armL.rotation =
+        armL.rotation = damp(armL.rotation,
           -0.25 +
           Math.sin(t * 2 + 0.3) * 0.07 * activity +
-          (motion ? laughing ? -0.42 : proud ? -0.36 : angry ? 0.2 : sad ? 0.12 : expression === "HAPPY" ? -0.25 : 0 : 0);
-        armR.rotation =
+          (motion ? laughing ? -0.42 : proud ? -0.36 : angry ? 0.2 : sad ? 0.12 : expression === "HAPPY" ? -0.25 : 0 : 0) -
+          speech.envelope * 0.13 - (speech.side < 0 ? speech.gesture * 0.4 : speech.gesture * 0.08), dt, 10);
+        armR.rotation = damp(armR.rotation,
           0.25 -
           Math.sin(t * 2) * 0.07 * activity +
-          (motion ? laughing ? 0.42 : proud ? 0.36 : angry ? -0.2 : sad ? -0.12 : expression === "HAPPY" ? 0.25 : 0 : 0);
+          (motion ? laughing ? 0.42 : proud ? 0.36 : angry ? -0.2 : sad ? -0.12 : expression === "HAPPY" ? 0.25 : 0 : 0) +
+          speech.envelope * 0.13 + (speech.side > 0 ? speech.gesture * 0.4 : speech.gesture * 0.08), dt, 10);
         if (t > nextBlink && !sleeping) {
           blink = 0.16;
           nextBlink = t + 2.5 + Math.random() * 5.5;

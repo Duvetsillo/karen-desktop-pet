@@ -1,3 +1,10 @@
+Karen Desktop Pet 1.6.3 makes speech gestures follow real output audio energy.
+The body leans and rises, fins respond, and the arms alternate on audio peaks
+instead of repeating a fixed loop. Gestures decay between peaks and
+stop as soon as speech stops. Reduced-motion and disabled-animation settings
+still suppress body movement while keeping readable lip motion. Voice synthesis,
+timing and profile remain unchanged.
+
 Karen Desktop Pet 1.6.2 shows Karen's selected expression while her voice is
 being prepared, instead of hiding it behind a neutral thinking face until audio
 starts. Body and halo color ease into an emotional state and retarget smoothly
