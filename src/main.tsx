@@ -495,7 +495,7 @@ function Appearance() {
   const s = useStore((x) => x.settings);
   return (
     <>
-      <Group title="Tres formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
+      <Group title="Cinco formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
         <StylePicker value={s.petStyle} onChange={petStyle => void patch({petStyle})}/>
       </Group>
       <Group

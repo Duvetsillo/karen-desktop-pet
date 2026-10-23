@@ -17,9 +17,10 @@ export const machine = new PetMachine();
 export const signals: {
   energy: number;
   cursor: { x: number; y: number };
+  pointingSide: -1 | 0 | 1;
   fps: number;
   hitTest?: (x: number, y: number) => boolean;
-} = { energy: 0, cursor: { x: 0.5, y: 0.5 }, fps: 0 };
+} = { energy: 0, cursor: { x: 0.5, y: 0.5 }, pointingSide: 0, fps: 0 };
 interface Store {
   models?: ModelSelection;
   settings: Settings;
@@ -80,6 +81,7 @@ export const useStore = create<Store>((set, get) => ({
       set((s) => ({ diagnostics: [...s.diagnostics.slice(-119), event.item] }));
     else if (event.type === "cursor")
       signals.cursor = { x: event.x, y: event.y };
+    else if (event.type === "pointing") signals.pointingSide = event.side;
     else if (event.type === "energy") signals.energy = event.value;
     else if (event.type === "chat")
       set((s) => {

@@ -29,8 +29,14 @@ export class LocalRecognizer {
     clearTimeout(this.timer);
     const python = join(root, 'voice-runtime', 'Scripts', 'python.exe');
     const worker = this.worker || join(root, 'desktop-pet', 'python', 'recognize.py');
-    if (!existsSync(python) || !existsSync(worker))
-      return Promise.reject(new Error('Faltan los recursos de reconocimiento. Elige la carpeta que contiene voice-runtime y voice-models en Voz.'));
+    const model = join(root, 'voice-models', 'faster-whisper-small', 'model.bin');
+    const missing = [
+      !existsSync(python) && 'voice-runtime/Scripts/python.exe',
+      !existsSync(model) && 'voice-models/faster-whisper-small/model.bin',
+      !existsSync(worker) && 'worker recognize.py de la instalación',
+    ].filter(Boolean);
+    if (missing.length)
+      return Promise.reject(new Error(`Reconocimiento local incompleto en ${root}: falta ${missing.join(', ')}. Revisa Voz → carpeta de recursos; si falta el worker, reinstala Karen.`));
     return new Promise((resolve, reject) => {
       this.pending = { resolve, reject };
       if (!this.child) {

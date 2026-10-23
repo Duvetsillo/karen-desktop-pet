@@ -81,18 +81,34 @@ export function PetRenderer({
       finR.position.set(72, -62);
       finR.scale.set(-0.74, 0.74);
       finR.rotation = 0.35;
-      const armL = make(tex.arm, root);
+      const legL = make(tex.leg, root);
+      legL.position.set(-47, 139);
+      legL.scale.set(0.64);
+      const legR = make(tex.leg, root);
+      legR.position.set(47, 139);
+      legR.scale.set(-0.64, 0.64);
+      const armL = new Container();
+      root.addChild(armL);
       armL.position.set(-111, 35);
-      armL.scale.set(0.65);
+      const armLSprite = make(tex.arm, armL);
+      armLSprite.scale.set(0.65);
+      const handL = make(tex.hand, armL);
+      handL.position.set(-43, 7);
+      handL.scale.set(0.42);
       armL.rotation = -0.25;
-      const armR = make(tex.arm, root);
+      const armR = new Container();
+      root.addChild(armR);
       armR.position.set(111, 35);
-      armR.scale.set(-0.65, 0.65);
+      const armRSprite = make(tex.arm, armR);
+      armRSprite.scale.set(-0.65, 0.65);
+      const handR = make(tex.hand, armR);
+      handR.position.set(43, 7);
+      handR.scale.set(-0.42, 0.42);
       armR.rotation = 0.25;
       const body = make(tex.body, root);
       body.scale.set(0.94);
       if (!preview) {
-        const masks = [body, finL, finR, armL, armR].map((sprite) => {
+        const masks = [body, finL, finR, armLSprite, armRSprite, handL, handR, legL, legR].map((sprite) => {
           const canvas = sprite.texture.source.resource as HTMLCanvasElement;
           return {
             sprite,
@@ -300,15 +316,17 @@ export function PetRenderer({
           7,
         );
         armL.rotation = damp(armL.rotation,
-          -0.25 +
+          (signals.pointingSide === -1 ? 0.85 : -0.25) +
           Math.sin(t * 2 + 0.3) * 0.07 * activity +
           (motion ? laughing ? -0.42 : proud ? -0.36 : angry ? 0.2 : sad ? 0.12 : expression === "HAPPY" ? -0.25 : 0 : 0) -
-          speech.envelope * 0.13 - (speech.side < 0 ? speech.gesture * 0.4 : speech.gesture * 0.08), dt, 10);
+          (signals.pointingSide === -1 ? 0 : -speech.envelope * 0.13 - (speech.side < 0 ? speech.gesture * 0.4 : speech.gesture * 0.08)), dt, motion ? 10 : 60);
         armR.rotation = damp(armR.rotation,
-          0.25 -
+          (signals.pointingSide === 1 ? -0.85 : 0.25) -
           Math.sin(t * 2) * 0.07 * activity +
           (motion ? laughing ? 0.42 : proud ? 0.36 : angry ? -0.2 : sad ? -0.12 : expression === "HAPPY" ? 0.25 : 0 : 0) +
-          speech.envelope * 0.13 + (speech.side > 0 ? speech.gesture * 0.4 : speech.gesture * 0.08), dt, 10);
+          (signals.pointingSide === 1 ? 0 : -speech.envelope * 0.13 + (speech.side > 0 ? speech.gesture * 0.4 : speech.gesture * 0.08)), dt, motion ? 10 : 60);
+        legL.rotation = damp(legL.rotation, motion ? -0.04 + Math.sin(t * 1.65) * activity * 0.04 - speech.gesture * 0.04 : 0, dt, 8);
+        legR.rotation = damp(legR.rotation, motion ? 0.04 - Math.sin(t * 1.65 + 0.5) * activity * 0.04 + speech.gesture * 0.04 : 0, dt, 8);
         if (t > nextBlink && !sleeping) {
           blink = 0.16;
           nextBlink = t + 2.5 + Math.random() * 5.5;
@@ -436,6 +454,7 @@ export function PetRenderer({
       // its renderer. Application plugins cannot be destroyed before init.
       // In that case the completed initializer owns deferred cleanup.
       if (app && initialized) {
+        app.stop();
         app.destroy(true, { children: true });
         app = undefined;
         initialized = false;

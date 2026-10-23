@@ -24,6 +24,9 @@ claves ni recursos del mantenedor. Si ya tienes `voice-runtime/Scripts/python.ex
 y `voice-models/faster-whisper-small/model.bin`, elige su carpeta padre en
 **Voz → Elegir carpeta de reconocimiento**. El instalador solo incluye el worker,
 no el modelo. Activa reconocimiento y usa el botón de micrófono de Karen o de Voz.
+Si aparece un error de recursos, Karen indica qué archivo falta y qué carpeta
+está usando. La prueba nativa del ejecutable instalado puede verificar el
+reconocimiento sin usar tu micrófono.
 
 El dictado se transcribe localmente y se envía como mensaje a tu OpenClaw. Un segundo
 clic finaliza; 1,2 segundos de silencio tras voz o 60 segundos cierran la captura.

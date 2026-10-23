@@ -69,6 +69,7 @@ function stopPointing() {
   pointTimer = undefined;
   if (pointing && !pointing.isDestroyed()) pointing.destroy();
   pointing = undefined;
+  emit({ type: 'pointing', side: 0 });
 }
 function showPoint(displayId: string, x: number, y: number) {
   const display = screen.getAllDisplays().find(item => String(item.id) === displayId);
@@ -94,7 +95,9 @@ function showPoint(displayId: string, x: number, y: number) {
   void overlay.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(html)).then(() => {
     if (pointing !== overlay) return;
     overlay.showInactive();
+    overlay.setAlwaysOnTop(true, 'screen-saver');
     panel?.minimize();
+    emit({ type: 'pointing', side: target.x < (petBounds ? petBounds.x + petBounds.width / 2 : display.bounds.x + display.bounds.width / 2) ? -1 : 1 });
     pointTimer = setTimeout(stopPointing, 8000);
   }).catch(error => { stopPointing(); log('error','Señalamiento',String(error)); });
 }

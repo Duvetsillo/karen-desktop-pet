@@ -1,3 +1,12 @@
+Karen Desktop Pet 1.6.5 adds Lucero and Flor while keeping the three existing
+looks. All five now have visible hands and legs, and Karen lifts the hand on
+the side of a desktop pointing target. The gesture ends with the marker and
+respects reduced motion. Local speech recognition now names the exact missing
+runtime, model or app worker path instead of reporting every path failure as
+missing resources. The installed 1.6.4 build successfully transcribed a
+synthetic sentence with the user's configured local resources; the intermittent
+failure in the screenshot was not reproduced by that test.
+
 Karen Desktop Pet 1.6.4 adds a temporary desktop pointing gesture. In
 Percepción, choose a screen and review a screenshot, then tap the preview to
 mark a point locally or explicitly ask Karen to locate an object in it. Voice

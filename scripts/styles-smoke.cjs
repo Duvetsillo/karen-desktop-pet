@@ -23,7 +23,7 @@ const path = require('node:path');
     await panel.getByRole('button', {name:'Apariencia', exact:true}).click();
     const preview = panel.locator('.preview-window canvas');
     await preview.waitFor();
-    for (const [style, name] of [['crystal','Cristal'], ['cloud','Nube'], ['orbit','Órbita']]) {
+    for (const [style, name] of [['crystal','Cristal'], ['cloud','Nube'], ['orbit','Órbita'], ['sprite','Lucero'], ['bloom','Flor']]) {
       await panel.getByRole('radio', {name:new RegExp(name)}).check();
       await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).settings.petStyle).toBe(style);
       await panel.getByRole('img', {name:`Karen, estilo ${name}, con ojos expresivos`}).waitFor();
@@ -54,7 +54,7 @@ const path = require('node:path');
     await panel.waitForSelector('h1');
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).settings.petStyle, 'cloud');
     assert.deepEqual(errors, []);
-    const report = {styles:['crystal','cloud','orbit'],statesPerStyle:15,keyboard:true,persisted:'cloud',reducedMotion:true,disconnectedModel:true,errors};
+    const report = {styles:['crystal','cloud','orbit','sprite','bloom'],statesPerStyle:15,keyboard:true,persisted:'cloud',reducedMotion:true,disconnectedModel:true,errors};
     fs.writeFileSync('qa/styles-160.json',JSON.stringify(report,null,2));
     console.log(JSON.stringify(report));
   } finally {await app.close();}

@@ -20,7 +20,7 @@ const path = require('node:path');
       throw new Error('Capture did not reach '+phase+': '+JSON.stringify({alerts,capture:snapshot.capture,diagnostics:snapshot.diagnostics.filter(item=>item.area==='Captura')}));
     };
     for (const page of app.windows()) page.on('pageerror', error => errors.push(error.message));
-    await panel.evaluate(root => window.karen.settings({ sttEnabled: true, voiceEnabled: true, ...(root ? { voiceRoot: root } : {}) }), process.env.KAREN_TEST_VOICE_ROOT || '');
+    await panel.evaluate(root => window.karen.settings({ sttEnabled: true, voiceEnabled: true, ttsEngine: 'system', wakeWordEnabled: false, ...(root ? { voiceRoot: root } : {}) }), process.env.KAREN_TEST_VOICE_ROOT || '');
     const audio = await panel.evaluate(async () => Array.from(new Uint8Array(await window.karen.synthesize('Hola Karen. Esta es una prueba de audio del sistema.'))));
     assert(audio.length > 10000);
     result.ttsBytes = audio.length;
@@ -73,7 +73,7 @@ const path = require('node:path');
     if (process.env.KAREN_TEST_VOICE_ROOT) {
       const capture = (await panel.evaluate(()=>window.karen.snapshot())).capture;
       console.log(JSON.stringify({afterPlayback:capture}));
-      if(capture?.phase==='recording') await panel.getByRole('button',{name:'Finalizar audio del PC',exact:true}).click();
+      if(capture?.phase==='recording') await panel.evaluate(() => window.karen.systemAudio('finish'));
       await panel.getByLabel('Transcripción del PC · revisa antes de enviar').waitFor({timeout:180000});
       const transcript = await panel.getByLabel('Transcripción del PC · revisa antes de enviar').inputValue();
       assert(/prueba|audio|sistema/i.test(transcript));

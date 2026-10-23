@@ -16,7 +16,7 @@ export const PET_STATES = [
   "DRAGGING",
 ] as const;
 export type PetState = (typeof PET_STATES)[number];
-export const PET_STYLES = ['crystal', 'cloud', 'orbit'] as const;
+export const PET_STYLES = ['crystal', 'cloud', 'orbit', 'sprite', 'bloom'] as const;
 export type PetStyle = (typeof PET_STYLES)[number];
 export interface ModelOption {
   id: string;
@@ -110,6 +110,7 @@ export type DesktopEvent =
   | { type: "diagnostic"; item: Diagnostic }
   | { type: "settings"; settings: Settings }
   | { type: "cursor"; x: number; y: number }
+  | { type: "pointing"; side: -1 | 0 | 1 }
   | { type: "voice-cancel" }
   | { type: "voice-listen" }
   | { type: "voice-speak"; text: string }

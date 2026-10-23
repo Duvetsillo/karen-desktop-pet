@@ -11,7 +11,7 @@ import {
 describe("configuración", () => {
   it('migra la apariencia existente y valida las tres formas sin cambiar voz o conexión', () => {
     expect(validateSettings({}).petStyle).toBe('crystal');
-    for (const petStyle of ['crystal', 'cloud', 'orbit'] as const) {
+    for (const petStyle of ['crystal', 'cloud', 'orbit', 'sprite', 'bloom'] as const) {
       const settings = validateSettings({petStyle});
       expect(settings.petStyle).toBe(petStyle);
       expect(settings.ttsEngine).toBe(defaults.ttsEngine);
