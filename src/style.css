@@ -1042,6 +1042,24 @@ kbd {
   overflow: hidden;
 }
 .pet-error .error-banner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pet-error .error-banner button { width: 22px; min-width: 22px; height: 22px; }
+.pet-error .error-banner button[aria-expanded="true"] svg { transform: rotate(90deg); }
+.pet-error .error-detail {
+  position: absolute;
+  bottom: 37px;
+  left: 0;
+  right: 0;
+  max-height: 110px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  background: #352c2d;
+  color: #f8d5bc;
+  border: 1px solid #75595a;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
 .pet-error .error-banner > svg {
   display: none;
 }

@@ -21,7 +21,8 @@ export function CaptureIndicator() {
     if (!canWake) return null;
     const failed = wakeEnabled && wake === 'error';
     const label = !wakeEnabled ? 'Activación por voz pausada'
-      : failed ? 'Error de micrófono · revisa Voz'
+      : failed ? 'Error de voz · revisa Voz'
+      : wake === 'recovering' ? 'Recuperando escucha local'
       : wake === 'processing' ? 'Comprobando llamada local'
       : wake === 'listening' ? 'Di «Karen» para activarme'
       : 'Preparando escucha local';

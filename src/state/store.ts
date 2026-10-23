@@ -94,10 +94,8 @@ export const useStore = create<Store>((set, get) => ({
   },
 }));
 export function report(error: unknown) {
+  const message = error instanceof Error ? error.message : "No se pudo completar la operación.";
   useStore.setState({
-    error:
-      error instanceof Error
-        ? error.message
-        : "No se pudo completar la operación.",
+    error: message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, ''),
   });
 }

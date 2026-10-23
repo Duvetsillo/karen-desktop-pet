@@ -1,3 +1,13 @@
+Karen Desktop Pet 1.6.7 recovers wake listening after one or two transient
+recognition failures instead of disabling it at the first error. A persistent
+failure still stops listening and offers a manual retry. Recognition now
+distinguishes missing dependencies, model load failure, invalid audio and
+processing failure without recording audio or exception text. The pet strips
+Electron's remote-method wrapper from error messages and can expand the lower
+error strip to show the full message. Synthetic installed STT and wake recovery
+tests verify these paths; the intermittent user microphone failure has not
+been reproduced with the synthetic audio fixture.
+
 Karen Desktop Pet 1.6.6 keeps Karen's face visible while showing replies.
 The reply appears as a single-line strip below the character; pressing it
 opens the full conversation. Error notices use the same lower area, and the

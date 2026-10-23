@@ -114,18 +114,23 @@ function Status({ compact = false }: { compact?: boolean }) {
 }
 function ErrorBanner() {
   const error = useStore((s) => s.error);
+  const [expanded, setExpanded] = useState(false);
   if (!error) return null;
   return (
-    <div className="error-banner" role="alert">
-      <CircleHelp size={18} />
-      <span title={error}>{error}</span>
-      <button
-        aria-label="Cerrar aviso"
-        onClick={() => useStore.setState({ error: "" })}
-      >
-        <X size={16} />
-      </button>
-    </div>
+    <>
+      {isPet && expanded && <div className="error-detail" id="karen-error-detail" role="status">{error}</div>}
+      <div className="error-banner" role="alert">
+        <CircleHelp size={18} />
+        <span title={error}>{error}</span>
+        {isPet && <button aria-label="Ver error completo" aria-expanded={expanded} aria-controls="karen-error-detail" onClick={() => setExpanded(value => !value)}><ChevronRight size={16} /></button>}
+        <button
+          aria-label="Cerrar aviso"
+          onClick={() => { setExpanded(false); useStore.setState({ error: "" }); }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </>
   );
 }
 function Toggle({

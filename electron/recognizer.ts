@@ -64,15 +64,26 @@ export class LocalRecognizer {
           const line = this.output.slice(0, end);
           this.output = this.output.slice(end + 1);
           try {
-            const result = JSON.parse(line) as { text?: unknown };
-            if (typeof result.text !== 'string') throw new Error();
+            const result = JSON.parse(line) as { text?: unknown; error?: unknown };
+            if (typeof result.text !== 'string') {
+              const reasons: Record<string, string> = {
+                dependencies: 'Faltan dependencias del reconocimiento local en voice-runtime. Reinstala los recursos de voz.',
+                model: 'No se pudo cargar el modelo de voz en voice-models/faster-whisper-small. Revisa Voz → carpeta de recursos.',
+                audio: 'El fragmento de audio no es válido. Revisa el micrófono en Voz.',
+                recognition: 'El reconocimiento local falló al procesar el audio. Revisa Voz y reintenta.',
+                request: 'El reconocimiento local recibió una petición inválida.',
+              };
+              const message = typeof result.error === 'string' ? reasons[result.error] : undefined;
+              fail(message || 'El reconocimiento local no pudo transcribir. Revisa el modelo y sus dependencias.');
+              return;
+            }
             const pending = this.pending;
             this.pending = undefined;
             clearTimeout(this.timer);
             this.timer = setTimeout(() => this.cancel(), 120_000);
             this.timer.unref();
             pending?.resolve(result.text.trim().slice(0, 16000));
-          } catch { fail('El reconocimiento local no pudo transcribir. Revisa el modelo y sus dependencias.'); }
+          } catch { fail('Respuesta inválida del reconocimiento local. Revisa los recursos de voz.'); }
         });
       }
       this.timer = setTimeout(() => this.cancel(), 180_000);

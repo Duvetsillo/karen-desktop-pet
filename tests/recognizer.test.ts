@@ -60,6 +60,13 @@ describe('reconocedor local persistente',()=>{
     engine.cancel();
     await expect(result).rejects.toThrow('cancelado');
   });
+  it('explica el fallo del modelo sin mostrar la envoltura técnica',async()=>{
+    const {root,child,engine,pcm}=fixture();
+    const result=engine.transcribe(root,pcm);
+    child.stdout.write('{"error":"model"}\n');
+    await expect(result).rejects.toThrow('No se pudo cargar el modelo de voz');
+    expect(child.kill).toHaveBeenCalled();
+  });
   it('rechaza audio fuera de límites antes de iniciar Python',async()=>{
     const {root,engine}=fixture();
     await expect(engine.transcribe(root,new ArrayBuffer(2))).rejects.toThrow('Audio inválido');

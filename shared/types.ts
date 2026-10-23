@@ -33,7 +33,7 @@ export interface ModelSelection {
 }
 export const VOICE_STYLES = ['neutral', 'serene', 'warm', 'serious', 'bright', 'wry'] as const;
 export type VoiceStyle = (typeof VOICE_STYLES)[number];
-export type WakeStatus = 'off' | 'listening' | 'processing' | 'paused' | 'error';
+export type WakeStatus = 'off' | 'listening' | 'processing' | 'recovering' | 'paused' | 'error';
 export type ConnectionState =
   | "disconnected"
   | "connecting"

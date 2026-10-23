@@ -559,7 +559,7 @@ async function ready() {
   });
   ipcMain.on('wake-status', (event, status: WakeStatus) => {
     if (event.sender.id !== pet?.webContents.id || event.senderFrame !== event.sender.mainFrame ||
-        !['off','listening','processing','paused','error'].includes(status)) return;
+        !['off','listening','processing','recovering','paused','error'].includes(status)) return;
     wakeStatus = status;
     // The renderer already suspends Pixi when hidden. Keep only wake timers alive.
     pet.webContents.setBackgroundThrottling(status === 'off' || status === 'error');
