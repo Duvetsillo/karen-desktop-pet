@@ -80,9 +80,14 @@ const fs = require('node:fs');
       const layout = await pet.evaluate(() => {
         const status=document.querySelector('.capture-status').getBoundingClientRect();
         const bubble=document.querySelector('.pet-bubble').getBoundingClientRect();
-        return {separate:status.bottom+4<=bubble.top,inside:bubble.bottom<=innerHeight&&bubble.left>=0&&bubble.right<=innerWidth};
+        const toolbar=document.querySelector('.pet-toolbar').getBoundingClientRect();
+        return {
+          separate:status.bottom+4<=bubble.top && toolbar.bottom<=bubble.top,
+          characterClear:status.bottom<=innerHeight*.25 && bubble.top>=innerHeight*.8,
+          inside:bubble.bottom<=innerHeight&&bubble.left>=0&&bubble.right<=innerWidth,
+        };
       });
-      assert(layout.separate&&layout.inside,'Voice status and reply bubble must not overlap at '+scale);
+      assert(layout.separate&&layout.characterClear&&layout.inside,'Voice status and reply bubble must stay clear of Karen at '+scale);
       const fits = await pet.locator('.pet-toolbar').evaluate(node => { const r = node.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; });
       assert(fits, 'Toolbar must fit the pet at ' + scale);
       await pet.waitForTimeout(180);

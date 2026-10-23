@@ -450,14 +450,16 @@ code {
 .capture-copy small { display: block; margin-top: 3px; color: #cae7ed; font-size: 11px; }
 .capture-clock { flex: none; color: #cae7ed; font-variant-numeric: tabular-nums; font-size: 11px; }
 .capture-status button { min-height: 30px; padding: 3px 10px; }
-.pet-dialogue { position: absolute; z-index: 5; top: 4%; left: 4%; right: 4%; display: flex; flex-direction: column; gap: 6px; max-height: 48%; pointer-events: none; }
+.pet-dialogue { position: absolute; z-index: 5; top: 4%; left: 4%; right: 4%; display: flex; flex-direction: column; gap: 6px; max-height: 25%; pointer-events: none; }
 .pet-dialogue > * { pointer-events: auto; }
 .pet-dialogue > .capture-status { flex: none; padding: 6px 8px; font-size: 10px; }
 @media (max-width: 260px) {
-  .pet-dialogue > .capture-status { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
-  .desktop-pet .capture-copy { grid-column: 1 / -1; }
+  .pet-dialogue > .capture-status { display: flex; gap: 5px; padding: 4px 6px; }
+  .desktop-pet .capture-copy { min-width: 0; }
+  .desktop-pet .capture-copy > span { font-size: 9px; line-height: 1.15; }
   .desktop-pet .capture-copy small { display: none; }
-  .desktop-pet .capture-status button { min-height: 24px; font-size: 10px; }
+  .desktop-pet .capture-clock { display: none; }
+  .desktop-pet .capture-status button { min-height: 24px; max-width: 72px; padding: 2px 5px; font-size: 9px; line-height: 1.1; }
 }
 .capture-review { display: grid; gap: 12px; margin-top: 20px; }
 .capture-review label { font-size: 12px; color: #c4d2df; }
@@ -913,6 +915,7 @@ kbd {
   pointer-events: none;
   transition: opacity 180ms var(--ease-out);
 }
+.desktop-pet[data-has-dock="true"] .pet-toolbar { bottom: 18%; }
 .desktop-pet:hover .pet-toolbar,
 .desktop-pet[data-capturing="true"] .pet-toolbar,
 .desktop-pet:focus-within .pet-toolbar {
@@ -947,32 +950,47 @@ kbd {
   text-shadow: 0 1px 4px #0c182b;
   pointer-events: none;
 }
+.desktop-pet[data-has-dock="true"] .pet-caption { opacity: 0; }
 .pet-caption i {
   width: 4px;
   height: 4px;
 }
 .pet-bubble {
-  position: relative;
-  min-height: 0;
-  flex: 0 1 auto;
-  overflow: auto;
+  position: absolute;
+  z-index: 6;
+  left: 4%;
+  right: 4%;
+  bottom: 1%;
+  height: 31px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   background: #172136f5;
   color: #e9f3ff;
-  padding: 13px 25px 13px 15px;
-  border-radius: 13px;
+  padding: 3px 5px 3px 9px;
+  border-radius: 10px;
   box-shadow: 0 5px 18px #06112329;
-  user-select: text;
 }
-.pet-bubble p {
+.pet-bubble-open {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  padding: 0 3px;
   font-size: 11px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
+  min-height: 25px;
 }
-.pet-bubble > button {
-  position: absolute;
-  right: 7px;
-  top: 5px;
-  min-height: 18px;
+.pet-bubble-open span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.pet-bubble > button:last-child {
+  flex: none;
+  min-height: 25px;
+  width: 22px;
   background: transparent;
   border: 0;
   padding: 0;
@@ -1009,16 +1027,21 @@ kbd {
 }
 .pet-error {
   position: absolute;
-  bottom: 23%;
-  left: 7%;
-  right: 7%;
+  z-index: 6;
+  bottom: 1%;
+  left: 4%;
+  right: 4%;
   pointer-events: auto;
 }
 .pet-error .error-banner {
   margin: 0;
   font-size: 10px;
-  padding: 8px;
+  padding: 4px 6px;
+  height: 31px;
+  align-items: center;
+  overflow: hidden;
 }
+.pet-error .error-banner span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pet-error .error-banner > svg {
   display: none;
 }

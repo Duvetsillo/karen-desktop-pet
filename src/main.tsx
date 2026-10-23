@@ -118,7 +118,7 @@ function ErrorBanner() {
   return (
     <div className="error-banner" role="alert">
       <CircleHelp size={18} />
-      <span>{error}</span>
+      <span title={error}>{error}</span>
       <button
         aria-label="Cerrar aviso"
         onClick={() => useStore.setState({ error: "" })}
@@ -1121,6 +1121,7 @@ function PetApp() {
     messages = useStore((x) => x.messages),
     connection = useStore((x) => x.connection),
     capture = useStore((x) => x.capture),
+    error = useStore((x) => x.error),
     native = useStore((x) => x.native);
   const [bubble, setBubble] = useState(false),
     [compose, setCompose] = useState(false),
@@ -1128,6 +1129,7 @@ function PetApp() {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
   const last = messages.filter((m) => m.role === "assistant").at(-1);
+  const showReply = Boolean(s.bubbles && bubble && last && !compose && !error);
   const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
   useEffect(() => {
     if (last) setBubble(true);
@@ -1169,6 +1171,7 @@ function PetApp() {
       ref={root}
       className="desktop-pet"
       data-capturing={capture.phase !== "idle"}
+      data-has-dock={showReply || Boolean(error)}
       onContextMenu={(e) => {
         e.preventDefault();
         void action(() => bridge.contextMenu());
@@ -1176,23 +1179,21 @@ function PetApp() {
     >
       <PetRenderer />
       <div className="pet-dialogue">
-      <CaptureIndicator />
-      {s.bubbles && bubble && last && !compose && (
+        <CaptureIndicator />
+      </div>
+      {showReply && last && (
         <div
           className="pet-bubble"
           role="status"
-          onDoubleClick={() => void bridge.openSettings()}
         >
+          <button className="pet-bubble-open" aria-label="Abrir respuesta completa en Conversación" onClick={() => void bridge.openSettings()}>
+            <span>{last.text.slice(0, 240)}{last.text.length > 240 ? "…" : ""}</span>
+          </button>
           <button aria-label="Cerrar globo" onClick={() => setBubble(false)}>
             <X size={12} />
           </button>
-          <p>
-            {last.text.slice(0, 240)}
-            {last.text.length > 240 ? "…" : ""}
-          </p>
         </div>
       )}
-      </div>
       <button
         className="pet-hit-area"
         aria-label={`Karen: ${labels[state]}. Arrastra para mover, doble clic para ajustes.`}

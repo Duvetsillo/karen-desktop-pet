@@ -52,6 +52,7 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - Pupilas independientes, cejas y ojos asimétricos hacen más visibles la mirada y las expresiones.
 - El modo de bajo consumo y el reposo limitan el renderizado a 15 FPS.
 - La boca sigue el audio real mediante Web Audio, no una animación de habla falsa.
+- Las respuestas y avisos aparecen bajo Karen; pulsa una respuesta para leerla completa en Conversación.
 - **Voz:** prueba la salida de Windows y configura dictado local con tus propios recursos.
 - **Percepción:** transcribe audio del PC por WASAPI y revisa capturas antes de enviarlas al modelo con visión.
 - **Señalamiento:** toca una captura de pantalla para que Karen marque el lugar en el escritorio, o pídele que encuentre un objeto con tu modelo de visión. La marca dura ocho segundos y deja pasar los clics.

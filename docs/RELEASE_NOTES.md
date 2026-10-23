@@ -1,3 +1,9 @@
+Karen Desktop Pet 1.6.6 keeps Karen's face visible while showing replies.
+The reply appears as a single-line strip below the character; pressing it
+opens the full conversation. Error notices use the same lower area, and the
+voice/listening indicator becomes compact at small pet sizes. Native layout
+checks cover 50%, 100% and 200% scale during voice preparation and playback.
+
 Karen Desktop Pet 1.6.5 adds Lucero and Flor while keeping the three existing
 looks. All five now have visible hands and legs, and Karen lifts the hand on
 the side of a desktop pointing target. The gesture ends with the marker and
