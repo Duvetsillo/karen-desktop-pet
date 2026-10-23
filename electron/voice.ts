@@ -126,6 +126,10 @@ export class NativeVoice {
       const found = ['voice-runtime/Scripts/python.exe','voice-models/kokoro-v1.0.onnx','voice-models/voices-v1.0.bin'].every(file=>existsSync(join(this.root,file)));
       return `Kokoro rápido: ${found ? 'archivos encontrados; se verifica al reproducir' : 'faltan sus recursos locales'}. Usa otro timbre fijo, distinto de la voz original. STT: ${stt ? 'archivos encontrados' : 'sin configurar'}.`;
     }
+    if (this.settings().ttsEngine === 'edge') {
+      const found = existsSync(join(this.root, 'voice-runtime/Scripts/python.exe')) && existsSync(join(this.serviceWorker ? dirname(this.serviceWorker) : join(this.defaultRoot, 'desktop-pet/python'), 'edge_voice.py'));
+      return `Dalia neural: ${found ? 'runtime encontrado; internet y reproducción se verifican al hablar' : 'falta el runtime de voz'}. STT: ${stt ? 'archivos encontrados' : 'sin configurar'}.`;
+    }
     let local = "Voz original sin configurar; elige su carpeta de recursos en Voz";
     try {
       const { profile, phase } = await this.sharedService(new AbortController().signal, false);
@@ -191,6 +195,19 @@ export class NativeVoice {
     this.cancel();
     if (typeof text !== "string" || !text.trim() || text.length > 4096)
       throw new Error("Texto de voz inválido (máximo 4096 caracteres).");
+    if (this.settings().ttsEngine === 'edge') {
+      const python = join(this.root, 'voice-runtime/Scripts/python.exe');
+      const worker = join(this.serviceWorker ? dirname(this.serviceWorker) : join(this.defaultRoot, 'desktop-pet/python'), 'edge_voice.py');
+      if (!existsSync(python) || !existsSync(worker)) throw new Error('Falta instalar Edge TTS en los recursos de voz.');
+      let encoded: string;
+      try { encoded = await this.run(python, [worker], JSON.stringify({text}), 30000); }
+      catch { throw new Error('La voz neural no respondió. Revisa la conexión a internet; el texto sigue disponible.'); }
+      const bytes = Buffer.from(encoded, 'base64');
+      if (bytes.length < 100 || bytes.length > 24_000_000 ||
+        !(bytes.subarray(0, 3).toString() === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)))
+        throw new Error('La voz neural devolvió audio inválido.');
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    }
     if (this.settings().ttsEngine === 'fast') return this.fast.synthesize(this.root,text,this.settings().voiceStyle);
     if (this.settings().ttsEngine === "local") {
       const controller = new AbortController();

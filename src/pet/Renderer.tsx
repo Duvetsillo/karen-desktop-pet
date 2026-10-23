@@ -4,7 +4,7 @@ import "pixi.js/unsafe-eval";
 import { createPetTextures } from "./textures";
 import { petStyles } from '../../shared/pet-styles';
 import { gazeTarget } from "./gaze";
-import { signals, useStore } from "../state/store";
+import { machine, signals, useStore } from "../state/store";
 
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
@@ -175,7 +175,7 @@ export function PetRenderer({
       app.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.06);
         t += dt;
-        const { settings: s, state } = useStore.getState();
+        const { settings: s, state, expression: spokenExpression } = useStore.getState();
         const sleeping = state === "SLEEPING";
         app!.ticker.maxFPS = s.lowPower || sleeping ? 15 : preview ? 30 : 60;
         frames++;
@@ -188,6 +188,15 @@ export function PetRenderer({
         }
         const motion = s.animations && !reduced.matches;
         const speaking = state === "SPEAKING";
+        const expression = speaking ? spokenExpression : state;
+        const laughing = expression === 'LAUGHING';
+        const angry = expression === 'ANGRY';
+        const sad = expression === 'SAD';
+        const surprised = expression === 'SURPRISED';
+        const proud = expression === 'PROUD';
+        const curious = expression === 'CURIOUS';
+        const expressiveAge = Math.max(0, (Date.now() - machine.snapshot.since) / 1000);
+        const entrance = motion ? Math.max(0, 1 - expressiveAge / 0.7) : 0;
         const voiceEnergy = speaking ? Math.sqrt(Math.max(0, Math.min(1, signals.energy))) : 0;
         if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.5 * s.scale);
         const activity = motion ? s.activity : 0;
@@ -198,6 +207,10 @@ export function PetRenderer({
               ? 0.1
               : state === "DRAGGING"
                 ? 0.16
+                : curious ? -0.13
+                : angry ? -0.08
+                : sad ? 0.13
+                : surprised ? 0.06
                 : 0;
         const gaze = gazeTarget(signals.cursor, s.cursorTracking && !sleeping);
         if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + (speaking ? Math.sin(t * 4) * voiceEnergy * 0.035 : 0);
@@ -208,14 +221,17 @@ export function PetRenderer({
           (sleeping
             ? Math.sin(t * 0.6) * 2
             : Math.sin(t * 1.65) * 6 + Math.sin(t * 0.7) * 2);
-        const happy =
-          state === "HAPPY" && motion ? Math.max(0, Math.sin(t * 7)) * -13 : 0;
+        const happy = expression === "HAPPY" && motion ? Math.max(0, Math.sin(t * 7)) * -13 : 0;
+        const laughBounce = laughing && motion ? Math.max(0, Math.sin(t * 12)) * -10 : 0;
+        const proudLift = proud && motion ? -7 : 0;
+        const surpriseLift = surprised && motion ? -12 * entrance : 0;
         float = damp(
           float,
           bob +
             happy +
-            (state === "LISTENING" ? -5 : 0) +
-            (state === "DRAGGING" ? -12 : 0),
+            laughBounce + proudLift + surpriseLift +
+            (motion && state === "LISTENING" ? -5 : 0) +
+            (motion && state === "DRAGGING" ? -12 : 0),
           dt,
           9,
         );
@@ -230,10 +246,10 @@ export function PetRenderer({
           dt,
           3,
         );
-        body.tint = state === "ERROR" ? 0xffceb3 : 0xffffff;
+        body.tint = state === "ERROR" ? 0xffceb3 : angry ? 0xffd5ce : sad ? 0xdce7ff : 0xffffff;
         halo.alpha =
           (sleeping ? 0.08 : 0.22 + voiceEnergy * 0.07) * s.brightness * (s.nightMode ? 0.6 : 1);
-        halo.tint = state === "ERROR" ? 0xffb473 : 0xffffff;
+        halo.tint = state === "ERROR" ? 0xffb473 : angry ? 0xff8b7a : sad ? 0x96adff : proud ? 0xffd78c : 0xffffff;
         shadow.scale.set(0.85 - float * 0.002, 0.85 - float * 0.002);
         shadow.alpha = 0.65 - float * 0.009;
         finL.rotation = damp(
@@ -245,6 +261,9 @@ export function PetRenderer({
                 ? -0.25
                 : state === "CONFUSED"
                   ? -0.3
+                  : angry ? -0.42
+                  : sad ? -0.35
+                  : surprised ? 0.32
                   : 0) +
             Math.sin(t * 1.7) * 0.04 * activity - (motion ? voiceEnergy * 0.1 : 0),
           dt,
@@ -259,6 +278,9 @@ export function PetRenderer({
                 ? 0.25
                 : state === "CONFUSED"
                   ? -0.13
+                  : angry ? 0.42
+                  : sad ? 0.35
+                  : surprised ? -0.32
                   : 0) -
             Math.sin(t * 1.7 + 0.6) * 0.04 * activity + (motion ? voiceEnergy * 0.1 : 0),
           dt,
@@ -267,11 +289,11 @@ export function PetRenderer({
         armL.rotation =
           -0.25 +
           Math.sin(t * 2 + 0.3) * 0.07 * activity +
-          (state === "HAPPY" ? -0.25 : 0);
+          (motion ? laughing ? -0.42 : proud ? -0.36 : angry ? 0.2 : sad ? 0.12 : expression === "HAPPY" ? -0.25 : 0 : 0);
         armR.rotation =
           0.25 -
           Math.sin(t * 2) * 0.07 * activity +
-          (state === "HAPPY" ? 0.25 : 0);
+          (motion ? laughing ? 0.42 : proud ? 0.36 : angry ? -0.2 : sad ? -0.12 : expression === "HAPPY" ? 0.25 : 0 : 0);
         if (t > nextBlink && !sleeping) {
           blink = 0.16;
           nextBlink = t + 2.5 + Math.random() * 5.5;
@@ -281,12 +303,17 @@ export function PetRenderer({
           ? 0.04
           : blink > 0
             ? Math.max(0.04, Math.abs(blink - 0.08) / 0.08)
-            : state === "HAPPY"
+            : laughing ? 0.37
+              : angry ? 0.58
+              : sad ? 0.65
+              : surprised ? 1.28
+              : curious ? 1.12
+              : expression === "HAPPY"
               ? 0.68
               : state === "LISTENING"
                 ? 1.13
                 : state === "ERROR" ? 0.85 : 1;
-        const asymmetry = !sleeping && blink === 0 && (state === "CONFUSED" || state === "THINKING");
+        const asymmetry = !sleeping && blink === 0 && (state === "CONFUSED" || state === "THINKING" || curious);
         eyeOpen = damp(eyeOpen, targetOpen * (asymmetry ? 0.73 : 1), dt, blink > 0 ? 60 : 12);
         rightOpen = damp(rightOpen, targetOpen * (asymmetry ? 1.08 : 1), dt, blink > 0 ? 60 : 12);
         // Pursuit is damped, not restarted by each cursor event. Reduced motion
@@ -298,8 +325,8 @@ export function PetRenderer({
         irisR.position.set(3 - eyeX, 6 + eyeY);
         eyeL.scale.y = 0.7 * eyeOpen;
         eyeR.scale.y = 0.7 * rightOpen;
-        eyeL.rotation = damp(eyeL.rotation, state === "HAPPY" ? -0.1 : state === "CONFUSED" ? -0.08 : 0, dt, 12);
-        eyeR.rotation = damp(eyeR.rotation, state === "HAPPY" ? 0.1 : 0, dt, 12);
+        eyeL.rotation = damp(eyeL.rotation, laughing || expression === "HAPPY" ? -0.1 : angry ? 0.13 : state === "CONFUSED" ? -0.08 : 0, dt, 12);
+        eyeR.rotation = damp(eyeR.rotation, laughing || expression === "HAPPY" ? 0.1 : angry ? -0.13 : 0, dt, 12);
         mouth = damp(mouth, voiceEnergy * (motion ? 1 : 0.35), dt, voiceEnergy > mouth ? 22 : 12);
         facial.clear();
         if (sleeping) {
@@ -314,7 +341,14 @@ export function PetRenderer({
           facial
             .ellipse(0, 47 + mouth * 7, 4 + mouth * 4, 2 + mouth * 4)
             .fill({ color: 0xb9bcf8, alpha: 0.8 });
-        } else if (state === "ERROR" || state === "CONFUSED") {
+        } else if (laughing) {
+          facial.ellipse(0, 43, 13, 9).fill(0x14223f);
+          facial.moveTo(-8, 46).quadraticCurveTo(0, 51, 8, 46).stroke({ color: 0xcdfaff, width: 2, cap: 'round' });
+        } else if (surprised) {
+          facial.ellipse(0, 43, 6, 10).fill(0x14223f);
+        } else if (angry) {
+          facial.moveTo(-11, 48).quadraticCurveTo(0, 39, 11, 48).stroke({ color: 0xcdfaff, width: 3, cap: 'round' });
+        } else if (sad || state === "ERROR" || state === "CONFUSED") {
           facial
             .moveTo(-9, 44)
             .quadraticCurveTo(0, 35, 9, 44)
@@ -322,18 +356,18 @@ export function PetRenderer({
         } else {
           facial
             .moveTo(-12, 36)
-            .quadraticCurveTo(0, state === "HAPPY" ? 54 : 46, 12, 36)
+            .quadraticCurveTo(0, proud ? 53 : expression === "HAPPY" ? 54 : 46, 12, 36)
             .stroke({ color: 0xcdfaff, width: 3, cap: "round" });
         }
-        brow = damp(brow, state === "LISTENING" ? -6 : state === "ERROR" ? 4 : 0, dt, 12);
+        brow = damp(brow, state === "LISTENING" ? -6 : surprised ? -9 : angry ? 6 : sad || state === "ERROR" ? 4 : 0, dt, 12);
         if (!sleeping) {
-          const questioning = state === "CONFUSED" || state === "THINKING";
-          const worried = state === "ERROR";
+          const questioning = state === "CONFUSED" || state === "THINKING" || curious;
+          const worried = state === "ERROR" || sad;
           facial.moveTo(-61, -45 + brow)
-            .quadraticCurveTo(-46, -51 + brow - (questioning ? 7 : 0), -30, -45 + brow - (worried ? 8 : 0))
+            .quadraticCurveTo(-46, -51 + brow - (questioning ? 7 : 0) + (angry ? 10 : 0), -30, -45 + brow - (worried ? 8 : 0) + (angry ? 12 : 0))
             .stroke({ color: 0xe4fcff, alpha: 0.8, width: 2.5, cap: "round" });
           facial.moveTo(30, -45 + brow - (worried ? 8 : 0))
-            .quadraticCurveTo(46, -51 + brow + (questioning ? 7 : 0), 61, -45 + brow + (questioning ? 4 : 0))
+            .quadraticCurveTo(46, -51 + brow + (questioning ? 7 : 0) + (angry ? 10 : 0), 61, -45 + brow + (questioning ? 4 : 0) - (angry ? 12 : 0))
             .stroke({ color: 0xe4fcff, alpha: 0.8, width: 2.5, cap: "round" });
         }
         if (state === "THINKING")
@@ -344,9 +378,11 @@ export function PetRenderer({
                 color: 0xf3ffff,
                 alpha: 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 4 - i)),
               });
-        if (state === "HAPPY")
+        if (expression === "HAPPY" || laughing || proud)
           for (const x of [-76, 76])
             facial.ellipse(x, 25, 10, 4).fill({ color: 0xe3bbf9, alpha: 0.5 });
+        if (sad) facial.ellipse(63, 4, 3, 7).fill({ color: 0x9fe9ff, alpha: 0.75 });
+        if (surprised) for (const x of [-44, 44]) facial.circle(x, -9, 3).fill({ color: 0xf3ffff, alpha: 0.75 });
         const count =
           s.particles && motion && !s.lowPower
             ? Math.round((sleeping ? 5 : 18) * quality)

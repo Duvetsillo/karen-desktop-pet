@@ -42,7 +42,8 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - Las zonas transparentes dejan pasar clics mediante una máscara alfa.
 - **Ctrl+Alt+K** o la bandeja recuperan el control tras ignorar clics.
 - Activa opcionalmente inicio con Windows, prioridad de ventana y bajo consumo.
-- Los nueve estados incluyen reposo, escucha, procesamiento, habla y errores.
+- Los quince estados incluyen reposo, escucha, procesamiento, habla, risa, enojo, tristeza, sorpresa, orgullo, curiosidad y errores.
+- La expresión de una respuesta sigue las palabras de Karen; no interpreta el ánimo privado del usuario.
 - **Apariencia → Tamaño del PET:** escala de 50 a 200 %, presets y vista previa en directo.
 - **Apariencia → Tres formas:** Cristal, Nube y Órbita. Siluetas y materiales propios, cambio inmediato y selección guardada.
 - **Conversación / OpenClaw → Modelo de IA:** catálogo real por proveedor, modelo actual y regreso al predeterminado del agente.

@@ -5,6 +5,7 @@ import type { CaptureStatus } from "../../shared/types";
 import { TranscriptionWakeDetector } from './wake';
 import { pcm16 } from './pcm';
 import { speechAudio } from './pipeline';
+import { expressionForReply } from '../../shared/expression';
 
 export interface TtsEngine {
   synthesize(text: string, signal: AbortSignal): Promise<ArrayBuffer>;
@@ -110,7 +111,7 @@ export class AudioDirector {
           if (raw > (this.kind === "system" ? 0.004 : 0.008)) {
             this.speechSeen = true;
             this.silenceAt = now;
-          } else if (this.kind === "microphone" && this.speechSeen && now - this.silenceAt > 1800)
+          } else if (this.kind === "microphone" && this.speechSeen && now - this.silenceAt > 1200)
             this.recorder?.stop();
         }
       }
@@ -159,6 +160,7 @@ export class AudioDirector {
     if (!settings.voiceEnabled) return;
     const phrases = speechPhrases(text);
     if (!phrases.length) return;
+    useStore.setState({ expression: expressionForReply(text) });
     this.kind = "voice";
     this.processing = true;
     const controller = new AbortController();
@@ -178,7 +180,7 @@ export class AudioDirector {
         if (generation !== this.generation) return;
         this.analyser = this.context.createAnalyser();
         this.analyser.fftSize = 512;
-        this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        this.url = URL.createObjectURL(new Blob([bytes], { type: settings.ttsEngine === 'edge' ? "audio/mpeg" : "audio/wav" }));
         this.audio = new Audio(this.url);
         this.audio.volume = settings.volume;
         const output = this.audio as HTMLAudioElement & {
@@ -215,7 +217,7 @@ export class AudioDirector {
         this.processing = false;
         this.cleanup();
         this.resumeWake();
-        useStore.getState().transition("HAPPY", "Voz completada");
+        useStore.getState().transition(useStore.getState().expression, "Voz completada");
       }
     } catch (e) {
       if (generation === this.generation) {

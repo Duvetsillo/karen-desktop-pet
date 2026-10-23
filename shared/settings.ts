@@ -113,7 +113,7 @@ export function validateSettings(
   }
   if (raw.authSource === "local" || raw.authSource === "stored")
     s.authSource = raw.authSource;
-  if (raw.ttsEngine === "system" || raw.ttsEngine === "local" || raw.ttsEngine === 'fast')
+  if (raw.ttsEngine === "system" || raw.ttsEngine === "local" || raw.ttsEngine === 'fast' || raw.ttsEngine === 'edge')
     s.ttsEngine = raw.ttsEngine;
   if (raw.voiceStyle !== undefined) {
     if (!VOICE_STYLES.includes(raw.voiceStyle)) throw new Error('Estilo de voz desconocido.');

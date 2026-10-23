@@ -1,5 +1,18 @@
 # One original Karen voice
 
+## Neural online option
+
+The explicit **Natural rápida · Dalia (en línea)** setting uses Microsoft's
+Spanish Mexico neural voice through `edge-tts`. It sends reply text to that
+speech service and returns MP3 to the pet. It does not change the original
+shared voice or WhatsApp. If the service fails, the reply remains visible.
+
+## Respuestas continuas
+
+Una respuesta normal se sintetiza como una sola pieza. Solo se divide cuando supera
+el límite de 4096 caracteres del motor. El botón de micrófono interrumpe la voz
+y permite dictar otra orden de inmediato.
+
 ## 1.5.3: optional fast local voice
 
 Select **Rápida local · Kokoro (otro timbre)** in Voice to prioritize latency.

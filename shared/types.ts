@@ -4,6 +4,12 @@ export const PET_STATES = [
   "THINKING",
   "SPEAKING",
   "HAPPY",
+  "LAUGHING",
+  "ANGRY",
+  "SAD",
+  "SURPRISED",
+  "PROUD",
+  "CURIOUS",
   "CONFUSED",
   "ERROR",
   "SLEEPING",
@@ -50,7 +56,7 @@ export interface Settings {
   authSource: "local" | "stored";
   bubbles: boolean;
   voiceEnabled: boolean;
-  ttsEngine: "system" | "local" | "fast";
+  ttsEngine: "system" | "local" | "fast" | "edge";
   voiceStyle: VoiceStyle;
   wakeWordEnabled: boolean;
   inputDevice: string;

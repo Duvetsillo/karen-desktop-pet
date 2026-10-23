@@ -37,8 +37,8 @@ export class VoiceReplies {
   }
 }
 
-/** A short first phrase reduces the first audio wait; later phrases keep cadence. */
-export function speechPhrases(text: string, limit = 180): string[] {
+/** Speak a normal reply in one uninterrupted clip; split only at the engine limit. */
+export function speechPhrases(text: string, limit = 4096): string[] {
   const plain = text
     .replace(/```[\s\S]*?(?:```|$)/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
@@ -46,22 +46,21 @@ export function speechPhrases(text: string, limit = 180): string[] {
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/^[\s#>*+-]+/gm, "")
     .replace(/[*_`]/g, "")
-    .trim().slice(0, 4096);
+    .trim();
   const result: string[] = [];
   let phrase = "";
   for (const word of plain.split(/\s+/).filter(Boolean)) {
     let remaining = word;
     while (remaining) {
-      const bound = result.length ? limit : Math.min(limit, 64);
-      const part = remaining.slice(0, bound);
-      if (phrase && phrase.length + part.length + 1 > bound) {
+      if (phrase && phrase.length + remaining.length + 1 > limit) {
         result.push(phrase);
         phrase = "";
         continue;
       }
+      const part = remaining.slice(0, limit);
       phrase = [phrase, part].filter(Boolean).join(" ");
       remaining = remaining.slice(part.length);
-      if (phrase.length >= bound || (phrase.length >= (result.length ? 40 : 8) && /[.!?…]$/.test(part))) {
+      if (phrase.length >= limit) {
         result.push(phrase);
         phrase = "";
       }

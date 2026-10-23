@@ -47,13 +47,17 @@ describe("respuestas habladas", () => {
     queue.enqueue(reply("uno"));
     expect(speak).toHaveBeenCalledTimes(1);
   });
-  it("divide respuestas por frases acotadas sin perder palabras ni leer código o enlaces", () => {
+  it("lee respuestas normales de una vez y divide solo al superar el límite del motor", () => {
     const text = "Esta es una respuesta que ya puede empezar a sonar. ".repeat(12);
     const phrases = speechPhrases(text);
-    expect(phrases.length).toBeGreaterThan(1);
-    expect(phrases.every(phrase => phrase.length <= 180)).toBe(true);
+    expect(phrases).toHaveLength(1);
     expect(phrases.join(" ")).toBe(text.trim());
     expect(speechPhrases("**Hola Karen**. [Documentación](https://example.com).\n```sh\nsecreto de ejemplo\n```\nGracias.").join(" ")).toBe("Hola Karen. Documentación. Gracias.");
-    expect(speechPhrases("x".repeat(500)).every(phrase => phrase.length <= 180)).toBe(true);
+    const long = `${"Frase completa. ".repeat(300)}final.`;
+    const longPhrases = speechPhrases(long);
+    expect(longPhrases.length).toBeGreaterThan(1);
+    expect(longPhrases.every(phrase => phrase.length <= 4096)).toBe(true);
+    expect(longPhrases.join(" ")).toBe(long);
+    expect(speechPhrases("x".repeat(5000)).every(phrase => phrase.length <= 4096)).toBe(true);
   });
 });

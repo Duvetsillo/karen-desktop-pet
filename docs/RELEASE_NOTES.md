@@ -1,3 +1,13 @@
+Karen Desktop Pet 1.6.1 adds six contextual expressions: laughter, anger,
+sadness, surprise, pride and curiosity. The character changes eyes, brows,
+mouth, fins, arms, tint and movement while preserving real audio lip motion.
+Reply text selects a brief expression; technical states still reflect actual
+listening, thinking, speaking and errors. Reduced-motion preferences remove
+large movements while retaining readable facial expressions. The shared Karen
+personality now permits situational humor, disagreement and expressive language
+without claiming literal human feelings or attributing private emotions to the
+user. No voice model, reference audio or credentials change.
+
 Karen Desktop Pet 1.5.3 adds an explicit fast CPU voice using optional local
 Kokoro resources. It uses another fixed timbre and does not replace the original
 shared voice or change WhatsApp. A persistent worker avoids reloading between

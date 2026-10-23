@@ -32,7 +32,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("ciclo real de reproducción", () => {
-  it("prepara la siguiente frase durante el audio sin reproducirla antes de tiempo", async () => {
+  it("sintetiza y reproduce una respuesta normal como una sola pieza", async () => {
     const synthesize = vi.fn(async () => new ArrayBuffer(12));
     const director = new AudioDirector({ synthesize });
     const first = "Esta primera frase ya puede empezar a sonar.";
@@ -40,15 +40,11 @@ describe("ciclo real de reproducción", () => {
     const completed = director.speak(`${first} ${second}`);
     expect(useStore.getState().capture.phase).toBe("preparing");
     await vi.waitFor(() => expect(useStore.getState().capture.phase).toBe("speaking"));
-    expect(synthesize).toHaveBeenNthCalledWith(1, first, expect.any(AbortSignal));
-    expect(synthesize).toHaveBeenNthCalledWith(2, second, expect.any(AbortSignal));
+    expect(synthesize).toHaveBeenCalledExactlyOnceWith(`${first} ${second}`, expect.any(AbortSignal));
     expect(TestAudio.instances).toHaveLength(1);
     useStore.getState().event({ type: "pet", state: "HAPPY", reason: "Respuesta completada" });
     expect(useStore.getState().state).toBe("SPEAKING");
     TestAudio.instances[0].onended?.();
-    await vi.waitFor(() => expect(synthesize).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(TestAudio.instances[1]?.play).toHaveBeenCalled());
-    TestAudio.instances[1].onended?.();
     await completed;
     expect(useStore.getState().capture.phase).toBe("idle");
     expect(useStore.getState().state).toBe("HAPPY");
@@ -78,5 +74,20 @@ describe("ciclo real de reproducción", () => {
     await pending;
     expect(TestAudio.instances[0].pause).toHaveBeenCalled();
     expect(useStore.getState().capture.phase).toBe("idle");
+  });
+  it("reproduce la voz neural con el formato MP3 correcto", async () => {
+    useStore.setState({ settings: { ...defaults, voiceEnabled: true, ttsEngine: 'edge' } });
+    let mediaType = '';
+    const createObjectURL = URL.createObjectURL;
+    URL.createObjectURL = (blob) => { mediaType = blob instanceof Blob ? blob.type : ''; return createObjectURL(blob); };
+    try {
+      const director = new AudioDirector({ synthesize: async () => new ArrayBuffer(12) });
+      const pending = director.speak('Hola. Soy Karen.');
+      await vi.waitFor(() => expect(useStore.getState().capture.phase).toBe('speaking'));
+      expect(mediaType).toBe('audio/mpeg');
+      TestAudio.instances[0].onended?.();
+      await pending;
+      director.dispose();
+    } finally { URL.createObjectURL = createObjectURL; }
   });
 });

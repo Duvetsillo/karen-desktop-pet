@@ -7,6 +7,9 @@ Cada operador usa sus recursos y su propio Gateway/modelo.
 
 En **Voz**, activa **Leer las respuestas**, elige una salida y pulsa **Probar voz de
 Karen**. El motor Windows usa sus voces instaladas. La boca sigue la energía real.
+**Natural rápida · Dalia (en línea)** usa una voz femenina neural en español de México.
+Necesita internet y envía el texto de la respuesta al servicio de voz de Microsoft.
+Requiere `edge-tts==7.3.1` en el runtime de voz; si falla, el texto queda visible.
 
 Para STT offline instala Python 3.11 y, desde el repositorio, ejecuta:
 
@@ -22,7 +25,8 @@ y `voice-models/faster-whisper-small/model.bin`, elige su carpeta padre en
 no el modelo. Activa reconocimiento y usa el botón de micrófono de Karen o de Voz.
 
 El dictado se transcribe localmente y se envía como mensaje a tu OpenClaw. Un segundo
-clic finaliza; 1,8 segundos de silencio tras voz o 60 segundos cierran la captura.
+clic finaliza; 1,2 segundos de silencio tras voz o 60 segundos cierran la captura.
+El botón de micrófono interrumpe la respuesta hablada y abre una nueva captura.
 **Detener** cancela audio y respuesta. Windows debe permitir el micrófono a apps
 de escritorio. No se usa cámara ni hay detector de palabra clave instalado.
 

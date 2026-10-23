@@ -401,10 +401,16 @@ async function ready() {
     stopPerception();
     return gateway.abort();
   });
-  handle("listen", () => {
+  handle("listen", async () => {
     if (!storage.settings.sttEnabled)
       throw new Error("Activa el reconocimiento local en Voz.");
     if (capture.kind === "system" && capture.phase !== "idle") throw new Error("Finaliza primero el audio del PC.");
+    if (capture.kind === "microphone" && capture.phase === "recording") {
+      pet?.webContents.send("desktop-event", { type: "voice-listen" });
+      return;
+    }
+    // A new spoken command takes priority over the old answer and its audio.
+    await gateway.abort();
     voice.cancel();
     pet?.webContents.send("desktop-event", { type: "voice-listen" });
   });
@@ -420,7 +426,8 @@ async function ready() {
     const hasStt = existsSync(join(root, "voice-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/faster-whisper-small/model.bin"));
     const hasVoice = existsSync(join(root, "expressive-runtime/Scripts/python.exe")) && existsSync(join(root, "voice-models/active-voice.json"));
     const hasFast = existsSync(join(root,'voice-runtime/Scripts/python.exe')) && existsSync(join(root,'voice-models/kokoro-v1.0.onnx')) && existsSync(join(root,'voice-models/voices-v1.0.bin'));
-    if (!hasStt && !hasVoice && !hasFast) throw new Error("La carpeta necesita recursos de reconocimiento, Kokoro o un perfil de voz original compartida.");
+    const hasEdge = existsSync(join(root, 'voice-runtime/Scripts/python.exe'));
+    if (!hasStt && !hasVoice && !hasFast && !hasEdge) throw new Error("La carpeta necesita un runtime de voz, recursos de reconocimiento o un perfil de voz original compartida.");
     updateSettings({ voiceRoot: root });
     return root;
   });

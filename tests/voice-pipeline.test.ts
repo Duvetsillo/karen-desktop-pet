@@ -2,12 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { speechAudio } from '../src/voice/pipeline';
 import { speechPhrases } from '../src/voice/replies';
 
-describe('voz con una frase de anticipación', () => {
-  it('empieza por una frase breve conservando el texto completo', () => {
+describe('voz continua con división solo para textos extensos', () => {
+  it('mantiene unida una respuesta normal', () => {
     const text = 'Estoy aquí. Ahora voy a explicarte con calma todos los detalles de tu pregunta sin cambiar de voz.';
     const chunks = speechPhrases(text);
-    expect(chunks[0]).toBe('Estoy aquí.');
-    expect(chunks[0].length).toBeLessThanOrEqual(64);
+    expect(chunks).toHaveLength(1);
     expect(chunks.join(' ')).toBe(text);
   });
   it('prepara la siguiente durante la reproducción y limita la anticipación', async () => {

@@ -12,7 +12,7 @@ const path = require('node:path');
   try {
     await app.firstWindow();
     let panel = app.windows().find(p => p.url().includes('view=settings')) || await app.waitForEvent('window', {predicate:p=>p.url().includes('view=settings')});
-    for (const page of app.windows()) page.on('pageerror', e => errors.push(e.message));
+    for (const page of app.windows()) page.on('pageerror', e => errors.push(e.stack || e.message));
     await panel.waitForSelector('h1');
     await panel.evaluate(() => window.karen.settings({animations:false,particles:false,cursorTracking:false,voiceEnabled:false,wakeWordEnabled:false,scale:1}));
     await app.evaluate(({BrowserWindow}) => {
@@ -28,9 +28,11 @@ const path = require('node:path');
       await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).settings.petStyle).toBe(style);
       await panel.getByRole('img', {name:`Karen, estilo ${name}, con ojos expresivos`}).waitFor();
       await panel.waitForTimeout(400);
-      for (const state of ['IDLE','LISTENING','THINKING','SPEAKING','HAPPY','CONFUSED','ERROR','SLEEPING','DRAGGING']) {
+      for (const state of ['IDLE','LISTENING','THINKING','SPEAKING','HAPPY','LAUGHING','ANGRY','SAD','SURPRISED','PROUD','CURIOUS','CONFUSED','ERROR','SLEEPING','DRAGGING']) {
         await panel.evaluate(state => window.karen.demo(state), state);
-        await panel.waitForTimeout(100);
+        await panel.waitForTimeout(style === 'crystal' && ['LAUGHING','ANGRY','SAD','SURPRISED','PROUD','CURIOUS'].includes(state) ? 350 : 100);
+        if (style === 'crystal' && ['LAUGHING','ANGRY','SAD','SURPRISED','PROUD','CURIOUS'].includes(state))
+          await preview.screenshot({path:`qa/expression-${state.toLowerCase()}.png`,omitBackground:true});
       }
       await panel.evaluate(() => window.karen.demo('IDLE'));
       await panel.waitForTimeout(300);
@@ -52,7 +54,7 @@ const path = require('node:path');
     await panel.waitForSelector('h1');
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).settings.petStyle, 'cloud');
     assert.deepEqual(errors, []);
-    const report = {styles:['crystal','cloud','orbit'],statesPerStyle:9,keyboard:true,persisted:'cloud',reducedMotion:true,disconnectedModel:true,errors};
+    const report = {styles:['crystal','cloud','orbit'],statesPerStyle:15,keyboard:true,persisted:'cloud',reducedMotion:true,disconnectedModel:true,errors};
     fs.writeFileSync('qa/styles-160.json',JSON.stringify(report,null,2));
     console.log(JSON.stringify(report));
   } finally {await app.close();}

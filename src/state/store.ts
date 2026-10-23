@@ -12,6 +12,7 @@ import type {
 } from "../../shared/types";
 import { defaults } from "../../shared/settings";
 import { PetMachine } from "./machine";
+import { expressionForReply } from "../../shared/expression";
 export const machine = new PetMachine();
 export const signals: {
   energy: number;
@@ -25,6 +26,7 @@ interface Store {
   connection: ConnectionInfo;
   state: PetState;
   reason: string;
+  expression: PetState;
   diagnostics: Diagnostic[];
   messages: ChatMessage[];
   native: boolean;
@@ -44,6 +46,7 @@ export const useStore = create<Store>((set, get) => ({
   connection: { state: "disconnected", message: "Esperando conexión" },
   state: "IDLE",
   reason: "",
+  expression: "HAPPY",
   diagnostics: [],
   messages: [],
   native: false,
@@ -84,7 +87,7 @@ export const useStore = create<Store>((set, get) => ({
         const i = messages.findIndex((m) => m.id === event.message.id);
         if (i >= 0) messages[i] = event.message;
         else messages.push(event.message);
-        return { messages: messages.slice(-100) };
+        return { messages: messages.slice(-100), ...(event.final && event.message.role === 'assistant' && event.message.text ? { expression: expressionForReply(event.message.text) } : {}) };
       });
   },
 }));

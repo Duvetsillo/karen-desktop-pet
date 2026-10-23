@@ -7,7 +7,8 @@ const fs = require('node:fs');
   fs.mkdirSync('qa', { recursive: true });
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  const app = await electron.launch({ args: [path.resolve('.'), '--qa'], env });
+  const app = await electron.launch({ args: [path.resolve('.'), '--qa',
+    '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'], env });
   const report = { source: 'synthetic native events; Windows System.Speech playback', rendererErrors: [] };
   try {
     const panel = app.windows().find(page => page.url().includes('view=settings')) ||
@@ -18,7 +19,7 @@ const fs = require('node:fs');
     assert(pet);
     await panel.evaluate(() => window.karen.settings({ voiceRoot:'', wakeWordEnabled:false, voiceEnabled: true, sttEnabled: false, ttsEngine: 'system', outputDevice: '', volume: .4, scale: 1 }));
     await expect(pet.getByRole('button', { name: 'Repetir última respuesta', exact: true })).toBeDisabled();
-    await expect(pet.getByRole('button', { name: 'Iniciar o terminar voz', exact: true })).toBeDisabled();
+    await expect(pet.getByRole('button', { name: 'Hablar ahora o terminar dictado', exact: true })).toBeDisabled();
     await panel.evaluate(() => {
       window.__voicePhases = [];
       window.__maxVoiceEnergy = 0;
@@ -55,6 +56,13 @@ const fs = require('node:fs');
     await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase, { timeout: 30000 }).toBe('speaking');
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).connection.state, 'disconnected');
     report.replayWithoutGateway = true;
+    await panel.evaluate(() => window.karen.settings({ sttEnabled: true }));
+    await pet.getByRole('button', { name: 'Hablar ahora o terminar dictado', exact: true }).click();
+    await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase, { timeout: 10000 }).toBe('recording');
+    report.microphoneInterruptsSpeech = true;
+    await panel.evaluate(() => window.karen.abort());
+    await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase).toBe('idle');
+    await panel.evaluate(() => window.karen.settings({ sttEnabled: false }));
     await pet.getByRole('button', { name: 'Leer respuestas', exact: true }).click();
     await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase).toBe('idle');
     await expect(replay).toBeDisabled();

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { validateSettings, defaults, gatewayAddress } from "../shared/settings";
 import { PetMachine } from "../src/state/machine";
+import { expressionForReply } from '../shared/expression';
 import {
   extractText,
   routeGatewayEvent,
@@ -53,6 +54,24 @@ describe("máquina de estados", () => {
     expect(m.snapshot.state).toBe("DRAGGING");
     m.transition("ERROR", 90004);
     expect(m.tick(30, 96000).state).toBe("IDLE");
+  });
+  it('muestra emociones breves y vuelve al reposo', () => {
+    const m = new PetMachine(0);
+    m.transition('ANGRY', 1000);
+    expect(m.tick(30, 4400).state).toBe('ANGRY');
+    expect(m.tick(30, 4500).state).toBe('IDLE');
+    m.transition('LAUGHING', 5000);
+    expect(m.tick(30, 8000).state).toBe('IDLE');
+  });
+});
+describe('expresión según la propia respuesta', () => {
+  it('elige matices claros sin atribuir emociones al usuario', () => {
+    expect(expressionForReply('Jajaja, eso sí estuvo bueno.')).toBe('LAUGHING');
+    expect(expressionForReply('Qué rabia, esa falla volvió.')).toBe('ANGRY');
+    expect(expressionForReply('Lo siento, Jefe.')).toBe('SAD');
+    expect(expressionForReply('Lo logramos. Buen trabajo.')).toBe('PROUD');
+    expect(expressionForReply('Me intriga esa posibilidad.')).toBe('CURIOUS');
+    expect(expressionForReply('Aquí tienes el resultado.')).toBe('HAPPY');
   });
 });
 describe("eventos reales de OpenClaw", () => {

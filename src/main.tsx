@@ -50,6 +50,12 @@ const labels: Record<PetState, string> = {
   THINKING: "Pensando",
   SPEAKING: "Hablando",
   HAPPY: "Feliz",
+  LAUGHING: "Riendo",
+  ANGRY: "Molesta",
+  SAD: "Triste",
+  SURPRISED: "Sorprendida",
+  PROUD: "Orgullosa",
+  CURIOUS: "Curiosa",
   CONFUSED: "Con duda",
   ERROR: "Algo ocurrió",
   SLEEPING: "Descansando",
@@ -852,13 +858,15 @@ function Voice() {
             <option value="system">Voz instalada en Windows</option>
             <option value="local">Voz original compartida de Karen</option>
             <option value="fast">Rápida local · Kokoro (otro timbre)</option>
+            <option value="edge">Natural rápida · Dalia (en línea)</option>
           </select>
         </div>
         {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
         {s.ttsEngine === 'fast' && <p className="quiet-note">Prioriza rapidez con Kokoro en CPU. Usa otro timbre fijo; no es la referencia original de WhatsApp. Requiere tus modelos locales de Kokoro.</p>}
+        {s.ttsEngine === 'edge' && <p className="quiet-note">Voz femenina neural en español de México. Necesita internet; si falla, conserva la respuesta escrita.</p>}
         <div className="input-field">
           <label htmlFor="voice-style">Estilo de la voz original</label>
-          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine === 'system'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
+          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine === 'system' || s.ttsEngine === 'edge'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
             <option value="serene">Serena · madura y pausada</option>
             <option value="warm">Cercana · cálida</option>
             <option value="serious">Seria · sobria</option>
@@ -1229,8 +1237,8 @@ function PetApp() {
           <MessageCircle size={16} />
         </button>
         <button
-          title="Micrófono"
-          aria-label="Iniciar o terminar voz"
+          title="Hablar ahora; interrumpe a Karen"
+          aria-label="Hablar ahora o terminar dictado"
           aria-pressed={capture.kind === "microphone" && capture.phase === "recording"}
           disabled={!native || !s.sttEnabled}
           onClick={() => void action(() => bridge.listen())}
