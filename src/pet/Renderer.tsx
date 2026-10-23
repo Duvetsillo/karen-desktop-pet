@@ -2,11 +2,17 @@ import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Sprite } from "pixi.js";
 import "pixi.js/unsafe-eval";
 import { createPetTextures } from "./textures";
+import { petStyles } from '../../shared/pet-styles';
 import { gazeTarget } from "./gaze";
-import { signals, useStore } from "../state/store";
+import { SpeechMotion } from "./speech-motion";
+import { machine, signals, useStore } from "../state/store";
 
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
+}
+function dampTint(current: number, target: number, dt: number, rate: number) {
+  const channel = (shift: number) => Math.round(damp((current >> shift) & 255, (target >> shift) & 255, dt, rate));
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
 export function PetRenderer({
   className = "",
@@ -17,6 +23,7 @@ export function PetRenderer({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const accent = useStore((s) => s.settings.accent);
+  const petStyle = useStore((s) => s.settings.petStyle);
   useEffect(() => {
     let disposed = false;
     let initialized = false;
@@ -42,7 +49,7 @@ export function PetRenderer({
       }
       host.current!.appendChild(app.canvas);
       app.canvas.setAttribute("aria-hidden", "true");
-      const tex = createPetTextures(accent);
+      const tex = createPetTextures(accent, petStyle);
       const scene = new Container();
       app.stage.addChild(scene);
       const make = (
@@ -74,18 +81,34 @@ export function PetRenderer({
       finR.position.set(72, -62);
       finR.scale.set(-0.74, 0.74);
       finR.rotation = 0.35;
-      const armL = make(tex.arm, root);
+      const legL = make(tex.leg, root);
+      legL.position.set(-47, 139);
+      legL.scale.set(0.64);
+      const legR = make(tex.leg, root);
+      legR.position.set(47, 139);
+      legR.scale.set(-0.64, 0.64);
+      const armL = new Container();
+      root.addChild(armL);
       armL.position.set(-111, 35);
-      armL.scale.set(0.65);
+      const armLSprite = make(tex.arm, armL);
+      armLSprite.scale.set(0.65);
+      const handL = make(tex.hand, armL);
+      handL.position.set(-43, 7);
+      handL.scale.set(0.42);
       armL.rotation = -0.25;
-      const armR = make(tex.arm, root);
+      const armR = new Container();
+      root.addChild(armR);
       armR.position.set(111, 35);
-      armR.scale.set(-0.65, 0.65);
+      const armRSprite = make(tex.arm, armR);
+      armRSprite.scale.set(-0.65, 0.65);
+      const handR = make(tex.hand, armR);
+      handR.position.set(43, 7);
+      handR.scale.set(-0.42, 0.42);
       armR.rotation = 0.25;
       const body = make(tex.body, root);
       body.scale.set(0.94);
       if (!preview) {
-        const masks = [body, finL, finR, armL, armR].map((sprite) => {
+        const masks = [body, finL, finR, armLSprite, armRSprite, handL, handR, legL, legR].map((sprite) => {
           const canvas = sprite.texture.source.resource as HTMLCanvasElement;
           return {
             sprite,
@@ -164,7 +187,10 @@ export function PetRenderer({
         brow = 0,
         frames = 0,
         frameTime = 0,
-        quality = 1;
+        quality = 1,
+        bodyTint = 0xffffff,
+        haloTint = 0xffffff;
+      const speechMotion = new SpeechMotion();
       const visibility = () => {
         if (document.hidden) app?.stop();
         else app?.start();
@@ -173,7 +199,7 @@ export function PetRenderer({
       app.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.06);
         t += dt;
-        const { settings: s, state } = useStore.getState();
+        const { settings: s, state, expression: spokenExpression, capture } = useStore.getState();
         const sleeping = state === "SLEEPING";
         app!.ticker.maxFPS = s.lowPower || sleeping ? 15 : preview ? 30 : 60;
         frames++;
@@ -186,7 +212,18 @@ export function PetRenderer({
         }
         const motion = s.animations && !reduced.matches;
         const speaking = state === "SPEAKING";
+        const preparingVoice = capture.kind === "voice" && capture.phase === "preparing";
+        const expression = speaking || preparingVoice ? spokenExpression : state;
+        const laughing = expression === 'LAUGHING';
+        const angry = expression === 'ANGRY';
+        const sad = expression === 'SAD';
+        const surprised = expression === 'SURPRISED';
+        const proud = expression === 'PROUD';
+        const curious = expression === 'CURIOUS';
+        const expressiveAge = Math.max(0, (Date.now() - machine.snapshot.since) / 1000);
+        const entrance = motion ? Math.max(0, 1 - expressiveAge / 0.7) : 0;
         const voiceEnergy = speaking ? Math.sqrt(Math.max(0, Math.min(1, signals.energy))) : 0;
+        const speech = speechMotion.update(voiceEnergy, dt, speaking, motion);
         if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.5 * s.scale);
         const activity = motion ? s.activity : 0;
         let targetTilt =
@@ -196,31 +233,39 @@ export function PetRenderer({
               ? 0.1
               : state === "DRAGGING"
                 ? 0.16
+                : curious ? -0.13
+                : angry ? -0.08
+                : sad ? 0.13
+                : surprised ? 0.06
                 : 0;
         const gaze = gazeTarget(signals.cursor, s.cursorTracking && !sleeping);
-        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + (speaking ? Math.sin(t * 4) * voiceEnergy * 0.035 : 0);
+        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + Math.sin(t * 2.8) * speech.envelope * 0.045 + speech.side * speech.gesture * 0.055;
         tilt = damp(tilt, motion ? targetTilt : 0, dt, 7);
         root.rotation = tilt;
+        root.x = damp(root.x, motion ? Math.sin(t * 2.8) * speech.envelope * 6 + speech.side * speech.gesture * 4 : 0, dt, 8);
         const bob =
           activity *
           (sleeping
             ? Math.sin(t * 0.6) * 2
             : Math.sin(t * 1.65) * 6 + Math.sin(t * 0.7) * 2);
-        const happy =
-          state === "HAPPY" && motion ? Math.max(0, Math.sin(t * 7)) * -13 : 0;
+        const happy = expression === "HAPPY" && motion ? Math.max(0, Math.sin(t * 7)) * -13 : 0;
+        const laughBounce = laughing && motion ? Math.max(0, Math.sin(t * 12)) * -10 : 0;
+        const proudLift = proud && motion ? -7 : 0;
+        const surpriseLift = surprised && motion ? -12 * entrance : 0;
         float = damp(
           float,
           bob +
             happy +
-            (state === "LISTENING" ? -5 : 0) +
-            (state === "DRAGGING" ? -12 : 0),
+            laughBounce + proudLift + surpriseLift - speech.envelope * 8 - speech.gesture * 5 +
+            (motion && state === "LISTENING" ? -5 : 0) +
+            (motion && state === "DRAGGING" ? -12 : 0),
           dt,
           9,
         );
         root.y = float;
         const breathe =
           1 + (motion ? Math.sin(t * (sleeping ? 1.2 : 2.3)) * 0.009 : 0);
-        const voicePulse = motion ? voiceEnergy * 0.028 : 0;
+        const voicePulse = motion ? speech.envelope * 0.028 : 0;
         root.scale.set(breathe - voicePulse, 2 - breathe + voicePulse);
         root.alpha = damp(
           root.alpha,
@@ -228,10 +273,12 @@ export function PetRenderer({
           dt,
           3,
         );
-        body.tint = state === "ERROR" ? 0xffceb3 : 0xffffff;
+        bodyTint = dampTint(bodyTint, state === "ERROR" ? 0xffceb3 : angry ? 0xffd5ce : sad ? 0xdce7ff : 0xffffff, dt, reduced.matches ? 28 : 10);
+        body.tint = bodyTint;
         halo.alpha =
-          (sleeping ? 0.08 : 0.22 + voiceEnergy * 0.07) * s.brightness * (s.nightMode ? 0.6 : 1);
-        halo.tint = state === "ERROR" ? 0xffb473 : 0xffffff;
+          (sleeping ? 0.08 : 0.22 + speech.envelope * 0.13) * s.brightness * (s.nightMode ? 0.6 : 1);
+        haloTint = dampTint(haloTint, state === "ERROR" ? 0xffb473 : angry ? 0xff8b7a : sad ? 0x96adff : proud ? 0xffd78c : 0xffffff, dt, reduced.matches ? 28 : 10);
+        halo.tint = haloTint;
         shadow.scale.set(0.85 - float * 0.002, 0.85 - float * 0.002);
         shadow.alpha = 0.65 - float * 0.009;
         finL.rotation = damp(
@@ -243,8 +290,11 @@ export function PetRenderer({
                 ? -0.25
                 : state === "CONFUSED"
                   ? -0.3
+                  : angry ? -0.42
+                  : sad ? -0.35
+                  : surprised ? 0.32
                   : 0) +
-            Math.sin(t * 1.7) * 0.04 * activity - (motion ? voiceEnergy * 0.1 : 0),
+            Math.sin(t * 1.7) * 0.04 * activity - speech.envelope * 0.17 - speech.gesture * 0.1,
           dt,
           7,
         );
@@ -257,19 +307,26 @@ export function PetRenderer({
                 ? 0.25
                 : state === "CONFUSED"
                   ? -0.13
+                  : angry ? 0.42
+                  : sad ? 0.35
+                  : surprised ? -0.32
                   : 0) -
-            Math.sin(t * 1.7 + 0.6) * 0.04 * activity + (motion ? voiceEnergy * 0.1 : 0),
+            Math.sin(t * 1.7 + 0.6) * 0.04 * activity + speech.envelope * 0.17 + speech.gesture * 0.1,
           dt,
           7,
         );
-        armL.rotation =
-          -0.25 +
+        armL.rotation = damp(armL.rotation,
+          (signals.pointingSide === -1 ? 0.85 : -0.25) +
           Math.sin(t * 2 + 0.3) * 0.07 * activity +
-          (state === "HAPPY" ? -0.25 : 0);
-        armR.rotation =
-          0.25 -
+          (motion ? laughing ? -0.42 : proud ? -0.36 : angry ? 0.2 : sad ? 0.12 : expression === "HAPPY" ? -0.25 : 0 : 0) -
+          (signals.pointingSide === -1 ? 0 : -speech.envelope * 0.13 - (speech.side < 0 ? speech.gesture * 0.4 : speech.gesture * 0.08)), dt, motion ? 10 : 60);
+        armR.rotation = damp(armR.rotation,
+          (signals.pointingSide === 1 ? -0.85 : 0.25) -
           Math.sin(t * 2) * 0.07 * activity +
-          (state === "HAPPY" ? 0.25 : 0);
+          (motion ? laughing ? 0.42 : proud ? 0.36 : angry ? -0.2 : sad ? -0.12 : expression === "HAPPY" ? 0.25 : 0 : 0) +
+          (signals.pointingSide === 1 ? 0 : -speech.envelope * 0.13 + (speech.side > 0 ? speech.gesture * 0.4 : speech.gesture * 0.08)), dt, motion ? 10 : 60);
+        legL.rotation = damp(legL.rotation, motion ? -0.04 + Math.sin(t * 1.65) * activity * 0.04 - speech.gesture * 0.04 : 0, dt, 8);
+        legR.rotation = damp(legR.rotation, motion ? 0.04 - Math.sin(t * 1.65 + 0.5) * activity * 0.04 + speech.gesture * 0.04 : 0, dt, 8);
         if (t > nextBlink && !sleeping) {
           blink = 0.16;
           nextBlink = t + 2.5 + Math.random() * 5.5;
@@ -279,12 +336,17 @@ export function PetRenderer({
           ? 0.04
           : blink > 0
             ? Math.max(0.04, Math.abs(blink - 0.08) / 0.08)
-            : state === "HAPPY"
+            : laughing ? 0.37
+              : angry ? 0.58
+              : sad ? 0.65
+              : surprised ? 1.28
+              : curious ? 1.12
+              : expression === "HAPPY"
               ? 0.68
               : state === "LISTENING"
                 ? 1.13
                 : state === "ERROR" ? 0.85 : 1;
-        const asymmetry = !sleeping && blink === 0 && (state === "CONFUSED" || state === "THINKING");
+        const asymmetry = !sleeping && blink === 0 && (state === "CONFUSED" || state === "THINKING" || curious);
         eyeOpen = damp(eyeOpen, targetOpen * (asymmetry ? 0.73 : 1), dt, blink > 0 ? 60 : 12);
         rightOpen = damp(rightOpen, targetOpen * (asymmetry ? 1.08 : 1), dt, blink > 0 ? 60 : 12);
         // Pursuit is damped, not restarted by each cursor event. Reduced motion
@@ -296,8 +358,8 @@ export function PetRenderer({
         irisR.position.set(3 - eyeX, 6 + eyeY);
         eyeL.scale.y = 0.7 * eyeOpen;
         eyeR.scale.y = 0.7 * rightOpen;
-        eyeL.rotation = damp(eyeL.rotation, state === "HAPPY" ? -0.1 : state === "CONFUSED" ? -0.08 : 0, dt, 12);
-        eyeR.rotation = damp(eyeR.rotation, state === "HAPPY" ? 0.1 : 0, dt, 12);
+        eyeL.rotation = damp(eyeL.rotation, laughing || expression === "HAPPY" ? -0.1 : angry ? 0.13 : state === "CONFUSED" ? -0.08 : 0, dt, 12);
+        eyeR.rotation = damp(eyeR.rotation, laughing || expression === "HAPPY" ? 0.1 : angry ? -0.13 : 0, dt, 12);
         mouth = damp(mouth, voiceEnergy * (motion ? 1 : 0.35), dt, voiceEnergy > mouth ? 22 : 12);
         facial.clear();
         if (sleeping) {
@@ -312,7 +374,14 @@ export function PetRenderer({
           facial
             .ellipse(0, 47 + mouth * 7, 4 + mouth * 4, 2 + mouth * 4)
             .fill({ color: 0xb9bcf8, alpha: 0.8 });
-        } else if (state === "ERROR" || state === "CONFUSED") {
+        } else if (laughing) {
+          facial.ellipse(0, 43, 13, 9).fill(0x14223f);
+          facial.moveTo(-8, 46).quadraticCurveTo(0, 51, 8, 46).stroke({ color: 0xcdfaff, width: 2, cap: 'round' });
+        } else if (surprised) {
+          facial.ellipse(0, 43, 6, 10).fill(0x14223f);
+        } else if (angry) {
+          facial.moveTo(-11, 48).quadraticCurveTo(0, 39, 11, 48).stroke({ color: 0xcdfaff, width: 3, cap: 'round' });
+        } else if (sad || state === "ERROR" || state === "CONFUSED") {
           facial
             .moveTo(-9, 44)
             .quadraticCurveTo(0, 35, 9, 44)
@@ -320,18 +389,18 @@ export function PetRenderer({
         } else {
           facial
             .moveTo(-12, 36)
-            .quadraticCurveTo(0, state === "HAPPY" ? 54 : 46, 12, 36)
+            .quadraticCurveTo(0, proud ? 53 : expression === "HAPPY" ? 54 : 46, 12, 36)
             .stroke({ color: 0xcdfaff, width: 3, cap: "round" });
         }
-        brow = damp(brow, state === "LISTENING" ? -6 : state === "ERROR" ? 4 : 0, dt, 12);
+        brow = damp(brow, state === "LISTENING" ? -6 : surprised ? -9 : angry ? 6 : sad || state === "ERROR" ? 4 : 0, dt, 12);
         if (!sleeping) {
-          const questioning = state === "CONFUSED" || state === "THINKING";
-          const worried = state === "ERROR";
+          const questioning = state === "CONFUSED" || state === "THINKING" || curious;
+          const worried = state === "ERROR" || sad;
           facial.moveTo(-61, -45 + brow)
-            .quadraticCurveTo(-46, -51 + brow - (questioning ? 7 : 0), -30, -45 + brow - (worried ? 8 : 0))
+            .quadraticCurveTo(-46, -51 + brow - (questioning ? 7 : 0) + (angry ? 10 : 0), -30, -45 + brow - (worried ? 8 : 0) + (angry ? 12 : 0))
             .stroke({ color: 0xe4fcff, alpha: 0.8, width: 2.5, cap: "round" });
           facial.moveTo(30, -45 + brow - (worried ? 8 : 0))
-            .quadraticCurveTo(46, -51 + brow + (questioning ? 7 : 0), 61, -45 + brow + (questioning ? 4 : 0))
+            .quadraticCurveTo(46, -51 + brow + (questioning ? 7 : 0) + (angry ? 10 : 0), 61, -45 + brow + (questioning ? 4 : 0) - (angry ? 12 : 0))
             .stroke({ color: 0xe4fcff, alpha: 0.8, width: 2.5, cap: "round" });
         }
         if (state === "THINKING")
@@ -342,9 +411,11 @@ export function PetRenderer({
                 color: 0xf3ffff,
                 alpha: 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 4 - i)),
               });
-        if (state === "HAPPY")
+        if (expression === "HAPPY" || laughing || proud)
           for (const x of [-76, 76])
             facial.ellipse(x, 25, 10, 4).fill({ color: 0xe3bbf9, alpha: 0.5 });
+        if (sad) facial.ellipse(63, 4, 3, 7).fill({ color: 0x9fe9ff, alpha: 0.75 });
+        if (surprised) for (const x of [-44, 44]) facial.circle(x, -9, 3).fill({ color: 0xf3ffff, alpha: 0.75 });
         const count =
           s.particles && motion && !s.lowPower
             ? Math.round((sleeping ? 5 : 18) * quality)
@@ -383,6 +454,7 @@ export function PetRenderer({
       // its renderer. Application plugins cannot be destroyed before init.
       // In that case the completed initializer owns deferred cleanup.
       if (app && initialized) {
+        app.stop();
         app.destroy(true, { children: true });
         app = undefined;
         initialized = false;
@@ -398,13 +470,13 @@ export function PetRenderer({
       disposed = true;
       cleanup();
     };
-  }, [accent, preview]);
+  }, [accent, petStyle, preview]);
   return (
     <div
       ref={host}
       className={`pet-renderer ${className}`}
       role="img"
-      aria-label="Karen, criatura holográfica de cristal azul con aletas de luz y ojos expresivos"
+      aria-label={`Karen, estilo ${petStyles[petStyle].name}, con ojos expresivos`}
     />
   );
 }

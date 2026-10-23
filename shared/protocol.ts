@@ -1,4 +1,5 @@
 import type { DesktopEvent, ChatMessage } from "./types.js";
+import { expressionForReply } from './expression.js';
 export function mergeMessages(
   snapshot: ChatMessage[],
   live: ChatMessage[],
@@ -109,7 +110,7 @@ export function routeGatewayEvent(
       if (state === "final")
         events.push({
           type: "pet",
-          state: "HAPPY",
+          state: expressionForReply(text),
           reason: "Respuesta completada",
         });
       else events.push({ type: "pet", state: "THINKING" });

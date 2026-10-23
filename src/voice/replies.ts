@@ -37,8 +37,8 @@ export class VoiceReplies {
   }
 }
 
-/** Short natural phrases let playback begin before the whole reply is generated. */
-export function speechPhrases(text: string, limit = 180): string[] {
+/** Speak a normal reply in one uninterrupted clip; split only at the engine limit. */
+export function speechPhrases(text: string, limit = 4096): string[] {
   const plain = text
     .replace(/```[\s\S]*?(?:```|$)/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
@@ -46,19 +46,21 @@ export function speechPhrases(text: string, limit = 180): string[] {
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/^[\s#>*+-]+/gm, "")
     .replace(/[*_`]/g, "")
-    .trim().slice(0, 4096);
+    .trim();
   const result: string[] = [];
   let phrase = "";
   for (const word of plain.split(/\s+/).filter(Boolean)) {
-    if (phrase && phrase.length + word.length + 1 > limit) {
-      result.push(phrase);
-      phrase = "";
-    }
-    // Bound even a long URL-free word to the synthesis request size.
-    for (let i = 0; i < word.length; i += limit) {
-      const part = word.slice(i, i + limit);
+    let remaining = word;
+    while (remaining) {
+      if (phrase && phrase.length + remaining.length + 1 > limit) {
+        result.push(phrase);
+        phrase = "";
+        continue;
+      }
+      const part = remaining.slice(0, limit);
       phrase = [phrase, part].filter(Boolean).join(" ");
-      if (phrase.length >= limit || (phrase.length >= 40 && /[.!?…]$/.test(part))) {
+      remaining = remaining.slice(part.length);
+      if (phrase.length >= limit) {
         result.push(phrase);
         phrase = "";
       }

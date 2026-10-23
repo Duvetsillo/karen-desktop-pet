@@ -8,6 +8,7 @@ import { createKarenServer } from "../server/app.js";
 import assert from "node:assert/strict";
 
 const access = "synthetic-browser-access-token-32-characters";
+let selectedModel: string | null = null;
 const root = mkdtempSync(join(tmpdir(), "karen-browser-"));
 const fixture = new WebSocketServer({ host: "127.0.0.1", port: 0 });
 await new Promise<void>((resolve) => fixture.once("listening", resolve));
@@ -51,6 +52,19 @@ fixture.on("connection", (socket) => {
         },
       };
     if (req.method === "chat.history") payload = { messages: [] };
+    if (req.method === 'models.list') payload = {models:[
+      {id:'test-small',name:'Small fixture',provider:'local',available:true},
+      {id:'test-large',name:'Large fixture',provider:'cloud',available:true},
+    ]};
+    if (req.method === 'sessions.list') {
+      const [modelProvider, model] = (selectedModel ?? 'local/test-small').split('/');
+      payload = {defaults:{modelProvider:'local',model:'test-small'},sessions:[{key:'agent:main:main',modelProvider,model,modelOverrideSource:selectedModel ? 'user' : null}]};
+    }
+    if (req.method === 'sessions.patch') {
+      assert.equal(req.params.key,'agent:main:main');
+      selectedModel = req.params.model;
+      payload = {ok:true};
+    }
     if (req.method === "chat.send")
       payload = { runId: req.params.idempotencyKey, status: "started" };
     socket.send(JSON.stringify({ type: "res", id: req.id, ok: true, payload }));
@@ -142,6 +156,14 @@ try {
   await page.getByText("Modo servidor · conexión", { exact: false }).waitFor();
   console.log("Checking Gateway connection...");
   await page.locator(".conversation-heading .connection.connected").waitFor();
+  await page.getByLabel('Modelo de IA',{exact:true}).selectOption('cloud/test-large');
+  await page.getByText('En uso: cloud/test-large',{exact:true}).waitFor();
+  assert.equal(selectedModel,'cloud/test-large');
+  await page.reload();
+  await page.getByText('En uso: cloud/test-large',{exact:true}).waitFor();
+  await page.getByLabel('Modelo de IA',{exact:true}).selectOption('');
+  await page.getByText('En uso: local/test-small',{exact:true}).waitFor();
+  assert.equal(selectedModel,null);
   await page
     .getByLabel("Mensaje para Karen", { exact: true })
     .fill("Prueba sintética del navegador");
@@ -174,6 +196,8 @@ try {
         gatewayContractFixture: true,
         realGateway: false,
         browserChatRoundTrip: true,
+        browserModelSwitchAndReset: true,
+        modelSelectionPersistsAcrossReload: true,
         rendererErrors: errors,
       },
       null,

@@ -50,6 +50,8 @@ async function setup() {
   let signatureValid = false;
   let stored = false;
   let socket: WebSocket | undefined;
+  let selectedModel: string | null = null;
+  let failModelPatch = false;
   const adapter = new OpenClawAdapter(
     {
       settings: { ...defaults, gatewayUrl: `ws://127.0.0.1:${address.port}` },
@@ -133,6 +135,23 @@ async function setup() {
         };
       }
       if (req.method === "chat.history") payload = { messages: [] };
+      if (req.method === 'models.list') payload = {models: [
+        {id:'test-small', name:'Small', provider:'local', available:true},
+        {id:'test-large', name:'Large', provider:'cloud', available:true},
+        {id:'locked', name:'Locked', provider:'cloud', available:false},
+      ]};
+      if (req.method === 'sessions.list') {
+        const [modelProvider, model] = (selectedModel ?? 'local/test-small').split('/');
+        payload = {defaults: {modelProvider:'local', model:'test-small'}, sessions: [{key:'agent:main:main', model, modelProvider, modelOverrideSource: selectedModel ? 'user' : null}]};
+      }
+      if (req.method === 'sessions.patch') {
+        if (failModelPatch) {
+          ws.send(JSON.stringify({type:'res', id:req.id, ok:false, error:{code:'UNAVAILABLE', message:'Provider unavailable'}}));
+          return;
+        }
+        selectedModel = req.params.model;
+        payload = {ok:true};
+      }
       if (req.method === "chat.send")
         payload = { runId: req.params.idempotencyKey, status: "started" };
       ws.send(JSON.stringify({ type: "res", id: req.id, ok: true, payload }));
@@ -153,9 +172,37 @@ async function setup() {
     event: (event: string, payload: unknown) =>
       socket?.send(JSON.stringify({ type: "event", event, payload })),
     close: () => socket?.close(),
+    failModelPatch: () => { failModelPatch = true; },
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('consulta catálogo autenticado y cambia solo el modelo de la sesión', async () => {
+    const t = await setup();
+    expect((await t.adapter.models()).effective).toBe('local/test-small');
+    const chosen = await t.adapter.selectModel('cloud/test-large');
+    expect(chosen.selected).toBe('cloud/test-large');
+    expect(chosen.effective).toBe('cloud/test-large');
+    expect(t.requests.find(r => r.method === 'sessions.patch')?.params).toEqual({key:'agent:main:main', model:'cloud/test-large'});
+    expect((await t.adapter.selectModel(null)).selected).toBeNull();
+    expect(t.requests.some(r => r.method.startsWith('config.'))).toBe(false);
+    expect(t.events.some(e => e.type === 'models')).toBe(true);
+  });
+  it('rechaza modelos ajenos, no disponibles y cambios durante una respuesta', async () => {
+    const t = await setup();
+    await expect(t.adapter.selectModel('invented/model')).rejects.toThrow('catálogo');
+    await expect(t.adapter.selectModel('cloud/locked')).rejects.toThrow('catálogo');
+    await expect(t.adapter.selectModel({model:'cloud/test-large'})).rejects.toThrow('inválido');
+    await t.adapter.send('Test');
+    await expect(t.adapter.selectModel('cloud/test-large')).rejects.toThrow('termine');
+    expect(t.requests.some(r => r.method === 'sessions.patch')).toBe(false);
+  });
+  it('mantiene el modelo confirmado cuando el Gateway rechaza el cambio', async () => {
+    const t = await setup(); t.failModelPatch();
+    await expect(t.adapter.selectModel('cloud/test-large')).rejects.toThrow('Provider unavailable');
+    expect((await t.adapter.models()).effective).toBe('local/test-small');
+    t.adapter.disconnect();
+    await expect(t.adapter.models()).rejects.toThrow('Conecta');
+  });
   it("envía capturas como adjuntos reales del protocolo", async () => {
     const t = await setup();
     await t.adapter.send("Describe esta imagen", [{ type: "image", mimeType: "image/png", fileName: "capture.png", content: "c3ludGhldGlj" }]);

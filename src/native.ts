@@ -26,6 +26,8 @@ const preview: DesktopBridge = {
   settings: async (patch) => ({ ...defaults, ...patch }),
   credential: unavailable,
   connect: unavailable,
+  models: unavailable,
+  selectModel: unavailable,
   disconnect: unavailable,
   send: unavailable,
   abort: unavailable,
@@ -48,6 +50,9 @@ const preview: DesktopBridge = {
   chooseVoiceRoot: unavailable,
   captureSources: unavailable,
   captureScreen: unavailable,
+  pointAt: unavailable,
+  locateOnScreen: unavailable,
+  stopPointing: unavailable,
   systemAudio: unavailable,
   captureStatus: () => {},
 };

@@ -13,6 +13,8 @@ export class TranscriptionWakeDetector {
   private interval?: ReturnType<typeof setInterval>;
   private opening = false;
   private processing = false;
+  private failures = 0;
+  private recoveryTimer?: ReturnType<typeof setTimeout>;
   private onWake?: (command: string) => void;
   constructor(
     private transcribe: (pcm: ArrayBuffer) => Promise<string>,
@@ -36,6 +38,8 @@ export class TranscriptionWakeDetector {
   pause() {
     this.wanted = false;
     this.generation++;
+    this.failures = 0;
+    clearTimeout(this.recoveryTimer);
     this.closeInput();
     this.status(this.stopped ? 'off' : 'paused');
   }
@@ -84,6 +88,7 @@ export class TranscriptionWakeDetector {
               if (!this.wanted || generation !== this.generation) return;
               const text = await this.transcribe(pcm);
               if (!this.wanted || generation !== this.generation) return;
+              this.failures = 0;
               const command = wakeCommand(text);
               if (command !== null) {
                 this.wanted = false;
@@ -92,11 +97,19 @@ export class TranscriptionWakeDetector {
               }
             } catch (error) {
               if (this.wanted && generation === this.generation) {
-                this.wanted = false; this.status('error'); this.fail(error);
+                this.failures++;
+                const message = error instanceof Error ? error.message : '';
+                const permanent = /Faltan dependencias|No se pudo cargar el modelo|incompleto en|petición inválida/.test(message);
+                if (permanent || this.failures >= 3) {
+                  this.wanted = false; this.status('error'); this.fail(error);
+                } else this.status('recovering');
               }
             } finally {
               this.processing = false;
-              if (this.wanted && !this.stopped) void this.capture();
+              if (this.wanted && !this.stopped) {
+                if (this.failures) this.recoveryTimer = setTimeout(() => void this.capture(), this.failures * 1000);
+                else void this.capture();
+              }
             }
           })();
         };

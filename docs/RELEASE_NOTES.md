@@ -1,3 +1,84 @@
+Karen Desktop Pet 1.6.7 recovers wake listening after one or two transient
+recognition failures instead of disabling it at the first error. A persistent
+failure still stops listening and offers a manual retry. Recognition now
+distinguishes missing dependencies, model load failure, invalid audio and
+processing failure without recording audio or exception text. The pet strips
+Electron's remote-method wrapper from error messages and can expand the lower
+error strip to show the full message. Synthetic installed STT and wake recovery
+tests verify these paths; the intermittent user microphone failure has not
+been reproduced with the synthetic audio fixture.
+
+Karen Desktop Pet 1.6.6 keeps Karen's face visible while showing replies.
+The reply appears as a single-line strip below the character; pressing it
+opens the full conversation. Error notices use the same lower area, and the
+voice/listening indicator becomes compact at small pet sizes. Native layout
+checks cover 50%, 100% and 200% scale during voice preparation and playback.
+
+Karen Desktop Pet 1.6.5 adds Lucero and Flor while keeping the three existing
+looks. All five now have visible hands and legs, and Karen lifts the hand on
+the side of a desktop pointing target. The gesture ends with the marker and
+respects reduced motion. Local speech recognition now names the exact missing
+runtime, model or app worker path instead of reporting every path failure as
+missing resources. The installed 1.6.4 build successfully transcribed a
+synthetic sentence with the user's configured local resources; the intermittent
+failure in the screenshot was not reproduced by that test.
+
+Karen Desktop Pet 1.6.4 adds a temporary desktop pointing gesture. In
+Percepción, choose a screen and review a screenshot, then tap the preview to
+mark a point locally or explicitly ask Karen to locate an object in it. Voice
+commands such as “Karen, señala el video en mi pantalla” use a recently
+reviewed screen and take a fresh screenshot for the configured vision model.
+The marker lasts eight seconds, lets mouse clicks through, and never clicks
+another app. Karen only points when the model returns a valid location.
+Edge neural speech now retries once after a transient synthesis failure and
+allows more time for long replies; text remains available if both attempts fail.
+
+Karen Desktop Pet 1.6.3 makes speech gestures follow real output audio energy.
+The body leans and rises, fins respond, and the arms alternate on audio peaks
+instead of repeating a fixed loop. Gestures decay between peaks and
+stop as soon as speech stops. Reduced-motion and disabled-animation settings
+still suppress body movement while keeping readable lip motion. Voice synthesis,
+timing and profile remain unchanged.
+
+Karen Desktop Pet 1.6.2 shows Karen's selected expression while her voice is
+being prepared, instead of hiding it behind a neutral thinking face until audio
+starts. Body and halo color ease into an emotional state and retarget smoothly
+when interrupted; reduced-motion mode keeps the face readable with a faster
+color change. Quoted Markdown lines and inline code no longer select Karen's
+emotion, so a quoted user complaint does not make her look angry. The existing
+single-clip voice playback and voice profile remain unchanged.
+
+Karen Desktop Pet 1.6.1 adds six contextual expressions: laughter, anger,
+sadness, surprise, pride and curiosity. The character changes eyes, brows,
+mouth, fins, arms, tint and movement while preserving real audio lip motion.
+Reply text selects a brief expression; technical states still reflect actual
+listening, thinking, speaking and errors. Reduced-motion preferences remove
+large movements while retaining readable facial expressions. The shared Karen
+personality now permits situational humor, disagreement and expressive language
+without claiming literal human feelings or attributing private emotions to the
+user. No voice model, reference audio or credentials change.
+
+Karen Desktop Pet 1.5.3 adds an explicit fast CPU voice using optional local
+Kokoro resources. It uses another fixed timbre and does not replace the original
+shared voice or change WhatsApp. A persistent worker avoids reloading between
+phrases; delivery presets and real audio animation remain available.
+
+Karen Desktop Pet 1.5.2 reduces the first audio wait with a shorter opening
+phrase, one phrase of synthesis ahead of playback, and authenticated preparation
+of the original voice while listening to a command or waiting for its reply.
+Preparation retains the model for up to ten idle minutes and is skipped when
+speech is muted or low-power mode is enabled. No voice identity is replaced.
+
+The voice status and reply bubble now share a vertical layout instead of
+overlapping absolute positions. Replies remain visible throughout preparation
+and playback. Native tests cover the layout at 50%, 100% and 200% size.
+
+Karen Desktop Pet 1.5.1 fixes Stop silently disabling addressed-name activation.
+Stopping a response or capture preserves the user's listening preference.
+An idle indicator now shows paused listening, offers an activation button and
+keeps microphone errors visible with a retry control. Say only "Karen";
+recognition also accepts the spelling "Caren". No slash is pronounced.
+
 Karen Desktop Pet 1.5.0 adds offline addressed-name activation for Karen/Caren,
 with explicit continuous-listening controls and a visible microphone indicator.
 It preserves a command after the name and opens a ten-second command window

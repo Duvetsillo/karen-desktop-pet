@@ -38,6 +38,8 @@ import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
 import { PET_SCALE } from "../shared/pet-layout";
 import { Perception, CaptureIndicator } from "./Perception";
+import { ModelPicker } from './ModelPicker';
+import { StylePicker } from './pet/StylePicker';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -48,6 +50,12 @@ const labels: Record<PetState, string> = {
   THINKING: "Pensando",
   SPEAKING: "Hablando",
   HAPPY: "Feliz",
+  LAUGHING: "Riendo",
+  ANGRY: "Molesta",
+  SAD: "Triste",
+  SURPRISED: "Sorprendida",
+  PROUD: "Orgullosa",
+  CURIOUS: "Curiosa",
   CONFUSED: "Con duda",
   ERROR: "Algo ocurrió",
   SLEEPING: "Descansando",
@@ -106,18 +114,23 @@ function Status({ compact = false }: { compact?: boolean }) {
 }
 function ErrorBanner() {
   const error = useStore((s) => s.error);
+  const [expanded, setExpanded] = useState(false);
   if (!error) return null;
   return (
-    <div className="error-banner" role="alert">
-      <CircleHelp size={18} />
-      <span>{error}</span>
-      <button
-        aria-label="Cerrar aviso"
-        onClick={() => useStore.setState({ error: "" })}
-      >
-        <X size={16} />
-      </button>
-    </div>
+    <>
+      {isPet && expanded && <div className="error-detail" id="karen-error-detail" role="status">{error}</div>}
+      <div className="error-banner" role="alert">
+        <CircleHelp size={18} />
+        <span title={error}>{error}</span>
+        {isPet && <button aria-label="Ver error completo" aria-expanded={expanded} aria-controls="karen-error-detail" onClick={() => setExpanded(value => !value)}><ChevronRight size={16} /></button>}
+        <button
+          aria-label="Cerrar aviso"
+          onClick={() => { setExpanded(false); useStore.setState({ error: "" }); }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </>
   );
 }
 function Toggle({
@@ -380,6 +393,7 @@ function Conversation() {
         <h2>Tu espacio con Karen</h2>
         <Status compact />
       </div>
+      <ModelPicker />
       <div className="messages" role="log" aria-label="Conversación con Karen">
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -486,6 +500,9 @@ function Appearance() {
   const s = useStore((x) => x.settings);
   return (
     <>
+      <Group title="Cinco formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
+        <StylePicker value={s.petStyle} onChange={petStyle => void patch({petStyle})}/>
+      </Group>
       <Group
         title="Tamaño del PET"
         description="Cambia al instante y se recuerda al volver a abrir Karen."
@@ -650,6 +667,7 @@ function OpenClaw() {
         description="La dirección, el agente y los secretos se configuran mediante variables de entorno o archivos privados del administrador."
       >
         <Status />
+        <ModelPicker />
         <dl className="service-list">
           <div>
             <dt>Gateway</dt>
@@ -674,6 +692,7 @@ function OpenClaw() {
     );
   return (
     <>
+      <Group title="Modelo para esta conversación"><ModelPicker /></Group>
       <Group title="Gateway">
         <div className="gateway-status">
           <Radio size={21} />
@@ -843,12 +862,16 @@ function Voice() {
           >
             <option value="system">Voz instalada en Windows</option>
             <option value="local">Voz original compartida de Karen</option>
+            <option value="fast">Rápida local · Kokoro (otro timbre)</option>
+            <option value="edge">Natural rápida · Dalia (en línea)</option>
           </select>
         </div>
         {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
+        {s.ttsEngine === 'fast' && <p className="quiet-note">Prioriza rapidez con Kokoro en CPU. Usa otro timbre fijo; no es la referencia original de WhatsApp. Requiere tus modelos locales de Kokoro.</p>}
+        {s.ttsEngine === 'edge' && <p className="quiet-note">Voz femenina neural en español de México. Necesita internet; si falla, conserva la respuesta escrita.</p>}
         <div className="input-field">
           <label htmlFor="voice-style">Estilo de la voz original</label>
-          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine !== 'local'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
+          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine === 'system' || s.ttsEngine === 'edge'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
             <option value="serene">Serena · madura y pausada</option>
             <option value="warm">Cercana · cálida</option>
             <option value="serious">Seria · sobria</option>
@@ -1103,6 +1126,7 @@ function PetApp() {
     messages = useStore((x) => x.messages),
     connection = useStore((x) => x.connection),
     capture = useStore((x) => x.capture),
+    error = useStore((x) => x.error),
     native = useStore((x) => x.native);
   const [bubble, setBubble] = useState(false),
     [compose, setCompose] = useState(false),
@@ -1110,13 +1134,16 @@ function PetApp() {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
   const last = messages.filter((m) => m.role === "assistant").at(-1);
+  const showReply = Boolean(s.bubbles && bubble && last && !compose && !error);
+  const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
   useEffect(() => {
-    if (last) {
-      setBubble(true);
-      const timer = setTimeout(() => setBubble(false), 16000);
-      return () => clearTimeout(timer);
-    }
+    if (last) setBubble(true);
   }, [last?.text]);
+  useEffect(() => {
+    if (!bubble || voiceActive) return;
+    const timer = setTimeout(() => setBubble(false), 16000);
+    return () => clearTimeout(timer);
+  }, [bubble, last?.text, voiceActive]);
   useEffect(() => {
     const check = (x: number, y: number) => {
       const r = root.current?.getBoundingClientRect();
@@ -1149,26 +1176,27 @@ function PetApp() {
       ref={root}
       className="desktop-pet"
       data-capturing={capture.phase !== "idle"}
+      data-has-dock={showReply || Boolean(error)}
       onContextMenu={(e) => {
         e.preventDefault();
         void action(() => bridge.contextMenu());
       }}
     >
       <PetRenderer />
-      <CaptureIndicator />
-      {s.bubbles && bubble && last && !compose && (
+      <div className="pet-dialogue">
+        <CaptureIndicator />
+      </div>
+      {showReply && last && (
         <div
           className="pet-bubble"
           role="status"
-          onDoubleClick={() => void bridge.openSettings()}
         >
+          <button className="pet-bubble-open" aria-label="Abrir respuesta completa en Conversación" onClick={() => void bridge.openSettings()}>
+            <span>{last.text.slice(0, 240)}{last.text.length > 240 ? "…" : ""}</span>
+          </button>
           <button aria-label="Cerrar globo" onClick={() => setBubble(false)}>
             <X size={12} />
           </button>
-          <p>
-            {last.text.slice(0, 240)}
-            {last.text.length > 240 ? "…" : ""}
-          </p>
         </div>
       )}
       <button
@@ -1215,8 +1243,8 @@ function PetApp() {
           <MessageCircle size={16} />
         </button>
         <button
-          title="Micrófono"
-          aria-label="Iniciar o terminar voz"
+          title="Hablar ahora; interrumpe a Karen"
+          aria-label="Hablar ahora o terminar dictado"
           aria-pressed={capture.kind === "microphone" && capture.phase === "recording"}
           disabled={!native || !s.sttEnabled}
           onClick={() => void action(() => bridge.listen())}

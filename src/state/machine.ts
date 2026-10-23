@@ -18,11 +18,17 @@ export class PetMachine {
   transition(state: PetState, now = Date.now()): MachineSnapshot {
     if (
       state === this.snapshot.state &&
-      !["HAPPY", "ERROR", "CONFUSED"].includes(state)
+      !["HAPPY", "ERROR", "CONFUSED", "LAUGHING", "ANGRY", "SAD", "SURPRISED", "PROUD", "CURIOUS"].includes(state)
     )
       return this.snapshot;
     const durations: Partial<Record<PetState, number>> = {
       HAPPY: 2400,
+      LAUGHING: 3000,
+      ANGRY: 3500,
+      SAD: 4000,
+      SURPRISED: 2300,
+      PROUD: 3200,
+      CURIOUS: 3500,
       CONFUSED: 4000,
       ERROR: 5000,
     };

@@ -5,10 +5,11 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'python'))
 from voice_profile import load_profile
-from shared_voice_service import speech_chunks
+from shared_voice_service import speech_chunks, VoiceEngine
 from design_voice import activate
 from wake_word import wake_command
 from dialogue_style import personality
@@ -54,6 +55,24 @@ class ProfileTests(unittest.TestCase):
 
     def test_loads_same_identity(self):
         self.assertEqual(load_profile(self.root).id, 'test-voice')
+
+    def test_prepares_pinned_voice_without_generating_speech(self):
+        engine = VoiceEngine(self.root)
+        profile = load_profile(self.root)
+        with patch.object(engine, '_load') as load:
+            result = engine.prepare(profile.id, profile.reference_sha256)
+        load.assert_called_once_with(profile)
+        self.assertEqual(result, profile)
+        self.assertEqual(engine.phase, 'ready')
+        self.assertAlmostEqual(engine.keep_warm_until - engine.last_used, 600, places=6)
+        self.assertEqual(len(engine.cache), 0)
+
+    def test_prepare_rejects_another_identity_before_loading(self):
+        engine = VoiceEngine(self.root)
+        with patch.object(engine, '_load') as load:
+            with self.assertRaisesRegex(ValueError, 'identidad'):
+                engine.prepare('other-voice', '0' * 64)
+        load.assert_not_called()
 
     def test_detects_reference_tampering(self):
         self.reference.write_bytes(b'replaced-voice')
