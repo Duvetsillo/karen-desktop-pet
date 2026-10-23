@@ -18,7 +18,7 @@ const path = require('node:path');
         if (event.type === 'energy') window.__edgeEnergy = Math.max(window.__edgeEnergy, event.value);
       });
     });
-    await panel.evaluate(() => window.karen.settings({ voiceRoot: 'C:/karen', voiceEnabled: true, ttsEngine: 'edge', outputDevice: '' }));
+    await panel.evaluate(() => window.karen.settings({ voiceRoot: 'C:/karen', voiceEnabled: true, ttsEngine: 'edge', outputDevice: 'default' }));
     await panel.evaluate(() => window.karen.testVoice());
     const phase = () => panel.evaluate(async () => (await window.karen.snapshot()).capture.phase);
     await expect.poll(phase, { timeout: 30000 }).toBe('speaking');

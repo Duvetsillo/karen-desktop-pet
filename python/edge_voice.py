@@ -10,7 +10,7 @@ import edge_tts
 async def synthesize(text):
     speaker = edge_tts.Communicate(
         text, voice="es-MX-DaliaNeural", rate="+8%", pitch="+0Hz",
-        connect_timeout=5, receive_timeout=15,
+        connect_timeout=10, receive_timeout=25,
     )
     chunks = []
     async for item in speaker.stream():

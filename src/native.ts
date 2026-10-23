@@ -50,6 +50,9 @@ const preview: DesktopBridge = {
   chooseVoiceRoot: unavailable,
   captureSources: unavailable,
   captureScreen: unavailable,
+  pointAt: unavailable,
+  locateOnScreen: unavailable,
+  stopPointing: unavailable,
   systemAudio: unavailable,
   captureStatus: () => {},
 };

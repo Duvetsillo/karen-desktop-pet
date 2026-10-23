@@ -95,7 +95,7 @@ export interface ImageAttachment {
   fileName: string;
   content: string;
 }
-export interface CaptureSource { id: string; name: string; }
+export interface CaptureSource { id: string; name: string; canPoint?: boolean; }
 export interface CaptureStatus {
   kind: "microphone" | "system" | "voice";
   phase: "idle" | "recording" | "transcribing" | "preparing" | "speaking";
@@ -159,6 +159,9 @@ export interface DesktopBridge {
   chooseVoiceRoot(): Promise<string | null>;
   captureSources(): Promise<CaptureSource[]>;
   captureScreen(id: string): Promise<ImageAttachment>;
+  pointAt(id: string, x: number, y: number): Promise<void>;
+  locateOnScreen(id: string, description: string, image: ImageAttachment): Promise<void>;
+  stopPointing(): Promise<void>;
   systemAudio(action: "start" | "finish"): Promise<void>;
   captureStatus(status: CaptureStatus): void;
   wakeStatus?(status: WakeStatus): void;

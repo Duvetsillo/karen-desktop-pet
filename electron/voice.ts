@@ -10,6 +10,7 @@ export class NativeVoice {
   private recognizer: LocalRecognizer;
   private controller?: AbortController;
   private child?: ChildProcess;
+  private synthesisEpoch = 0;
   private preparing?: Promise<void>;
   private fast: FastVoice;
   constructor(
@@ -29,6 +30,7 @@ export class NativeVoice {
     this.cancelSynthesis();
   }
   cancelSynthesis() {
+    this.synthesisEpoch++;
     this.fast.cancelActive();
     this.controller?.abort();
     this.child?.kill();
@@ -199,14 +201,30 @@ export class NativeVoice {
       const python = join(this.root, 'voice-runtime/Scripts/python.exe');
       const worker = join(this.serviceWorker ? dirname(this.serviceWorker) : join(this.defaultRoot, 'desktop-pet/python'), 'edge_voice.py');
       if (!existsSync(python) || !existsSync(worker)) throw new Error('Falta instalar Edge TTS en los recursos de voz.');
-      let encoded: string;
-      try { encoded = await this.run(python, [worker], JSON.stringify({text}), 30000); }
-      catch { throw new Error('La voz neural no respondió. Revisa la conexión a internet; el texto sigue disponible.'); }
-      const bytes = Buffer.from(encoded, 'base64');
-      if (bytes.length < 100 || bytes.length > 24_000_000 ||
-        !(bytes.subarray(0, 3).toString() === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)))
-        throw new Error('La voz neural devolvió audio inválido.');
-      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+      const epoch = this.synthesisEpoch;
+      const timeout = Math.min(90000, Math.max(30000, text.length * 20));
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const encoded = await this.run(python, [worker], JSON.stringify({text}), timeout);
+          if (epoch !== this.synthesisEpoch) throw new Error('Síntesis cancelada.');
+          const bytes = Buffer.from(encoded, 'base64');
+          if (bytes.length < 100 || bytes.length > 24_000_000 ||
+            !(bytes.subarray(0, 3).toString() === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)))
+            throw new Error('La voz neural devolvió audio inválido.');
+          return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+        } catch (error) {
+          if (epoch !== this.synthesisEpoch) throw new Error('Síntesis cancelada.');
+          if (attempt === 1) {
+            const timedOut = error instanceof Error && error.message.includes('tiempo de espera');
+            throw new Error(timedOut
+              ? 'La voz neural tardó demasiado tras dos intentos. Revisa la conexión; el texto sigue disponible.'
+              : 'La voz neural falló tras dos intentos. Revisa la conexión o el motor de voz; el texto sigue disponible.');
+          }
+          await new Promise(resolve => setTimeout(resolve, 400));
+          if (epoch !== this.synthesisEpoch) throw new Error('Síntesis cancelada.');
+        }
+      }
+      throw new Error('La voz neural no respondió.');
     }
     if (this.settings().ttsEngine === 'fast') return this.fast.synthesize(this.root,text,this.settings().voiceStyle);
     if (this.settings().ttsEngine === "local") {

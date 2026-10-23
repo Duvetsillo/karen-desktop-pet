@@ -54,6 +54,7 @@ claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
 - La boca sigue el audio real mediante Web Audio, no una animación de habla falsa.
 - **Voz:** prueba la salida de Windows y configura dictado local con tus propios recursos.
 - **Percepción:** transcribe audio del PC por WASAPI y revisa capturas antes de enviarlas al modelo con visión.
+- **Señalamiento:** toca una captura de pantalla para que Karen marque el lugar en el escritorio, o pídele que encuentre un objeto con tu modelo de visión. La marca dura ocho segundos y deja pasar los clics.
 - [Configurar micrófono, audio del PC y pantalla](docs/PERCEPTION.md).
 - [Crear una voz original compartida con Karen Local y WhatsApp](docs/SHARED_VOICE.md).
 - [Estilos del PET y selección de modelos](docs/STYLES_AND_MODELS.md).

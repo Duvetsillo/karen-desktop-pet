@@ -462,7 +462,10 @@ code {
 .capture-review { display: grid; gap: 12px; margin-top: 20px; }
 .capture-review label { font-size: 12px; color: #c4d2df; }
 .capture-review textarea { width: 100%; resize: vertical; padding: 12px; background: #141925; border: 1px solid #394152; border-radius: 10px; color: #edf9ff; font: inherit; font-size: 13px; line-height: 1.6; }
+.capture-review input { width: 100%; box-sizing: border-box; padding: 10px 12px; background: #141925; border: 1px solid #394152; border-radius: 10px; color: #edf9ff; font: inherit; font-size: 13px; }
 .screen-preview { display: block; width: 100%; max-height: 300px; object-fit: contain; border: 1px solid #394152; border-radius: 10px; background: #0a101b; }
+.screen-point-button { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: crosshair; }
+.screen-point-button:focus-visible { outline: 2px solid #8be4f3; outline-offset: 3px; border-radius: 10px; }
 .size-presets button {
   flex: 1;
   min-height: 46px;

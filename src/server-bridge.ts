@@ -61,6 +61,9 @@ export function serverBridge(): DesktopBridge {
     chooseVoiceRoot: unsupported,
     captureSources: unsupported,
     captureScreen: unsupported,
+    pointAt: unsupported,
+    locateOnScreen: unsupported,
+    stopPointing: unsupported,
     systemAudio: unsupported,
     captureStatus: () => {},
     event: (callback) => {

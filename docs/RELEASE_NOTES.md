@@ -1,3 +1,13 @@
+Karen Desktop Pet 1.6.4 adds a temporary desktop pointing gesture. In
+Percepción, choose a screen and review a screenshot, then tap the preview to
+mark a point locally or explicitly ask Karen to locate an object in it. Voice
+commands such as “Karen, señala el video en mi pantalla” use a recently
+reviewed screen and take a fresh screenshot for the configured vision model.
+The marker lasts eight seconds, lets mouse clicks through, and never clicks
+another app. Karen only points when the model returns a valid location.
+Edge neural speech now retries once after a transient synthesis failure and
+allows more time for long replies; text remains available if both attempts fail.
+
 Karen Desktop Pet 1.6.3 makes speech gestures follow real output audio energy.
 The body leans and rises, fins respond, and the arms alternate on audio peaks
 instead of repeating a fixed loop. Gestures decay between peaks and

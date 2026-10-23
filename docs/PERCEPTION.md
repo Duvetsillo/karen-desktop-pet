@@ -9,7 +9,8 @@ En **Voz**, activa **Leer las respuestas**, elige una salida y pulsa **Probar vo
 Karen**. El motor Windows usa sus voces instaladas. La boca sigue la energía real.
 **Natural rápida · Dalia (en línea)** usa una voz femenina neural en español de México.
 Necesita internet y envía el texto de la respuesta al servicio de voz de Microsoft.
-Requiere `edge-tts==7.3.1` en el runtime de voz; si falla, el texto queda visible.
+Requiere `edge-tts==7.3.1` en el runtime de voz. Si falla una vez, Karen
+reintenta; si tampoco funciona, el texto queda visible.
 
 Para STT offline instala Python 3.11 y, desde el repositorio, ejecuta:
 
@@ -47,7 +48,18 @@ voz. Eso requiere un modelo de audio distinto del adaptador STT incluido.
 ## Ver la pantalla
 
 Elige una pantalla o ventana, toma una captura puntual y revisa su vista previa.
-Solo **Enviar captura** la transmite a tu Gateway. Tu modelo debe admitir imágenes;
+**Enviar captura** y **Karen, encuéntralo y señala** la transmiten a tu Gateway.
+Si eliges una pantalla, puedes tocar la vista previa para que Karen señale
+ese lugar directamente en el escritorio, sin enviar la captura. La marca
+dura ocho segundos, deja pasar los clics y se puede quitar con **Quitar señal**.
+Para localizar un objeto con el modelo, describe el objetivo y pulsa
+**Karen, encuéntralo y señala**. Karen señala solo si recibe coordenadas
+válidas; si el objeto no está claro, responde sin marcar nada. Después de
+revisar una captura, también puedes decir «Karen, señala el video en mi
+pantalla»: toma otra captura puntual de la pantalla elegida y la envía para
+ubicar el objetivo. La selección caduca a los dos minutos.
+
+Tu modelo debe admitir imágenes;
 si usas configuración explícita, su entrada en OpenClaw debe incluir `image`.
 Karen no modifica esa configuración automáticamente ni cambia tu proveedor.
 Las ventanas minimizadas o protegidas pueden no ser capturables.
@@ -55,7 +67,7 @@ Las ventanas minimizadas o protegidas pueden no ser capturables.
 No se guardan archivos de audio o captura en Karen ni en sus logs. La transcripción
 y la imagen se mantienen en memoria para revisión. Una vez enviadas, se aplica la
 retención y la política del Gateway y proveedor que tú configures. No hay vigilancia
-automática de pantalla ni grabación persistente. Descarta las vistas previas al terminar.
+continua de pantalla ni grabación persistente. Descarta las vistas previas al terminar.
 
 ## Pruebas de desarrollo
 
