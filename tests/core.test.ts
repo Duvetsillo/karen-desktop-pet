@@ -72,6 +72,8 @@ describe('expresión según la propia respuesta', () => {
     expect(expressionForReply('Lo logramos. Buen trabajo.')).toBe('PROUD');
     expect(expressionForReply('Me intriga esa posibilidad.')).toBe('CURIOUS');
     expect(expressionForReply('Aquí tienes el resultado.')).toBe('HAPPY');
+    expect(expressionForReply('> Qué rabia, esa falla volvió.\nYa identifiqué la causa.')).toBe('HAPPY');
+    expect(expressionForReply('El log dice `lo siento` y responde bien.')).toBe('HAPPY');
   });
 });
 describe("eventos reales de OpenClaw", () => {

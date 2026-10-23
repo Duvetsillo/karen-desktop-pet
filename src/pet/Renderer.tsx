@@ -9,6 +9,10 @@ import { machine, signals, useStore } from "../state/store";
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
 }
+function dampTint(current: number, target: number, dt: number, rate: number) {
+  const channel = (shift: number) => Math.round(damp((current >> shift) & 255, (target >> shift) & 255, dt, rate));
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
 export function PetRenderer({
   className = "",
   preview = false,
@@ -166,7 +170,9 @@ export function PetRenderer({
         brow = 0,
         frames = 0,
         frameTime = 0,
-        quality = 1;
+        quality = 1,
+        bodyTint = 0xffffff,
+        haloTint = 0xffffff;
       const visibility = () => {
         if (document.hidden) app?.stop();
         else app?.start();
@@ -175,7 +181,7 @@ export function PetRenderer({
       app.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.06);
         t += dt;
-        const { settings: s, state, expression: spokenExpression } = useStore.getState();
+        const { settings: s, state, expression: spokenExpression, capture } = useStore.getState();
         const sleeping = state === "SLEEPING";
         app!.ticker.maxFPS = s.lowPower || sleeping ? 15 : preview ? 30 : 60;
         frames++;
@@ -188,7 +194,8 @@ export function PetRenderer({
         }
         const motion = s.animations && !reduced.matches;
         const speaking = state === "SPEAKING";
-        const expression = speaking ? spokenExpression : state;
+        const preparingVoice = capture.kind === "voice" && capture.phase === "preparing";
+        const expression = speaking || preparingVoice ? spokenExpression : state;
         const laughing = expression === 'LAUGHING';
         const angry = expression === 'ANGRY';
         const sad = expression === 'SAD';
@@ -246,10 +253,12 @@ export function PetRenderer({
           dt,
           3,
         );
-        body.tint = state === "ERROR" ? 0xffceb3 : angry ? 0xffd5ce : sad ? 0xdce7ff : 0xffffff;
+        bodyTint = dampTint(bodyTint, state === "ERROR" ? 0xffceb3 : angry ? 0xffd5ce : sad ? 0xdce7ff : 0xffffff, dt, reduced.matches ? 28 : 10);
+        body.tint = bodyTint;
         halo.alpha =
           (sleeping ? 0.08 : 0.22 + voiceEnergy * 0.07) * s.brightness * (s.nightMode ? 0.6 : 1);
-        halo.tint = state === "ERROR" ? 0xffb473 : angry ? 0xff8b7a : sad ? 0x96adff : proud ? 0xffd78c : 0xffffff;
+        haloTint = dampTint(haloTint, state === "ERROR" ? 0xffb473 : angry ? 0xff8b7a : sad ? 0x96adff : proud ? 0xffd78c : 0xffffff, dt, reduced.matches ? 28 : 10);
+        halo.tint = haloTint;
         shadow.scale.set(0.85 - float * 0.002, 0.85 - float * 0.002);
         shadow.alpha = 0.65 - float * 0.009;
         finL.rotation = damp(

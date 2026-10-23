@@ -1,3 +1,11 @@
+Karen Desktop Pet 1.6.2 shows Karen's selected expression while her voice is
+being prepared, instead of hiding it behind a neutral thinking face until audio
+starts. Body and halo color ease into an emotional state and retarget smoothly
+when interrupted; reduced-motion mode keeps the face readable with a faster
+color change. Quoted Markdown lines and inline code no longer select Karen's
+emotion, so a quoted user complaint does not make her look angry. The existing
+single-clip voice playback and voice profile remain unchanged.
+
 Karen Desktop Pet 1.6.1 adds six contextual expressions: laughter, anger,
 sadness, surprise, pride and curiosity. The character changes eyes, brows,
 mouth, fins, arms, tint and movement while preserving real audio lip motion.

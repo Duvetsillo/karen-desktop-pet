@@ -2,7 +2,10 @@ import type { PetState } from './types.js';
 
 /** Visual delivery cues from Karen's own reply. Never infer the user's feelings. */
 export function expressionForReply(text: string): PetState {
-  const reply = text.replace(/```[\s\S]*?(?:```|$)/g, ' ').slice(0, 1200)
+  const reply = text.replace(/```[\s\S]*?(?:```|$)/g, ' ')
+    .replace(/^\s*>.*$/gm, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .slice(0, 1200)
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (/\b(?:(?:ja){2,}|(?:je){2,}|me (?:hizo|hace) gracia|que risa|me rio)\b/.test(reply)) return 'LAUGHING';
   if (/\b(?:me (?:molesta|enfada|indigna)|que rabia|esto (?:me irrita|es indignante)|estoy harta)\b/.test(reply)) return 'ANGRY';
