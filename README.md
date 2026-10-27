@@ -16,9 +16,21 @@ conversación de texto, eventos y animaciones; no necesita escritorio ni Electro
 
 ## Windows
 
-Descarga el instalador desde [Releases](https://github.com/Duvetsillo/karen-desktop-pet/releases).
-Las compilaciones sin certificado pueden mostrar un aviso de editor desconocido.
-Si no hay un instalador para la versión deseada, compila desde el código:
+1. Instala y configura tu propio **OpenClaw Gateway**. Karen es la interfaz del
+   asistente; no instala OpenClaw ni aporta un modelo o credenciales.
+2. Descarga el archivo `Setup.exe` de la versión deseada en
+   [Releases](https://github.com/Duvetsillo/karen-desktop-pet/releases) y ejecútalo.
+   El instalador incluye Electron: **no necesitas Node ni herramientas de desarrollo**.
+3. Abre Karen desde el acceso directo. Si aún no encuentra una credencial,
+   abre Ajustes automáticamente. En **OpenClaw**, elige «En este equipo» y pulsa
+   **Guardar y conectar**. Karen usa la configuración local de OpenClaw.
+4. Si el Gateway está en otro equipo, elige «En otro equipo», introduce su
+   dirección `wss://`, el agente y tu token, y pulsa **Guardar y conectar**.
+   OpenClaw puede pedir la aprobación del dispositivo: sigue el aviso de Karen,
+   aprueba solo la solicitud esperada en el host del Gateway y vuelve a conectar.
+
+El instalador sin certificado puede mostrar un aviso de editor desconocido.
+Para compilar desde el código en vez de usar el instalador:
 
 ```powershell
 git clone https://github.com/Duvetsillo/karen-desktop-pet.git
@@ -30,13 +42,11 @@ npm run dev
 npm run package
 ```
 
-Requiere Node 24 para compilar y Windows 11 x64 para las funciones nativas. No
-requiere Rust ni MSVC. Electron incluye su runtime en la distribución.
-
-Abre Ajustes con doble clic en Karen. Configura tu Gateway y agente en **OpenClaw**.
-La configuración local se lee de `~/.openclaw/openclaw.json`; para otro equipo,
-usa **wss://** y guarda tu propio token en el almacén seguro. Las credenciales y
-claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
+Para compilar se requiere Node 24; las funciones nativas requieren Windows 11
+x64. No se necesita Rust ni MSVC. Abre Ajustes en cualquier momento con doble
+clic en Karen o desde la bandeja. La configuración local se lee de
+`~/.openclaw/openclaw.json`; los tokens remotos y la identidad del dispositivo
+se guardan cifrados con DPAPI en tu cuenta Windows.
 
 - Arrastra el cuerpo para moverla. Clic derecho abre el menú nativo.
 - Las zonas transparentes dejan pasar clics mediante una máscara alfa.
