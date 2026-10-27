@@ -83,12 +83,18 @@ export class OpenClawAdapter {
     if (this.pending || this.modelChanging)
       throw new Error('Espera a que termine la respuesta o el cambio actual.');
     this.modelChanging = true;
+    const client = this.client;
+    const epoch = this.epoch;
     try {
       const selection = await this.models();
+      if (!client || client !== this.client || epoch !== this.epoch || this.info.state !== 'connected')
+        throw new Error('La conexión cambió. Revisa el modelo antes de intentarlo de nuevo.');
       if (selection.busy) throw new Error('La sesión tiene una tarea activa. Espera a que termine.');
       if (model !== null && !selection.models.some(m => m.id === model && m.available))
         throw new Error('Elige un modelo disponible del catálogo de OpenClaw.');
-      await this.client!.request('sessions.patch', {key: selection.sessionKey, model});
+      await client.request('sessions.patch', {key: selection.sessionKey, model});
+      if (client !== this.client || epoch !== this.epoch || this.info.state !== 'connected')
+        throw new Error('La conexión cambió. Consulta el modelo activo.');
       this.log('info', 'OpenClaw', 'Modelo de la sesión actualizado; configuración global conservada.');
       return await this.models();
     } finally { this.modelChanging = false; }
@@ -255,11 +261,16 @@ export class OpenClawAdapter {
     this.messages = this.messages.slice(-100);
   }
   async history() {
+    const client = this.client;
+    const epoch = this.epoch;
+    const sessionKey = this.sessionKey;
+    if (!client) return;
     try {
-      const data = await this.client?.request<{ messages?: unknown[] }>(
+      const data = await client.request<{ messages?: unknown[] }>(
         "chat.history",
-        { sessionKey: this.sessionKey, limit: 40 },
+        { sessionKey, limit: 40 },
       );
+      if (client !== this.client || epoch !== this.epoch || sessionKey !== this.sessionKey) return;
       for (const [i, item] of (data?.messages ?? []).entries()) {
         const m = item as { role?: string; id?: string; content?: unknown };
         if (!["user", "assistant"].includes(m.role ?? "")) continue;
@@ -274,6 +285,7 @@ export class OpenClawAdapter {
         this.emit({ type: "chat", message, final: false });
       }
     } catch {
+      if (client !== this.client || epoch !== this.epoch) return;
       this.log(
         "warn",
         "OpenClaw",

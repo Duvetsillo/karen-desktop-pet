@@ -11,6 +11,8 @@ transcription cannot clear the processing state of a newer response. These paths
 have automated regression tests; physical disconnection remains to validate.
 Late OpenClaw events and send acknowledgements from a locally cancelled run no
 longer release or replace a newer run. Contract tests cover both event orders.
+Histories and model changes now check the connection generation before applying
+results, so an old Gateway cannot populate a new session or receive its patch.
 
 Karen Desktop Pet 1.6.7 recovers wake listening after one or two transient
 recognition failures instead of disabling it at the first error. A persistent

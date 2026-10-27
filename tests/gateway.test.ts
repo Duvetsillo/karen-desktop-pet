@@ -196,6 +196,36 @@ async function setup() {
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('descarta historial recibido después de cambiar la conexión', async () => {
+    const t = await setup();
+    const client = t.adapter.client!;
+    let release!: (value: { messages: unknown[] }) => void;
+    Object.defineProperty(client, 'request', {
+      value: () => new Promise(resolve => { release = resolve; }),
+      configurable: true,
+    });
+    const pending = t.adapter.history();
+    t.adapter.disconnect(false);
+    release({ messages: [{ id: 'historial-viejo', role: 'assistant', content: 'Respuesta privada anterior' }] });
+    await pending;
+    expect(t.adapter.messages.some(m => m.id === 'historial-viejo')).toBe(false);
+    expect(t.events.some(e => e.type === 'chat' && e.message.id === 'historial-viejo')).toBe(false);
+  });
+
+  it('no aplica un cambio de modelo cuando la conexión cambia tras leer el catálogo', async () => {
+    const t = await setup();
+    const selection = await t.adapter.models();
+    const before = t.requests.filter(r => r.method === 'sessions.patch').length;
+    const models = t.adapter.models.bind(t.adapter);
+    t.adapter.models = async () => {
+      t.adapter.disconnect(false);
+      return selection;
+    };
+    await expect(t.adapter.selectModel('cloud/test-large')).rejects.toThrow('conexión cambió');
+    expect(t.requests.filter(r => r.method === 'sessions.patch')).toHaveLength(before);
+    t.adapter.models = models;
+  });
+
   it('una confirmación tardía del envío cancelado no reemplaza el runId nuevo', async () => {
     const t = await setup();
     t.delayNextSend();
