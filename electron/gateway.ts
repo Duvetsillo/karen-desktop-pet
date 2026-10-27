@@ -23,6 +23,9 @@ export interface GatewayStorage {
   credential(): { token?: string; password?: string };
   hostDeps(): GatewayClientHostDeps;
 }
+export interface CoreTurnSink {
+  appendOpenClawTurn(sessionKey: string, runId: string, prompt: string, answer: string): void;
+}
 export class OpenClawAdapter {
   client?: GatewayClient;
   info: ConnectionInfo = { state: "disconnected", message: "Sin conexión" };
@@ -37,6 +40,7 @@ export class OpenClawAdapter {
   private knownRuns = new Set<string>();
   private retiredRuns = new Set<string>();
   private rawText = new Map<string, string>();
+  private prompts = new Map<string, string>();
   constructor(
     private storage: GatewayStorage,
     private emit: (event: DesktopEvent) => void,
@@ -45,6 +49,7 @@ export class OpenClawAdapter {
       area: string,
       message: string,
     ) => void,
+    private core?: CoreTurnSink,
   ) {}
   get sessionKey() {
     return `agent:${this.storage.settings.agentId}:main`;
@@ -203,7 +208,16 @@ export class OpenClawAdapter {
             if (mapped.final && run && run === this.runId) this.finishRun();
           }
           this.emit(mapped);
+          if (mapped.type === 'chat' && mapped.final && payload?.state === 'final' && run) {
+            const prompt = this.prompts.get(run);
+            if (prompt && mapped.message.role === 'assistant') {
+              try { this.core?.appendOpenClawTurn(this.sessionKey, run, prompt, mapped.message.text); }
+              catch { this.log('warn', 'Karen Core', 'No se pudo guardar el turno compartido.'); }
+            }
+            this.prompts.delete(run);
+          }
         }
+        if (run && ['final', 'error', 'aborted'].includes(payload?.state || '')) this.prompts.delete(run);
       },
       onConnectError: (err) => {
         if (!current()) return;
@@ -309,6 +323,8 @@ export class OpenClawAdapter {
     const id = randomUUID();
     this.runId = id;
     this.knownRuns.add(id);
+    this.prompts.set(id, text);
+    if (this.prompts.size > 100) this.prompts.delete(this.prompts.keys().next().value!);
     const message: ChatMessage = { id: `user:${id}`, role: "user", text };
     this.upsert(message);
     this.emit({ type: "chat", message, final: false });
@@ -332,6 +348,7 @@ export class OpenClawAdapter {
       this.accepted = true;
       this.runId = result.runId || id;
       this.knownRuns.add(this.runId);
+      this.prompts.set(this.runId, text);
     } catch {
       if (this.runId !== id) return;
       this.finishRun();
@@ -360,6 +377,7 @@ export class OpenClawAdapter {
     }
   }
   private retireRun(run: string) {
+    this.prompts.delete(run);
     this.retiredRuns.add(run);
     if (this.retiredRuns.size > 100)
       this.retiredRuns.delete(this.retiredRuns.values().next().value!);
@@ -376,6 +394,7 @@ export class OpenClawAdapter {
     this.client?.stop();
     this.client = undefined;
     this.finishRun();
+    this.prompts.clear();
     if (report)
       this.status({
         state: "disconnected",

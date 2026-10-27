@@ -13,6 +13,9 @@ Late OpenClaw events and send acknowledgements from a locally cancelled run no
 longer release or replace a newer run. Contract tests cover both event orders.
 Histories and model changes now check the connection generation before applying
 results, so an old Gateway cannot populate a new session or receive its patch.
+An opt-in Karen Core SQLite v1 bridge can write final OpenClaw turns to Karen
+classic's conversation archive. Set KAREN_CORE_DB to its existing absolute path;
+see docs/KAREN_CORE.md. This is local, one-way continuity only.
 
 Karen Desktop Pet 1.6.7 recovers wake listening after one or two transient
 recognition failures instead of disabling it at the first error. A persistent

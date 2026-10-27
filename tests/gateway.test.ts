@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { WebSocketServer, WebSocket } from "ws";
 import {
   generateKeyPairSync,
@@ -27,7 +27,7 @@ async function until(check: () => boolean, timeout = 4000) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 }
-async function setup() {
+async function setup(core?: { appendOpenClawTurn(sessionKey: string, runId: string, prompt: string, answer: string): void }) {
   const server = new WebSocketServer({ port: 0, host: "127.0.0.1" });
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const address = server.address();
@@ -71,6 +71,7 @@ async function setup() {
     },
     (event) => events.push(event),
     () => {},
+    core,
   );
   resources.push({ adapter, server });
   server.on("connection", (ws) => {
@@ -196,6 +197,19 @@ async function setup() {
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('comparte solo respuestas finales confirmadas con Karen clásica', async () => {
+    const core = { appendOpenClawTurn: vi.fn() };
+    const t = await setup(core);
+    await t.adapter.send('Hola desde Pet');
+    const run = t.requests.find(r => r.method === 'chat.send')!.params.idempotencyKey as string;
+    t.event('chat', { sessionKey: 'agent:main:main', runId: run, state: 'delta', deltaText: 'Respuesta ' });
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === run));
+    expect(core.appendOpenClawTurn).not.toHaveBeenCalled();
+    t.event('chat', { sessionKey: 'agent:main:main', runId: run, state: 'final', deltaText: 'completa' });
+    await until(() => core.appendOpenClawTurn.mock.calls.length === 1);
+    expect(core.appendOpenClawTurn).toHaveBeenCalledWith('agent:main:main', run, 'Hola desde Pet', 'Respuesta completa');
+  });
+
   it('descarta historial recibido después de cambiar la conexión', async () => {
     const t = await setup();
     const client = t.adapter.client!;

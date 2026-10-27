@@ -1,0 +1,58 @@
+import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import type { CoreTurnSink } from './gateway.js';
+
+/** Optional v1 bridge to Karen classic's existing SQLite conversation archive. */
+export class CoreStore implements CoreTurnSink {
+  private db: DatabaseSync;
+
+  constructor(path: string) {
+    if (!isAbsolute(path) || !existsSync(path))
+      throw new Error('KAREN_CORE_DB debe apuntar a un archivo SQLite existente y absoluto.');
+    this.db = new DatabaseSync(path);
+    try {
+      const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('chats','exchanges')").all();
+      if (tables.length !== 2) throw new Error('El archivo no contiene un archivo de conversaciones de Karen.');
+      this.db.exec(`
+        PRAGMA busy_timeout=5000;
+        CREATE TABLE IF NOT EXISTS core_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT OR IGNORE INTO core_meta (key,value) VALUES ('schema_version','1');
+        CREATE TABLE IF NOT EXISTS core_external_turns (
+          session_key TEXT NOT NULL, run_id TEXT NOT NULL, chat_id TEXT NOT NULL,
+          PRIMARY KEY (session_key,run_id));
+      `);
+      const row = this.db.prepare("SELECT value FROM core_meta WHERE key='schema_version'").get() as { value: string };
+      if (row.value !== '1') throw new Error(`Versión de Karen Core no compatible: ${row.value}`);
+    } catch (error) {
+      this.db.close();
+      throw error;
+    }
+  }
+
+  appendOpenClawTurn(sessionKey: string, runId: string, prompt: string, answer: string): void {
+    if (!sessionKey || !runId || !prompt.trim() || !answer.trim() ||
+        sessionKey.length > 512 || runId.length > 128 || prompt.length > 16000 || answer.length > 32000)
+      throw new Error('Turno de conversación inválido.');
+    const chatId = 'openclaw-' + createHash('sha256').update(sessionKey).digest('hex').slice(0, 32);
+    const title = prompt.trim().replace(/\s+/g, ' ').slice(0, 65);
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('INSERT OR IGNORE INTO chats (id,title) VALUES (?,?)').run(chatId, title);
+      const inserted = this.db.prepare('INSERT OR IGNORE INTO core_external_turns (session_key,run_id,chat_id) VALUES (?,?,?)')
+        .run(sessionKey, runId, chatId);
+      if (inserted.changes) {
+        this.db.prepare('INSERT INTO exchanges (chat_id,prompt,answer,ok) VALUES (?,?,?,1)')
+          .run(chatId, prompt, answer);
+        this.db.prepare('UPDATE chats SET updated=CURRENT_TIMESTAMP WHERE id=?').run(chatId);
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  close(): void { this.db.close(); }
+}

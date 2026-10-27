@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
+import { CoreStore } from "./core-store.js";
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
 import { ScreenCapture } from "./capture.js";
@@ -42,6 +43,7 @@ let pet: BrowserWindow | undefined,
 let pointTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingPoint: { displayId: string; expires: number } | undefined;
 let storage: Storage, gateway: OpenClawAdapter, voice: NativeVoice;
+let coreStore: CoreStore | undefined;
 let quitting = false,
   clickThrough = false,
   dragging = false,
@@ -341,7 +343,11 @@ async function ready() {
     app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/loopback.py") : join(here, "../../python/loopback.py"),
     value => emit({ type: "energy", value }),
   );
-  gateway = new OpenClawAdapter(storage, emitGateway, log);
+  if (!qa && process.env.KAREN_CORE_DB) {
+    try { coreStore = new CoreStore(process.env.KAREN_CORE_DB); }
+    catch { log('warn', 'Karen Core', 'Archivo compartido no disponible; revisa KAREN_CORE_DB.'); }
+  }
+  gateway = new OpenClawAdapter(storage, emitGateway, log, coreStore);
   const area = screen.getPrimaryDisplay().workArea;
   let bounds = {
     x: area.x + area.width - 410,
@@ -647,6 +653,7 @@ else {
     voice?.dispose();
     loopback?.cancel();
     gateway?.disconnect(false);
+    coreStore?.close();
     clearInterval(cursorTimer);
     clearTimeout(saveTimer);
     globalShortcut.unregisterAll();
