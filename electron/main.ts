@@ -626,7 +626,7 @@ async function ready() {
     `Electron ${process.versions.electron}; transparencia, bandeja y atajo inicializados.`,
   );
   if (!qa) void gateway.connect();
-  if (process.argv.includes("--settings") || qa) openSettings();
+  if (process.argv.includes("--settings") || qa || !storage.hasCredential()) openSettings();
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
