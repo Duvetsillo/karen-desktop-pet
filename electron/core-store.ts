@@ -71,5 +71,17 @@ export class CoreStore implements CoreTurnSink {
       .all(project, `%${needle}%`) as { id: string; content: string; status: string }[];
   }
 
+  listChats(): { id: string; title: string; updated: string }[] {
+    return this.db.prepare('SELECT id,title,updated FROM chats ORDER BY updated DESC,rowid DESC LIMIT 20')
+      .all() as { id: string; title: string; updated: string }[];
+  }
+
+  readChat(chatId: string): { prompt: string; answer: string }[] {
+    if (!/^(?:[0-9a-f]{32}|openclaw-[0-9a-f]{32})$/.test(chatId))
+      throw new Error('ID de conversación inválido.');
+    return this.db.prepare('SELECT prompt,answer FROM exchanges WHERE chat_id=? AND ok=1 ORDER BY id DESC LIMIT 10')
+      .all(chatId).reverse() as { prompt: string; answer: string }[];
+  }
+
   close(): void { this.db.close(); }
 }

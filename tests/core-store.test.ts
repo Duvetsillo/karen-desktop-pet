@@ -48,6 +48,21 @@ describe('Karen Core SQLite v1', () => {
     } finally { db.close(); }
   });
 
+  it('lee chats clásicos localmente sin alterar sus turnos', () => {
+    const path = legacyArchive();
+    const db = new DatabaseSync(path);
+    const chatId = 'a'.repeat(32);
+    db.prepare('INSERT INTO chats (id,title) VALUES (?,?)').run(chatId, 'Proyecto Karen');
+    db.prepare('INSERT INTO exchanges (chat_id,prompt,answer,ok) VALUES (?,?,?,1)').run(chatId, 'Hola', 'Hola de nuevo');
+    db.prepare('INSERT INTO exchanges (chat_id,prompt,answer,ok) VALUES (?,?,?,0)').run(chatId, 'Falló', 'Error');
+    db.close();
+    const core = new CoreStore(path);
+    expect(core.listChats()[0]).toMatchObject({ id: chatId, title: 'Proyecto Karen' });
+    expect(core.readChat(chatId)).toEqual([{ prompt: 'Hola', answer: 'Hola de nuevo' }]);
+    expect(() => core.readChat('../privado')).toThrow('inválido');
+    core.close();
+  });
+
   it('rechaza una versión de esquema incompatible antes de escribir turnos', () => {
     const path = legacyArchive();
     const db = new DatabaseSync(path);

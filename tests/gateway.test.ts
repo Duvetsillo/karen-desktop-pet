@@ -210,6 +210,23 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     expect(t.events.some(e => e.type === 'chat' && e.final && e.speak === false && e.message.text.includes('Respuesta breve'))).toBe(true);
   });
 
+  it('consulta historial clásico local sin enviarlo al Gateway', async () => {
+    const chatId = 'a'.repeat(32);
+    const core = {
+      appendOpenClawTurn: vi.fn(),
+      listChats: vi.fn(() => [{ id: chatId, title: 'Proyecto Karen', updated: '2026-10-27' }]),
+      readChat: vi.fn(() => [{ prompt: 'Hola', answer: 'Hola de nuevo' }]),
+    };
+    const t = await setup(core);
+    t.adapter.disconnect();
+    await t.adapter.send('/historial listar');
+    await t.adapter.send(`/historial ver ${chatId}`);
+    expect(core.listChats).toHaveBeenCalledOnce();
+    expect(core.readChat).toHaveBeenCalledWith(chatId);
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+    expect(t.events.some(e => e.type === 'chat' && e.final && e.speak === false && e.message.text.includes('Hola de nuevo'))).toBe(true);
+  });
+
   it('comparte solo respuestas finales confirmadas con Karen clásica', async () => {
     const core = { appendOpenClawTurn: vi.fn() };
     const t = await setup(core);

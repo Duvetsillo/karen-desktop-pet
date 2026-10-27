@@ -21,7 +21,7 @@ Karen clásica usa esa ruta por defecto; también admite `KAREN_CORE_DB` para ot
 - Pet crea un chat `openclaw-<hash de sessionKey>` y guarda cada respuesta final junto a su petición. La clave `(session_key,run_id)` evita duplicados por reconexión o eventos repetidos.
 - Los turnos parciales, cancelados o fallidos no se comparten. El historial clásico existente permanece en su archivo y las tablas nuevas son aditivas.
 - Karen clásica puede abrir el chat Pet desde su selector al refrescar o reiniciar. Si usa ese chat con Ollama, el historial compartido puede entrar en el contexto del modelo seleccionado. Configura un modelo local si no quieres enviar ese contenido a un proveedor remoto.
-- Pet todavía no muestra ni continúa los chats creados por Karen clásica. No hay permisos por cliente ni sincronización entre equipos en este contrato inicial. No se marca completa la fase Core.
+- Pet puede consultar chats clásicos con `/historial listar` y `/historial ver ID`. La lectura es local, muestra los diez últimos turnos confirmados y no se envía a OpenClaw. No cambia la sesión activa ni permite continuar ese contexto en OpenClaw. No hay permisos por cliente ni sincronización entre equipos en este contrato inicial. No se marca completa la fase Core.
 
 ## Memoria local inicial
 
@@ -31,4 +31,4 @@ Pet ofrece solo `/memoria listar PROYECTO` y `/memoria buscar PROYECTO | TEXTO` 
 
 ## Verificación
 
-`python qa/verify_core_interop.py` desde `C:\karen` crea una base temporal, escribe un chat clásico y memorias, añade un turno Pet con Node y confirma lectura cruzada y exclusión de memorias sensibles. `npm test` cubre deduplicación, versión, consultas locales y emisión solo de respuestas finales. Estas pruebas no conectan a OpenClaw real ni migran datos privados.
+`python qa/verify_core_interop.py` desde `C:\karen` crea una base temporal, escribe un chat clásico y memorias, añade un turno Pet con Node y confirma lectura cruzada de chats y recuerdos, además de exclusión de memorias sensibles. `npm test` cubre deduplicación, versión, consultas locales y emisión solo de respuestas finales. Estas pruebas no conectan a OpenClaw real ni migran datos privados.

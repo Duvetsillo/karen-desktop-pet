@@ -26,6 +26,8 @@ export interface GatewayStorage {
 export interface CoreTurnSink {
   appendOpenClawTurn(sessionKey: string, runId: string, prompt: string, answer: string): void;
   listMemories?(project: string, query?: string): { id: string; content: string; status: string }[];
+  listChats?(): { id: string; title: string; updated: string }[];
+  readChat?(chatId: string): { prompt: string; answer: string }[];
 }
 export class OpenClawAdapter {
   client?: GatewayClient;
@@ -313,10 +315,10 @@ export class OpenClawAdapter {
     text = text.trim();
     if (!text || text.length > 16000)
       throw new Error("Escribe un mensaje de hasta 16.000 caracteres.");
-    if (/^\/memoria(?:\s|$)/i.test(text)) {
+    if (/^\/(?:memoria|historial)(?:\s|$)/i.test(text)) {
       if (images.length) throw new Error('La consulta local de memoria no admite capturas.');
       if (this.pending) throw new Error('Espera a que termine la respuesta actual.');
-      const reply = this.memoryReply(text);
+      const reply = /^\/memoria(?:\s|$)/i.test(text) ? this.memoryReply(text) : this.historyReply(text);
       const id = randomUUID();
       const user: ChatMessage = { id: `user:${id}`, role: 'user', text };
       const assistant: ChatMessage = { id, role: 'assistant', text: reply };
@@ -388,6 +390,25 @@ export class OpenClawAdapter {
     } catch {
       return 'Memoria: no se pudo consultar el almacén local.';
     }
+  }
+  private historyReply(text: string): string {
+    if (!this.core?.listChats || !this.core.readChat)
+      return 'Historial compartido no configurado en este equipo.';
+    const command = text.slice('/historial'.length).trim();
+    if (command.toLowerCase() === 'listar') {
+      try {
+        const rows = this.core.listChats();
+        return rows.length ? rows.map(row => `${row.id}: ${row.title.slice(0, 65)}`).join('\n')
+          : 'No hay conversaciones en el archivo compartido.';
+      } catch { return 'Historial: no se pudo consultar el archivo local.'; }
+    }
+    const match = /^ver\s+([a-z0-9-]+)$/i.exec(command);
+    if (!match) return 'En Pet: /historial listar o /historial ver ID.';
+    try {
+      const rows = this.core.readChat(match[1]);
+      return rows.length ? rows.map(row => `Tú: ${row.prompt.slice(0, 1000)}\nKaren: ${row.answer.slice(0, 1000)}`).join('\n\n')
+        : 'No encontré turnos confirmados en esa conversación.';
+    } catch { return 'Historial: ID inválido o archivo no disponible.'; }
   }
   async abort() {
     this.emit({ type: "voice-cancel" });
