@@ -54,5 +54,18 @@ export class CoreStore implements CoreTurnSink {
     }
   }
 
+  listMemories(project: string, query = ''): { id: string; content: string; status: string }[] {
+    project = project.trim();
+    if (!project || project.length > 64 || /[\x00-\x1f]/.test(project) || query.length > 200)
+      throw new Error('Proyecto o búsqueda inválida.');
+    const exists = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='core_memories'").get();
+    if (!exists) return [];
+    const needle = query.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+    return this.db.prepare(`SELECT id,content,status FROM core_memories WHERE project=? AND sensitive=0
+      AND (expires_at IS NULL OR julianday(expires_at)>julianday('now'))
+      AND content LIKE ? ESCAPE '\\' ORDER BY updated_at DESC,id DESC LIMIT 10`)
+      .all(project, `%${needle}%`) as { id: string; content: string; status: string }[];
+  }
+
   close(): void { this.db.close(); }
 }

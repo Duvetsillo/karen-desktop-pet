@@ -33,6 +33,9 @@ describe('Karen Core SQLite v1', () => {
     core.appendOpenClawTurn('agent:main:main', 'run-1', 'Revisa el servidor', 'Está activo');
     core.appendOpenClawTurn('agent:main:main', 'run-1', 'Revisa el servidor', 'Está activo');
     core.close();
+    const reopened = new CoreStore(path);
+    reopened.appendOpenClawTurn('agent:main:main', 'run-1', 'Revisa el servidor', 'Está activo');
+    reopened.close();
     const db = new DatabaseSync(path);
     try {
       const chats = db.prepare('SELECT id,title FROM chats').all() as { id: string; title: string }[];
@@ -51,5 +54,24 @@ describe('Karen Core SQLite v1', () => {
     db.exec("CREATE TABLE core_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO core_meta VALUES ('schema_version','99');");
     db.close();
     expect(() => new CoreStore(path)).toThrow('no compatible');
+  });
+
+  it('consulta recuerdos locales y excluye sensibles sin enviarlos al modelo', () => {
+    const path = legacyArchive();
+    const db = new DatabaseSync(path);
+    db.exec(`CREATE TABLE core_memories (
+      id TEXT, project TEXT, content TEXT, status TEXT, sensitive INTEGER,
+      expires_at TEXT, updated_at TEXT);
+      INSERT INTO core_memories VALUES
+        ('visible','Karen','Respuesta breve','confirmed',0,NULL,'2026-10-27'),
+        ('privado','Karen','Clave privada','confirmed',1,NULL,'2026-10-27'),
+        ('otro','Estudio','Tesis','inferred',0,NULL,'2026-10-27');`);
+    db.close();
+    const core = new CoreStore(path);
+    expect(core.listMemories('Karen', 'breve')).toEqual([
+      { id: 'visible', content: 'Respuesta breve', status: 'confirmed' },
+    ]);
+    expect(core.listMemories('Karen')).toHaveLength(1);
+    core.close();
   });
 });

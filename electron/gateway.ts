@@ -25,6 +25,7 @@ export interface GatewayStorage {
 }
 export interface CoreTurnSink {
   appendOpenClawTurn(sessionKey: string, runId: string, prompt: string, answer: string): void;
+  listMemories?(project: string, query?: string): { id: string; content: string; status: string }[];
 }
 export class OpenClawAdapter {
   client?: GatewayClient;
@@ -312,6 +313,18 @@ export class OpenClawAdapter {
     text = text.trim();
     if (!text || text.length > 16000)
       throw new Error("Escribe un mensaje de hasta 16.000 caracteres.");
+    if (/^\/memoria(?:\s|$)/i.test(text)) {
+      if (images.length) throw new Error('La consulta local de memoria no admite capturas.');
+      if (this.pending) throw new Error('Espera a que termine la respuesta actual.');
+      const reply = this.memoryReply(text);
+      const id = randomUUID();
+      const user: ChatMessage = { id: `user:${id}`, role: 'user', text };
+      const assistant: ChatMessage = { id, role: 'assistant', text: reply };
+      this.upsert(user); this.upsert(assistant);
+      this.emit({ type: 'chat', message: user, final: false });
+      this.emit({ type: 'chat', message: assistant, final: true, speak: false });
+      return;
+    }
     if (this.info.state !== "connected" || !this.client)
       throw new Error("Conecta OpenClaw antes de enviar.");
     if (this.pending || this.modelChanging)
@@ -356,6 +369,24 @@ export class OpenClawAdapter {
       throw new Error(
         "No se confirmó el envío. Revisa el historial antes de repetir la orden.",
       );
+    }
+  }
+  private memoryReply(text: string): string {
+    if (!this.core?.listMemories) return 'Memoria compartida no configurada en este equipo.';
+    const command = text.slice('/memoria'.length).trim();
+    const [action, ...parts] = command.split(/\s+/);
+    const argument = parts.join(' ').trim();
+    if (!['listar', 'buscar'].includes(action?.toLowerCase()))
+      return 'En Pet: /memoria listar PROYECTO o /memoria buscar PROYECTO | TEXTO.';
+    const [project, query = ''] = argument.split('|', 2).map(value => value.trim());
+    if (!project || (action.toLowerCase() === 'buscar' && !query))
+      return 'Indica el proyecto y, para buscar, separa el texto con |.';
+    try {
+      const rows = this.core.listMemories(project, action.toLowerCase() === 'buscar' ? query : '');
+      if (!rows.length) return 'No encontré recuerdos en ese proyecto.';
+      return rows.map(row => `${row.id} [${row.status}]: ${row.content.slice(0, 1000)}`).join('\n');
+    } catch {
+      return 'Memoria: no se pudo consultar el almacén local.';
     }
   }
   async abort() {

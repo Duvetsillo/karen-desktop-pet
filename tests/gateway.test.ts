@@ -197,6 +197,19 @@ async function setup(core?: { appendOpenClawTurn(sessionKey: string, runId: stri
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('consulta memoria local sin enviar texto al Gateway', async () => {
+    const core = {
+      appendOpenClawTurn: vi.fn(),
+      listMemories: vi.fn(() => [{ id: 'memory-1', content: 'Respuesta breve', status: 'confirmed' }]),
+    };
+    const t = await setup(core);
+    t.adapter.disconnect();
+    await t.adapter.send('/memoria listar Karen');
+    expect(core.listMemories).toHaveBeenCalledWith('Karen', '');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+    expect(t.events.some(e => e.type === 'chat' && e.final && e.speak === false && e.message.text.includes('Respuesta breve'))).toBe(true);
+  });
+
   it('comparte solo respuestas finales confirmadas con Karen clásica', async () => {
     const core = { appendOpenClawTurn: vi.fn() };
     const t = await setup(core);
