@@ -15,6 +15,12 @@ export class CoreStore implements CoreTurnSink {
     try {
       const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('chats','exchanges')").all();
       if (tables.length !== 2) throw new Error('El archivo no contiene un archivo de conversaciones de Karen.');
+      const metaExists = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='core_meta'").get();
+      if (metaExists) {
+        const existing = this.db.prepare("SELECT value FROM core_meta WHERE key='schema_version'").get() as { value: string } | undefined;
+        if (!existing || existing.value !== '1')
+          throw new Error(`Versión de Karen Core no compatible: ${existing?.value ?? 'sin versión'}`);
+      }
       this.db.exec(`
         PRAGMA busy_timeout=5000;
         CREATE TABLE IF NOT EXISTS core_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -23,8 +29,6 @@ export class CoreStore implements CoreTurnSink {
           session_key TEXT NOT NULL, run_id TEXT NOT NULL, chat_id TEXT NOT NULL,
           PRIMARY KEY (session_key,run_id));
       `);
-      const row = this.db.prepare("SELECT value FROM core_meta WHERE key='schema_version'").get() as { value: string };
-      if (row.value !== '1') throw new Error(`Versión de Karen Core no compatible: ${row.value}`);
     } catch (error) {
       this.db.close();
       throw error;

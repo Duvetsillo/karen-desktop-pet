@@ -17,6 +17,7 @@ Karen clásica usa esa ruta por defecto; también admite `KAREN_CORE_DB` para ot
 ## Contrato y límites
 
 - `core_meta.schema_version = 1` identifica el formato. Una versión desconocida se rechaza.
+- Una versión incompatible se comprueba antes de crear tablas del puente; abrirla no altera su esquema.
 - Pet crea un chat `openclaw-<hash de sessionKey>` y guarda cada respuesta final junto a su petición. La clave `(session_key,run_id)` evita duplicados por reconexión o eventos repetidos.
 - Los turnos parciales, cancelados o fallidos no se comparten. El historial clásico existente permanece en su archivo y las tablas nuevas son aditivas.
 - Karen clásica puede abrir el chat Pet desde su selector al refrescar o reiniciar. Si usa ese chat con Ollama, el historial compartido puede entrar en el contexto del modelo seleccionado. Configura un modelo local si no quieres enviar ese contenido a un proveedor remoto.

@@ -54,6 +54,9 @@ describe('Karen Core SQLite v1', () => {
     db.exec("CREATE TABLE core_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO core_meta VALUES ('schema_version','99');");
     db.close();
     expect(() => new CoreStore(path)).toThrow('no compatible');
+    const unchanged = new DatabaseSync(path);
+    expect(unchanged.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='core_external_turns'").get()).toBeUndefined();
+    unchanged.close();
   });
 
   it('consulta recuerdos locales y excluye sensibles sin enviarlos al modelo', () => {
