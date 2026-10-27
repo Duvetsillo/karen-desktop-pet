@@ -21,8 +21,9 @@ conversación de texto, eventos y animaciones; no necesita escritorio ni Electro
 2. Descarga el archivo `Setup.exe` de la versión deseada en
    [Releases](https://github.com/Duvetsillo/karen-desktop-pet/releases) y ejecútalo.
    El instalador incluye Electron: **no necesitas Node ni herramientas de desarrollo**.
-3. Abre Karen desde el acceso directo. Si aún no encuentra una credencial,
-   abre Ajustes automáticamente. En **OpenClaw**, elige «En este equipo» y pulsa
+3. Al terminar, el instalador abre Karen. También puedes usar el acceso directo.
+   Si aún no encuentra una credencial, abre Ajustes automáticamente. En **OpenClaw**,
+   elige «En este equipo» y pulsa
    **Guardar y conectar**. Karen usa la configuración local de OpenClaw.
 4. Si el Gateway está en otro equipo, elige «En otro equipo», introduce su
    dirección `wss://`, el agente y tu token, y pulsa **Guardar y conectar**.

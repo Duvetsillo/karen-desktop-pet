@@ -82,7 +82,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "runAfterFinish": false,
+      "runAfterFinish": true,
       "installerLanguages": [
         "es_ES",
         "en_US"
