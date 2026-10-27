@@ -53,6 +53,8 @@ async function setup() {
   let selectedModel: string | null = null;
   let failModelPatch = false;
   let failAbort = false;
+  let delayNextSend = false;
+  let delayedSend: { id: string; payload: unknown } | undefined;
   const adapter = new OpenClawAdapter(
     {
       settings: { ...defaults, gatewayUrl: `ws://127.0.0.1:${address.port}` },
@@ -157,8 +159,14 @@ async function setup() {
         ws.send(JSON.stringify({type:'res', id:req.id, ok:false, error:{code:'UNAVAILABLE', message:'Abort unavailable'}}));
         return;
       }
-      if (req.method === "chat.send")
+      if (req.method === "chat.send") {
         payload = { runId: req.params.idempotencyKey, status: "started" };
+        if (delayNextSend) {
+          delayNextSend = false;
+          delayedSend = { id: req.id, payload };
+          return;
+        }
+      }
       ws.send(JSON.stringify({ type: "res", id: req.id, ok: true, payload }));
     });
   });
@@ -179,9 +187,49 @@ async function setup() {
     close: () => socket?.close(),
     failModelPatch: () => { failModelPatch = true; },
     failAbort: () => { failAbort = true; },
+    delayNextSend: () => { delayNextSend = true; },
+    releaseSend: () => {
+      if (!delayedSend) throw new Error('No hay envío pendiente');
+      socket?.send(JSON.stringify({ type: 'res', id: delayedSend.id, ok: true, payload: delayedSend.payload }));
+      delayedSend = undefined;
+    },
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('una confirmación tardía del envío cancelado no reemplaza el runId nuevo', async () => {
+    const t = await setup();
+    t.delayNextSend();
+    const old = t.adapter.send('Primera orden');
+    await until(() => t.requests.some(r => r.method === 'chat.send'));
+    await t.adapter.abort();
+    await t.adapter.send('Segunda orden');
+    t.releaseSend();
+    await old;
+    await expect(t.adapter.send('Tercera orden')).rejects.toThrow('en curso');
+    const second = t.requests.filter(r => r.method === 'chat.send')[1].params.idempotencyKey;
+    t.event('chat', { sessionKey: 'agent:main:main', runId: second, state: 'final', deltaText: 'Actual' });
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === second && e.final));
+    await expect(t.adapter.send('Tercera orden')).resolves.toBeUndefined();
+  });
+
+  it('ignora eventos tardíos de una respuesta cancelada sin liberar la nueva', async () => {
+    const t = await setup();
+    await t.adapter.send('Primera orden');
+    const first = t.requests.find(r => r.method === 'chat.send')!.params.idempotencyKey;
+    await t.adapter.abort();
+    await t.adapter.send('Segunda orden');
+    const second = t.requests.filter(r => r.method === 'chat.send')[1].params.idempotencyKey;
+    t.event('chat', { sessionKey: 'agent:main:main', runId: 'otro-cliente', state: 'final', deltaText: 'Otra respuesta' });
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === 'otro-cliente'));
+    t.event('chat', { sessionKey: 'agent:main:main', runId: first, state: 'final', deltaText: 'Respuesta obsoleta' });
+    await new Promise(resolve => setTimeout(resolve, 30));
+    await expect(t.adapter.send('Tercera orden')).rejects.toThrow('en curso');
+    expect(t.events.some(e => e.type === 'chat' && e.message.id === first && e.message.role === 'assistant')).toBe(false);
+    t.event('chat', { sessionKey: 'agent:main:main', runId: second, state: 'final', deltaText: 'Respuesta actual' });
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === second && e.final));
+    await expect(t.adapter.send('Tercera orden')).resolves.toBeUndefined();
+  });
+
   it('libera la captura local aunque OpenClaw rechace cancelar la respuesta anterior', async () => {
     const t = await setup();
     await t.adapter.send('Primera orden');

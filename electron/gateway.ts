@@ -35,6 +35,7 @@ export class OpenClawAdapter {
   private pending = false;
   private modelChanging = false;
   private knownRuns = new Set<string>();
+  private retiredRuns = new Set<string>();
   private rawText = new Map<string, string>();
   constructor(
     private storage: GatewayStorage,
@@ -157,6 +158,7 @@ export class OpenClawAdapter {
           | { sessionKey?: string; state?: string }
           | undefined;
         const run = (event.payload as { runId?: string } | undefined)?.runId;
+        if (run && this.retiredRuns.has(run)) return;
         if (
           event.event === "chat" &&
           payload?.sessionKey === this.sessionKey &&
@@ -171,7 +173,7 @@ export class OpenClawAdapter {
           payload?.sessionKey === this.sessionKey &&
           ["final", "error", "aborted"].includes(payload.state || "")
         )
-          this.finishRun();
+          if (run && run === this.runId) this.finishRun();
         const previous = run ? this.rawText.get(run) || "" : "";
         if (
           event.event === "chat" &&
@@ -192,7 +194,7 @@ export class OpenClawAdapter {
         for (const mapped of events) {
           if (mapped.type === "chat") {
             this.upsert(mapped.message);
-            if (mapped.final) this.finishRun();
+            if (mapped.final && run && run === this.runId) this.finishRun();
           }
           this.emit(mapped);
         }
@@ -311,10 +313,15 @@ export class OpenClawAdapter {
         "chat.send",
         { sessionKey: this.sessionKey, message: text, idempotencyKey: id, ...(images.length ? { attachments: images } : {}) },
       );
+      if (this.runId !== id) {
+        if (result.runId) this.retireRun(result.runId);
+        return;
+      }
       this.accepted = true;
       this.runId = result.runId || id;
       this.knownRuns.add(this.runId);
     } catch {
+      if (this.runId !== id) return;
       this.finishRun();
       this.emit({ type: "pet", state: "ERROR" });
       throw new Error(
@@ -324,6 +331,8 @@ export class OpenClawAdapter {
   }
   async abort() {
     this.emit({ type: "voice-cancel" });
+    const run = this.runId;
+    if (run) this.retireRun(run);
     try {
       if (this.client && this.info.state === "connected" && this.pending) {
         await this.client.request("chat.abort", {
@@ -332,9 +341,16 @@ export class OpenClawAdapter {
         });
       }
     } finally {
-      this.finishRun();
-      this.emit({ type: "pet", state: "IDLE" });
+      if (this.runId === run) {
+        this.finishRun();
+        this.emit({ type: "pet", state: "IDLE" });
+      }
     }
+  }
+  private retireRun(run: string) {
+    this.retiredRuns.add(run);
+    if (this.retiredRuns.size > 100)
+      this.retiredRuns.delete(this.retiredRuns.values().next().value!);
   }
   private finishRun() {
     clearTimeout(this.watchdog);

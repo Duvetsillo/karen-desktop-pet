@@ -9,6 +9,8 @@ Transient microphone opening failures retry twice. A disconnected track during
 manual dictation discards partial audio and shows an error. A cancelled older
 transcription cannot clear the processing state of a newer response. These paths
 have automated regression tests; physical disconnection remains to validate.
+Late OpenClaw events and send acknowledgements from a locally cancelled run no
+longer release or replace a newer run. Contract tests cover both event orders.
 
 Karen Desktop Pet 1.6.7 recovers wake listening after one or two transient
 recognition failures instead of disabling it at the first error. A persistent
