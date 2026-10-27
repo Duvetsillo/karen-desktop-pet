@@ -655,10 +655,18 @@ function Behavior() {
 function OpenClaw() {
   const s = useStore((x) => x.settings),
     c = useStore((x) => x.connection),
-    hasCredential = useStore((x) => x.hasCredential);
+    hasCredential = useStore((x) => x.hasCredential),
+    diagnostics = useStore((x) => x.diagnostics);
   const [url, setUrl] = useState(s.gatewayUrl),
     [agent, setAgent] = useState(s.agentId),
-    [token, setToken] = useState("");
+    [token, setToken] = useState(""),
+    [mode, setMode] = useState<"local" | "remote">(s.authSource === "stored" ? "remote" : "local"),
+    [busy, setBusy] = useState(false);
+  const isLocalAddress = (value: string) => {
+    try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(value).hostname); }
+    catch { return false; }
+  };
+  const pairing = [...diagnostics].reverse().find(item => item.area === "OpenClaw" && item.message.includes("solicitud de vinculación"));
   const runtime = useStore((x) => x.runtime);
   if (runtime === "server")
     return (
@@ -693,7 +701,7 @@ function OpenClaw() {
   return (
     <>
       <Group title="Modelo para esta conversación"><ModelPicker /></Group>
-      <Group title="Gateway">
+      <Group title="Conectar Karen con OpenClaw" description="Elige dónde está tu Gateway. Karen usa tu instalación y tus permisos de OpenClaw.">
         <div className="gateway-status">
           <Radio size={21} />
           <div>
@@ -709,20 +717,45 @@ function OpenClaw() {
           onSubmit={(e) => {
             e.preventDefault();
             void action(async () => {
-              await bridge.settings({ gatewayUrl: url, agentId: agent });
-              await bridge.connect();
+              setBusy(true);
+              try {
+                const gatewayUrl = mode === "local" && !isLocalAddress(url)
+                  ? "ws://127.0.0.1:18789" : url.trim();
+                const settings = await bridge.settings({ gatewayUrl, agentId: agent.trim(), authSource: mode === "local" ? "local" : "stored" });
+                useStore.setState({ settings });
+                setUrl(settings.gatewayUrl);
+                if (mode === "remote" && token.trim()) {
+                  await bridge.credential(token.trim());
+                  setToken("");
+                  useStore.setState({ hasCredential: true });
+                }
+                await bridge.connect();
+              } finally { setBusy(false); }
             });
           }}
         >
+          <div className="input-field">
+            <label htmlFor="gateway-mode">¿Dónde está OpenClaw?</label>
+            <select id="gateway-mode" value={mode} onChange={e => {
+              const next = e.target.value as "local" | "remote";
+              setMode(next);
+              if (next === "local" && !isLocalAddress(url)) setUrl("ws://127.0.0.1:18789");
+            }}>
+              <option value="local">En este equipo</option>
+              <option value="remote">En otro equipo</option>
+            </select>
+          </div>
           <div className="input-field">
             <label htmlFor="gateway">Dirección del Gateway</label>
             <input
               id="gateway"
               type="url"
+              required
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               spellCheck={false}
             />
+            <p className="quiet-note">{mode === "local" ? "Normalmente ws://127.0.0.1:18789; se lee la credencial de OpenClaw en este equipo." : "Usa wss:// para un Gateway remoto. El token se cifra en tu cuenta Windows."}</p>
           </div>
           <div className="input-field">
             <label htmlFor="agent">Agente</label>
@@ -733,10 +766,14 @@ function OpenClaw() {
               spellCheck={false}
             />
           </div>
+          {mode === "remote" && <div className="input-field">
+            <label htmlFor="token">Token del Gateway</label>
+            <input id="token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} placeholder={hasCredential && s.authSource === "stored" && s.gatewayUrl === url ? "Ya guardado; déjalo vacío para conservarlo" : "Pega el token de tu Gateway"} required={s.authSource !== "stored" || !hasCredential || s.gatewayUrl !== url} />
+          </div>}
           <div className="button-row">
-            <button className="primary" type="submit">
+            <button className="primary" type="submit" disabled={busy}>
               <RefreshCw size={15} />
-              Guardar y conectar
+              {busy ? "Conectando…" : "Guardar y conectar"}
             </button>
             <button
               type="button"
@@ -746,71 +783,11 @@ function OpenClaw() {
             </button>
           </div>
         </form>
-      </Group>
-      <Group
-        title="Autenticación segura"
-        description="Las credenciales permanecen en Windows. No se incluyen en el personaje ni en los registros."
-      >
-        <div className="input-field">
-          <label htmlFor="auth">Origen de la credencial</label>
-          <select
-            id="auth"
-            value={s.authSource}
-            onChange={(e) =>
-              void patch({
-                authSource: e.target.value as Settings["authSource"],
-              })
-            }
-          >
-            <option value="local">Configuración local de OpenClaw</option>
-            <option value="stored">Token guardado en este equipo</option>
-          </select>
-        </div>
-        {s.authSource === "local" ? (
-          <p className="info-note">
-            Se lee el token de <code>~/.openclaw/openclaw.json</code> únicamente
-            para el Gateway local. El archivo original se conserva.
-          </p>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void action(async () => {
-                await bridge.credential(token);
-                setToken("");
-                useStore.setState({ hasCredential: true });
-                await bridge.connect();
-              });
-            }}
-          >
-            <div className="input-field">
-              <label htmlFor="token">Token del Gateway</label>
-              <input
-                id="token"
-                type="password"
-                autoComplete="off"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Pega tu token de forma segura"
-              />
-            </div>
-            <button className="primary" disabled={!token}>
-              Cifrar y conectar
-            </button>
-          </form>
-        )}
-        <p className="credential-status">
-          <Check size={14} />
-          {hasCredential
-            ? "Credencial disponible en el proceso nativo"
-            : "La credencial se verifica al conectar"}
-        </p>
-        <p className="quiet-note">
-          Si OpenClaw solicita vinculación: revisa{" "}
-          <code>openclaw devices list</code> y aprueba el identificador mostrado
-          en Diagnóstico. La mascota solicita lectura y escritura de
-          conversación.
-        </p>
+        {c.state === "action-required" && <div className="info-note" role="status">
+          <strong>Puede faltar aprobar este dispositivo.</strong> En el equipo del Gateway, ejecuta <code>openclaw devices list</code>, comprueba que la solicitud sea de Karen y apruébala en OpenClaw. Después pulsa «Guardar y conectar».
+          {pairing && <p>Detalle de la solicitud: {pairing.message}</p>}
+        </div>}
+        <p className="quiet-note">{mode === "local" ? "Karen lee ~/.openclaw/openclaw.json solo para el Gateway local." : "El token se almacena cifrado con DPAPI y nunca aparece en el PET."} La conexión solicita lectura y escritura de conversación.</p>
       </Group>
     </>
   );
