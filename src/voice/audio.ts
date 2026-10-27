@@ -137,7 +137,7 @@ export class AudioDirector {
     this.context = undefined;
     if (finish) this.status("idle");
   }
-  cancel() {
+  cancel(resumeListening = true) {
     // Invalidate an in-flight wake transcription before its cancellation rejects.
     // resumeWake rearms it; a stale rejection cannot turn off the new listener.
     this.detector?.pause();
@@ -150,16 +150,16 @@ export class AudioDirector {
     this.recorder = undefined;
     this.recording = false;
     this.cleanup();
-    this.resumeWake();
+    if (resumeListening) this.resumeWake();
     useStore.getState().transition("IDLE");
   }
   async speak(text: string) {
-    this.cancel();
+    this.cancel(false);
     const generation = this.generation;
     const settings = useStore.getState().settings;
-    if (!settings.voiceEnabled) return;
+    if (!settings.voiceEnabled) { this.resumeWake(); return; }
     const phrases = speechPhrases(text);
-    if (!phrases.length) return;
+    if (!phrases.length) { this.resumeWake(); return; }
     useStore.setState({ expression: expressionForReply(text) });
     this.kind = "voice";
     this.processing = true;
@@ -236,12 +236,13 @@ export class AudioDirector {
       if (this.recorder?.state === "recording") this.recorder.stop();
       return;
     }
-    this.cancel();
+    this.cancel(false);
     this.kind = "microphone";
     const generation = this.generation;
     this.stopRecording = false;
     if (!useStore.getState().settings.sttEnabled) {
       report(new Error("Activa el reconocimiento local en Voz."));
+      this.resumeWake();
       return;
     }
     this.detector?.pause();
@@ -285,7 +286,13 @@ export class AudioDirector {
       this.recorder.start();
       useStore.getState().transition("LISTENING");
       this.status("recording");
-      stream.getAudioTracks().forEach(track => { track.onended = () => { if (recorder.state === "recording") recorder.stop(); }; });
+      stream.getAudioTracks().forEach(track => { track.onended = () => {
+        if (generation !== this.generation || !this.recording) return;
+        this.cancel(false);
+        report(new Error("El micrófono se desconectó durante el dictado."));
+        useStore.getState().transition("ERROR");
+        this.resumeWake();
+      }; });
       this.meter();
       this.limit = setTimeout(() => {
         if (this.recorder?.state === "recording") this.recorder.stop();
@@ -323,9 +330,11 @@ export class AudioDirector {
         useStore.getState().transition("ERROR");
       }
     } finally {
-      this.processing = false;
-      if (generation === this.generation) this.status("idle");
-      this.resumeWake();
+      if (generation === this.generation) {
+        this.processing = false;
+        this.status("idle");
+        this.resumeWake();
+      }
     }
   }
   dispose() {

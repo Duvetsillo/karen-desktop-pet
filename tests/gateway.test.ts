@@ -52,6 +52,7 @@ async function setup() {
   let socket: WebSocket | undefined;
   let selectedModel: string | null = null;
   let failModelPatch = false;
+  let failAbort = false;
   const adapter = new OpenClawAdapter(
     {
       settings: { ...defaults, gatewayUrl: `ws://127.0.0.1:${address.port}` },
@@ -152,6 +153,10 @@ async function setup() {
         selectedModel = req.params.model;
         payload = {ok:true};
       }
+      if (req.method === 'chat.abort' && failAbort) {
+        ws.send(JSON.stringify({type:'res', id:req.id, ok:false, error:{code:'UNAVAILABLE', message:'Abort unavailable'}}));
+        return;
+      }
       if (req.method === "chat.send")
         payload = { runId: req.params.idempotencyKey, status: "started" };
       ws.send(JSON.stringify({ type: "res", id: req.id, ok: true, payload }));
@@ -173,9 +178,18 @@ async function setup() {
       socket?.send(JSON.stringify({ type: "event", event, payload })),
     close: () => socket?.close(),
     failModelPatch: () => { failModelPatch = true; },
+    failAbort: () => { failAbort = true; },
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('libera la captura local aunque OpenClaw rechace cancelar la respuesta anterior', async () => {
+    const t = await setup();
+    await t.adapter.send('Primera orden');
+    t.failAbort();
+    await expect(t.adapter.abort()).rejects.toThrow();
+    await expect(t.adapter.send('Nueva orden hablada')).resolves.toBeUndefined();
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(2);
+  });
   it('consulta catálogo autenticado y cambia solo el modelo de la sesión', async () => {
     const t = await setup();
     expect((await t.adapter.models()).effective).toBe('local/test-small');

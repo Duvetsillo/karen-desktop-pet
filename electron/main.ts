@@ -488,7 +488,10 @@ async function ready() {
       return;
     }
     // A new spoken command takes priority over the old answer and its audio.
-    await gateway.abort();
+    try { await gateway.abort(); }
+    catch (error) {
+      log("warn", "OpenClaw", `No se confirmó la interrupción anterior: ${error instanceof Error ? error.message : "error desconocido"}`);
+    }
     voice.cancel();
     pet?.webContents.send("desktop-event", { type: "voice-listen" });
   });

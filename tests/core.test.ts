@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { validateSettings, defaults, gatewayAddress } from "../shared/settings";
 import { PetMachine } from "../src/state/machine";
 import { expressionForReply } from '../shared/expression';
+import { APP_VERSION } from '../shared/version';
+import packageInfo from '../package.json';
 import {
   extractText,
   routeGatewayEvent,
@@ -9,6 +11,9 @@ import {
   mergeMessages,
 } from "../shared/protocol";
 describe("configuración", () => {
+  it('anuncia la misma versión que el paquete instalado', () => {
+    expect(APP_VERSION).toBe(packageInfo.version);
+  });
   it('migra la apariencia existente y valida las tres formas sin cambiar voz o conexión', () => {
     expect(validateSettings({}).petStyle).toBe('crystal');
     for (const petStyle of ['crystal', 'cloud', 'orbit', 'sprite', 'bloom'] as const) {

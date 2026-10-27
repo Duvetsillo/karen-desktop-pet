@@ -1,3 +1,15 @@
+Karen Desktop Pet 1.6.8 starts manual dictation even if OpenClaw cannot confirm
+that it stopped an earlier reply. A failed abort no longer leaves the local
+conversation marked busy. Manual recording and speech playback keep continuous
+listening paused until they finish, avoiding a competing microphone reopen.
+The installed STT, live Gateway response, neural synthesis and native capture
+were checked separately; a real spoken command still depends on the selected
+Windows microphone and its input level.
+Transient microphone opening failures retry twice. A disconnected track during
+manual dictation discards partial audio and shows an error. A cancelled older
+transcription cannot clear the processing state of a newer response. These paths
+have automated regression tests; physical disconnection remains to validate.
+
 Karen Desktop Pet 1.6.7 recovers wake listening after one or two transient
 recognition failures instead of disabling it at the first error. A persistent
 failure still stops listening and offers a manual retry. Recognition now

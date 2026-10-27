@@ -324,14 +324,17 @@ export class OpenClawAdapter {
   }
   async abort() {
     this.emit({ type: "voice-cancel" });
-    if (this.client && this.info.state === "connected" && this.pending) {
-      await this.client.request("chat.abort", {
-        sessionKey: this.sessionKey,
-        ...(this.accepted && this.runId ? { runId: this.runId } : {}),
-      });
+    try {
+      if (this.client && this.info.state === "connected" && this.pending) {
+        await this.client.request("chat.abort", {
+          sessionKey: this.sessionKey,
+          ...(this.accepted && this.runId ? { runId: this.runId } : {}),
+        });
+      }
+    } finally {
+      this.finishRun();
+      this.emit({ type: "pet", state: "IDLE" });
     }
-    this.finishRun();
-    this.emit({ type: "pet", state: "IDLE" });
   }
   private finishRun() {
     clearTimeout(this.watchdog);

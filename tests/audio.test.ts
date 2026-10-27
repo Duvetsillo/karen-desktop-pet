@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("../src/native", () => ({ bridge: { captureStatus: vi.fn(), energy: vi.fn() } }));
+vi.mock("../src/native", () => ({ bridge: { captureStatus: vi.fn(), energy: vi.fn(), send: vi.fn() } }));
+vi.mock('../src/voice/pcm', () => ({ pcm16: async () => new ArrayBuffer(120) }));
 import { bridge } from "../src/native";
 import { AudioDirector } from "../src/voice/audio";
 import { signals, useStore } from "../src/state/store";
@@ -89,5 +90,62 @@ describe("ciclo real de reproducción", () => {
       await pending;
       director.dispose();
     } finally { URL.createObjectURL = createObjectURL; }
+  });
+});
+
+describe('dictado manual', () => {
+  it('la transcripción cancelada no reactiva escucha durante una respuesta nueva', async () => {
+    let finishTranscription!: (text: string) => void;
+    let finishVoice!: (audio: ArrayBuffer) => void;
+    const transcribe = vi.fn(() => new Promise<string>(resolve => { finishTranscription = resolve; }));
+    const synthesize = vi.fn(() => new Promise<ArrayBuffer>(resolve => { finishVoice = resolve; }));
+    const director = new AudioDirector({ synthesize }, { transcribe });
+    const detector = { start: vi.fn(async () => {}), pause: vi.fn(), resume: vi.fn(), stop: vi.fn() };
+    director['detector'] = detector;
+    const old = director['finishCapture'](0, new Blob([new Uint8Array(120)]));
+    await vi.waitFor(() => expect(transcribe).toHaveBeenCalledTimes(1));
+    director.cancel(false);
+    const current = director.speak('Karen prepara una respuesta nueva.');
+    await vi.waitFor(() => expect(synthesize).toHaveBeenCalledTimes(1));
+    finishTranscription('orden antigua');
+    await old;
+    expect(director['processing']).toBe(true);
+    expect(useStore.getState().capture.phase).toBe('preparing');
+    expect(detector.resume).not.toHaveBeenCalled();
+    expect(bridge.send).not.toHaveBeenCalled();
+    director.cancel(false);
+    finishVoice(new ArrayBuffer(12));
+    await current;
+    director.dispose();
+  });
+
+  it('descarta el audio parcial si el micrófono se desconecta', async () => {
+    const track = { stop: vi.fn(), onended: null as null | (() => void) };
+    const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
+    vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => stream } });
+    vi.stubGlobal('MediaStream', class { constructor(_tracks: unknown[]) {} });
+    vi.stubGlobal('AudioContext', class {
+      async close() {}
+      createAnalyser() { return { fftSize: 512, getFloatTimeDomainData: vi.fn() }; }
+      createMediaStreamSource() { return { connect: vi.fn() }; }
+    });
+    vi.stubGlobal('MediaRecorder', class {
+      state = 'inactive';
+      mimeType = 'audio/webm';
+      onstop?: () => void;
+      start() { this.state = 'recording'; }
+      stop() { this.state = 'inactive'; this.onstop?.(); }
+    });
+    useStore.setState({ settings: { ...defaults, sttEnabled: true } });
+    const director = new AudioDirector();
+    try {
+      await director.toggleListening();
+      expect(useStore.getState().capture.phase).toBe('recording');
+      track.onended?.();
+      expect(useStore.getState().capture.phase).toBe('idle');
+      expect(useStore.getState().state).toBe('ERROR');
+      expect(useStore.getState().error).toContain('desconectó');
+      expect(bridge.send).not.toHaveBeenCalled();
+    } finally { director.dispose(); }
   });
 });
