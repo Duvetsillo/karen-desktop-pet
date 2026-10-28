@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
 import { CoreStore } from "./core-store.js";
+import { applyCoreVoiceStyle } from './core-style-sync.js';
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
 import { ScreenCapture } from "./capture.js";
@@ -44,6 +45,8 @@ let pointTimer: ReturnType<typeof setTimeout> | undefined;
 let pendingPoint: { displayId: string; expires: number } | undefined;
 let storage: Storage, gateway: OpenClawAdapter, voice: NativeVoice;
 let coreStore: CoreStore | undefined;
+let coreStyleTimer: ReturnType<typeof setInterval> | undefined;
+let coreStyleFailed = false;
 let quitting = false,
   clickThrough = false,
   dragging = false,
@@ -317,6 +320,21 @@ function updateSettings(patch: Partial<Settings>) {
   }
   return saved;
 }
+function syncCoreVoiceStyle() {
+  if (!coreStore) return;
+  try {
+    applyCoreVoiceStyle(coreStore, storage.settings,
+      patch => storage.saveSettings(patch),
+      settings => emit({ type: 'settings', settings }));
+    if (coreStyleFailed) {
+      log('info', 'Karen Core', 'La sincronización del estilo de voz volvió a estar disponible.');
+      coreStyleFailed = false;
+    }
+  } catch {
+    if (!coreStyleFailed) log('warn', 'Karen Core', 'No se pudo leer el estilo compartido; reintentando.');
+    coreStyleFailed = true;
+  }
+}
 function handle(name: string, callback: (...args: unknown[]) => unknown) {
   ipcMain.handle(name, (event, ...args: unknown[]) => {
     if (
@@ -356,6 +374,7 @@ async function ready() {
       const style = coreStore.getVoiceStyle();
       if (style && style !== storage.settings.voiceStyle) storage.saveSettings({ voiceStyle: style });
     } catch { log('warn', 'Karen Core', 'No se pudo aplicar el estilo de voz compartido.'); }
+    coreStyleTimer = setInterval(syncCoreVoiceStyle, 5000);
   }
   gateway = new OpenClawAdapter(storage, emitGateway, log, coreStore);
   const area = screen.getPrimaryDisplay().workArea;
@@ -663,6 +682,7 @@ else {
     voice?.dispose();
     loopback?.cancel();
     gateway?.disconnect(false);
+    if (coreStyleTimer) clearInterval(coreStyleTimer);
     coreStore?.close();
     clearInterval(cursorTimer);
     clearTimeout(saveTimer);

@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CoreStore } from '../electron/core-store';
+import { applyCoreVoiceStyle } from '../electron/core-style-sync';
+import { defaults } from '../shared/settings';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -74,6 +76,22 @@ describe('Karen Core SQLite v1', () => {
     const reopened = new CoreStore(path);
     expect(reopened.getVoiceStyle()).toBe('warm');
     reopened.close();
+  });
+
+  it('aplica un estilo externo una vez y notifica sin escribir de vuelta', () => {
+    const core = new CoreStore(legacyArchive());
+    core.setVoiceStyle('warm');
+    const writeBack = vi.spyOn(core, 'setVoiceStyle');
+    let current = { ...defaults };
+    const save = vi.fn((patch: Partial<typeof defaults>) => (current = { ...current, ...patch }));
+    const notify = vi.fn();
+    expect(applyCoreVoiceStyle(core, current, save, notify)).toBe(true);
+    expect(current.voiceStyle).toBe('warm');
+    expect(notify).toHaveBeenCalledWith(current);
+    expect(applyCoreVoiceStyle(core, current, save, notify)).toBe(false);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(writeBack).not.toHaveBeenCalled();
+    core.close();
   });
 
   it('informa estado real sin contar recuerdos sensibles', () => {
