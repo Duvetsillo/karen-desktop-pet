@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { CoreStore } from '../electron/core-store';
-import { applyCoreVoiceStyle } from '../electron/core-style-sync';
+import { applyCoreMode, applyCoreVoiceStyle } from '../electron/core-style-sync';
 import { defaults } from '../shared/settings';
 
 const directories: string[] = [];
@@ -76,6 +76,34 @@ describe('Karen Core SQLite v1', () => {
     const reopened = new CoreStore(path);
     expect(reopened.getVoiceStyle()).toBe('warm');
     reopened.close();
+  });
+
+  it('comparte solo modos válidos sin cambiar preferencias visuales', () => {
+    const path = legacyArchive();
+    const core = new CoreStore(path);
+    expect(core.getMode()).toBeNull();
+    core.setMode('gaming');
+    expect(core.getMode()).toBe('gaming');
+    expect(() => core.setMode('invalid' as 'gaming')).toThrow('desconocido');
+    core.close();
+    const reopened = new CoreStore(path);
+    expect(reopened.getMode()).toBe('gaming');
+    reopened.close();
+  });
+
+  it('aplica un modo externo sin escribirlo de vuelta', () => {
+    const core = new CoreStore(legacyArchive());
+    core.setMode('do_not_disturb');
+    const writeBack = vi.spyOn(core, 'setMode');
+    let current = { ...defaults };
+    const save = vi.fn((patch: Partial<typeof defaults>) => (current = { ...current, ...patch }));
+    const notify = vi.fn();
+    expect(applyCoreMode(core, current, save, notify)).toBe(true);
+    expect(current.mode).toBe('do_not_disturb');
+    expect(notify).toHaveBeenCalledWith(current);
+    expect(applyCoreMode(core, current, save, notify)).toBe(false);
+    expect(writeBack).not.toHaveBeenCalled();
+    core.close();
   });
 
   it('aplica un estilo externo una vez y notifica sin escribir de vuelta', () => {

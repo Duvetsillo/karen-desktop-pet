@@ -3,7 +3,10 @@ import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { CoreTurnSink } from './gateway.js';
-import { VOICE_STYLES, type VoiceStyle } from '../shared/types.js';
+import { VOICE_STYLES, type VoiceStyle, type Settings } from '../shared/types.js';
+
+type AssistantMode = Settings['mode'];
+const MODES: AssistantMode[] = ['normal', 'gaming', 'do_not_disturb'];
 
 /** Optional v1 bridge to Karen classic's existing SQLite conversation archive. */
 export class CoreStore implements CoreTurnSink {
@@ -93,6 +96,17 @@ export class CoreStore implements CoreTurnSink {
     if (!VOICE_STYLES.includes(style)) throw new Error('Estilo de voz desconocido.');
     this.db.prepare("INSERT INTO preferences (key,value) VALUES ('core.voice_style',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
       .run(style);
+  }
+
+  getMode(): AssistantMode | null {
+    const row = this.db.prepare("SELECT value FROM preferences WHERE key='core.mode'").get() as { value: string } | undefined;
+    return row && MODES.includes(row.value as AssistantMode) ? row.value as AssistantMode : null;
+  }
+
+  setMode(mode: AssistantMode): void {
+    if (!MODES.includes(mode)) throw new Error('Modo desconocido.');
+    this.db.prepare("INSERT INTO preferences (key,value) VALUES ('core.mode',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(mode);
   }
 
   status(): { version: string; chats: number; memories: number; voiceStyle: VoiceStyle | null } {

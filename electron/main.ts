@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { Storage } from "./storage.js";
 import { OpenClawAdapter } from "./gateway.js";
 import { CoreStore } from "./core-store.js";
-import { applyCoreVoiceStyle } from './core-style-sync.js';
+import { applyCoreMode, applyCoreVoiceStyle } from './core-style-sync.js';
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
 import { effectiveSettings } from '../shared/settings.js';
@@ -298,12 +298,16 @@ function protect(w: BrowserWindow) {
     ),
   );
 }
-function updateSettings(patch: Partial<Settings>) {
+function updateSettings(patch: Partial<Settings>, fromCore = false) {
   const before = storage.settings;
   const saved = storage.saveSettings(patch);
   if (patch.voiceStyle !== undefined && before.voiceStyle !== saved.voiceStyle && coreStore) {
     try { coreStore.setVoiceStyle(saved.voiceStyle); }
     catch { log('warn', 'Karen Core', 'No se pudo compartir el estilo de voz.'); }
+  }
+  if (patch.mode !== undefined && before.mode !== saved.mode && coreStore && !fromCore) {
+    try { coreStore.setMode(saved.mode); }
+    catch { log('warn', 'Karen Core', 'No se pudo compartir el modo.'); }
   }
   if ((before.sttEnabled && !saved.sttEnabled) || before.voiceRoot !== saved.voiceRoot) stopPerception();
   pet?.setAlwaysOnTop(effectiveSettings(saved).alwaysOnTop, "floating");
@@ -324,7 +328,7 @@ function updateSettings(patch: Partial<Settings>) {
     gateway.disconnect();
     void gateway.connect();
   }
-  if (!saved.voiceEnabled) {
+  if (!effectiveSettings(saved).voiceEnabled) {
     voice.cancel();
     emit({ type: "voice-cancel" });
   }
@@ -336,12 +340,14 @@ function syncCoreVoiceStyle() {
     applyCoreVoiceStyle(coreStore, storage.settings,
       patch => storage.saveSettings(patch),
       settings => emit({ type: 'settings', settings }));
+    applyCoreMode(coreStore, storage.settings,
+      patch => updateSettings(patch, true), () => {});
     if (coreStyleFailed) {
       log('info', 'Karen Core', 'La sincronización del estilo de voz volvió a estar disponible.');
       coreStyleFailed = false;
     }
   } catch {
-    if (!coreStyleFailed) log('warn', 'Karen Core', 'No se pudo leer el estilo compartido; reintentando.');
+    if (!coreStyleFailed) log('warn', 'Karen Core', 'No se pudieron leer las preferencias compartidas; reintentando.');
     coreStyleFailed = true;
   }
 }
@@ -383,7 +389,10 @@ async function ready() {
     try {
       const style = coreStore.getVoiceStyle();
       if (style && style !== storage.settings.voiceStyle) storage.saveSettings({ voiceStyle: style });
-    } catch { log('warn', 'Karen Core', 'No se pudo aplicar el estilo de voz compartido.'); }
+      const mode = coreStore.getMode();
+      if (mode && mode !== storage.settings.mode) storage.saveSettings({ mode });
+      else if (!mode) coreStore.setMode(storage.settings.mode);
+    } catch { log('warn', 'Karen Core', 'No se pudieron aplicar las preferencias compartidas.'); }
     coreStyleTimer = setInterval(syncCoreVoiceStyle, 5000);
   }
   gateway = new OpenClawAdapter(storage, emitGateway, log, coreStore);
