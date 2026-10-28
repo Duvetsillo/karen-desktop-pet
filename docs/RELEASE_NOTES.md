@@ -1,3 +1,9 @@
+Cambios posteriores a 1.6.8 (sin versión publicada): al caer el Gateway,
+Desktop Pet retira la respuesta local pendiente antes de reconectar. Los eventos
+tardíos de esa respuesta no se muestran ni se guardan en Karen Core, y no
+liberan una respuesta nueva. Un contrato WebSocket local prueba la secuencia;
+falta validarla con una caída real de OpenClaw.
+
 Karen Desktop Pet 1.6.8 starts manual dictation even if OpenClaw cannot confirm
 that it stopped an earlier reply. A failed abort no longer leaves the local
 conversation marked busy. Manual recording and speech playback keep continuous

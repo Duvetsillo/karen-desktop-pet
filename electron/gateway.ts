@@ -252,7 +252,7 @@ export class OpenClawAdapter {
       },
       onClose: () => {
         if (!current() || this.info.state === "action-required") return;
-        this.finishRun();
+        this.retirePendingRun();
         this.emit({ type: "voice-cancel" });
         this.status({
           state: "reconnecting",
@@ -482,6 +482,11 @@ export class OpenClawAdapter {
     if (this.retiredRuns.size > 100)
       this.retiredRuns.delete(this.retiredRuns.values().next().value!);
   }
+  private retirePendingRun() {
+    if (this.runId) this.retireRun(this.runId);
+    for (const run of [...this.prompts.keys()]) this.retireRun(run);
+    this.finishRun();
+  }
   private finishRun() {
     clearTimeout(this.watchdog);
     this.pending = false;
@@ -493,8 +498,7 @@ export class OpenClawAdapter {
     this.epoch++;
     this.client?.stop();
     this.client = undefined;
-    this.finishRun();
-    this.prompts.clear();
+    this.retirePendingRun();
     this.skipCoreRuns.clear();
     this.preparedHistory = undefined;
     if (report)

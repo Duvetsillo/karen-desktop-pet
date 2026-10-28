@@ -450,4 +450,23 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     await until(() => t.adapter.info.state === "connected", 4500);
     expect(t.requests.filter((r) => r.method === "connect").length).toBe(2);
   });
+  it('descarta la respuesta vieja tras reconectar y conserva la nueva', async () => {
+    const core = { appendOpenClawTurn: vi.fn() };
+    const t = await setup(core);
+    await t.adapter.send('Orden anterior');
+    const oldRun = t.requests.find(r => r.method === 'chat.send')!.params.idempotencyKey;
+    t.close();
+    await until(() => t.adapter.info.state === 'reconnecting');
+    await until(() => t.adapter.info.state === 'connected', 4500);
+    await t.adapter.send('Orden nueva');
+    const newRun = t.requests.filter(r => r.method === 'chat.send')[1].params.idempotencyKey;
+    t.event('chat', {sessionKey: 'agent:main:main', runId: oldRun, state: 'final', deltaText: 'Obsoleta'});
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(t.events.some(e => e.type === 'chat' && e.message.id === oldRun && e.message.role === 'assistant')).toBe(false);
+    expect(core.appendOpenClawTurn).not.toHaveBeenCalled();
+    await expect(t.adapter.send('Otra')).rejects.toThrow('en curso');
+    t.event('chat', {sessionKey: 'agent:main:main', runId: newRun, state: 'final', deltaText: 'Actual'});
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === newRun && e.final));
+    expect(core.appendOpenClawTurn).toHaveBeenCalledWith('agent:main:main', newRun, 'Orden nueva', 'Actual');
+  });
 });
