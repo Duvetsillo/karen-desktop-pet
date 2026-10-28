@@ -223,6 +223,60 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     expect(t.events.some(e => e.type === 'chat' && e.final && e.speak === false && e.message.text.includes('Respuesta breve'))).toBe(true);
   });
 
+  it('envía memorias públicas confirmadas solo después de vista previa y confirmación', async () => {
+    const core = {
+      appendOpenClawTurn: vi.fn(),
+      listMemories: vi.fn(() => [
+        { id: '1', content: 'Servidor en Proxmox', status: 'confirmed' },
+        { id: '2', content: 'Hipótesis no confirmada', status: 'inferred' },
+        { id: '3', content: 'Prefiere respuesta breve', status: 'confirmed' },
+      ]),
+    };
+    const t = await setup(core);
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
+    await t.adapter.send('/memoria preparar Home Lab | servidor');
+    expect(core.listMemories).toHaveBeenCalledWith('Home Lab', 'servidor');
+    const preview = [...t.events].reverse().find(e => e.type === 'chat' && e.final && e.message.role === 'assistant');
+    expect(preview?.type === 'chat' ? preview.message.text : '').toContain('Servidor en Proxmox');
+    expect(preview?.type === 'chat' ? preview.message.text : '').not.toContain('Hipótesis no confirmada');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+    await t.adapter.send('/memoria cancelar');
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
+    await t.adapter.send('/memoria preparar Home Lab | servidor');
+    await t.adapter.send('/memoria enviar');
+    const sends = t.requests.filter(r => r.method === 'chat.send');
+    expect(sends).toHaveLength(1);
+    expect(sends[0].params.message).toContain('Servidor en Proxmox');
+    expect(sends[0].params.message).not.toContain('Hipótesis no confirmada');
+    const run = sends[0].params.idempotencyKey as string;
+    t.event('chat', { sessionKey: 'agent:main:main', runId: run, state: 'final', deltaText: 'Contexto recibido.' });
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === run && e.final));
+    expect(core.appendOpenClawTurn).not.toHaveBeenCalled();
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
+  });
+
+  it('descarta una memoria preparada al desconectar', async () => {
+    const core = { appendOpenClawTurn: vi.fn(), listMemories: vi.fn(() => [
+      { id: '1', content: 'Contexto local', status: 'confirmed' },
+    ]) };
+    const t = await setup(core);
+    await t.adapter.send('/memoria preparar Karen | contexto');
+    t.adapter.disconnect();
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+  });
+
+  it('invalida la vista previa de memoria tras perder el Gateway', async () => {
+    const core = { appendOpenClawTurn: vi.fn(), listMemories: vi.fn(() => [
+      { id: '1', content: 'Contexto local', status: 'confirmed' },
+    ]) };
+    const t = await setup(core);
+    await t.adapter.send('/memoria preparar Karen | contexto');
+    t.close();
+    await until(() => t.events.some(e => e.type === 'connection' && e.info.state === 'reconnecting'));
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
+  });
+
   it('consulta historial clásico local sin enviarlo al Gateway', async () => {
     const chatId = 'a'.repeat(32);
     const core = {

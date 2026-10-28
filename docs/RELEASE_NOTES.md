@@ -1,4 +1,6 @@
-Cambios posteriores a 1.6.8 (sin versión publicada): al caer el Gateway,
+Cambios posteriores a 1.6.8 (sin versión publicada): `/memoria preparar PROYECTO | CONSULTA` muestra hasta tres recuerdos confirmados y públicos. `/memoria enviar` exige aprobación explícita y consume esa vista previa una vez; no la duplica en Core. Una desconexión invalida la preparación. Contratos WebSocket automatizados cubren el flujo; falta prueba con OpenClaw real.
+
+Al caer el Gateway,
 Desktop Pet retira la respuesta local pendiente antes de reconectar. Los eventos
 tardíos de esa respuesta no se muestran ni se guardan en Karen Core, y no
 liberan una respuesta nueva. Un contrato WebSocket local prueba la secuencia;
