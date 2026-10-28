@@ -28,6 +28,7 @@ export interface CoreTurnSink {
   listMemories?(project: string, query?: string): { id: string; content: string; status: string }[];
   listChats?(): { id: string; title: string; updated: string }[];
   readChat?(chatId: string): { prompt: string; answer: string }[];
+  status?(): { version: string; chats: number; memories: number; voiceStyle: string | null };
 }
 export class OpenClawAdapter {
   client?: GatewayClient;
@@ -315,10 +316,11 @@ export class OpenClawAdapter {
     text = text.trim();
     if (!text || text.length > 16000)
       throw new Error("Escribe un mensaje de hasta 16.000 caracteres.");
-    if (/^\/(?:memoria|historial)(?:\s|$)/i.test(text)) {
+    if (/^\/(?:memoria|historial|core)(?:\s|$)/i.test(text)) {
       if (images.length) throw new Error('La consulta local de memoria no admite capturas.');
       if (this.pending) throw new Error('Espera a que termine la respuesta actual.');
-      const reply = /^\/memoria(?:\s|$)/i.test(text) ? this.memoryReply(text) : this.historyReply(text);
+      const reply = /^\/memoria(?:\s|$)/i.test(text) ? this.memoryReply(text)
+        : /^\/historial(?:\s|$)/i.test(text) ? this.historyReply(text) : this.coreReply(text);
       const id = randomUUID();
       const user: ChatMessage = { id: `user:${id}`, role: 'user', text };
       const assistant: ChatMessage = { id, role: 'assistant', text: reply };
@@ -409,6 +411,14 @@ export class OpenClawAdapter {
       return rows.length ? rows.map(row => `Tú: ${row.prompt.slice(0, 1000)}\nKaren: ${row.answer.slice(0, 1000)}`).join('\n\n')
         : 'No encontré turnos confirmados en esa conversación.';
     } catch { return 'Historial: ID inválido o archivo no disponible.'; }
+  }
+  private coreReply(text: string): string {
+    if (text.toLowerCase() !== '/core estado') return 'En Pet: /core estado.';
+    if (!this.core?.status) return 'Karen Core: puente local inactivo. Configura KAREN_CORE_DB y reinicia Pet.';
+    try {
+      const state = this.core.status();
+      return `Karen Core v${state.version}: activo; ${state.chats} chats, ${state.memories} recuerdos no sensibles vigentes; estilo de voz ${state.voiceStyle ?? 'local'}.`;
+    } catch { return 'Karen Core: no se pudo consultar la base compartida.'; }
   }
   async abort() {
     this.emit({ type: "voice-cancel" });

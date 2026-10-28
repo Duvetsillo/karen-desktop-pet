@@ -76,6 +76,17 @@ describe('Karen Core SQLite v1', () => {
     reopened.close();
   });
 
+  it('informa estado real sin contar recuerdos sensibles', () => {
+    const path = legacyArchive();
+    const db = new DatabaseSync(path);
+    db.exec(`CREATE TABLE core_memories (id TEXT, sensitive INTEGER, expires_at TEXT);
+      INSERT INTO core_memories VALUES ('visible',0,NULL),('privado',1,NULL),('caducado',0,'2020-01-01');`);
+    db.close();
+    const core = new CoreStore(path);
+    expect(core.status()).toEqual({ version: '1', chats: 0, memories: 1, voiceStyle: null });
+    core.close();
+  });
+
   it('rechaza una versión de esquema incompatible antes de escribir turnos', () => {
     const path = legacyArchive();
     const db = new DatabaseSync(path);

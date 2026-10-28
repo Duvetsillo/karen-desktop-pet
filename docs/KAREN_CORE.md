@@ -33,6 +33,8 @@ Pet ofrece solo `/memoria listar PROYECTO` y `/memoria buscar PROYECTO | TEXTO` 
 
 Con `KAREN_CORE_DB` activo en ambas aplicaciones, el estilo de voz (`neutral`, `serene`, `warm`, `serious`, `bright` o `wry`) se guarda en la tabla `preferences` bajo `core.voice_style`. La base compartida tiene prioridad al iniciar cada aplicación; un cambio desde Ajustes de Pet o al guardar la configuración clásica actualiza esa clave. `KAREN_VOICE_STYLE` tiene prioridad en la clásica. Si la otra aplicación ya está abierta, reiníciala para aplicar el cambio. No se comparten dispositivos, motores de voz, credenciales ni ajustes de privacidad. El registro de Pet o la pantalla clásica avisan si falla la escritura compartida.
 
+Escribe `/core estado` en Pet para consultar si el puente está activo. Muestra versión, número de chats, recuerdos no sensibles vigentes y estilo compartido. Funciona sin OpenClaw y no envía esos datos al Gateway.
+
 ## Verificación
 
 `python qa/verify_core_interop.py` desde `C:\karen` crea una base temporal, escribe un chat clásico y memorias, añade un turno Pet con Node y confirma lectura cruzada de chats y recuerdos, además de exclusión de memorias sensibles. `npm test` cubre deduplicación, versión, consultas locales y emisión solo de respuestas finales. Estas pruebas no conectan a OpenClaw real ni migran datos privados.

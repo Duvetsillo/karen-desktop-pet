@@ -197,6 +197,19 @@ async function setup(core?: { appendOpenClawTurn(sessionKey: string, runId: stri
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('muestra estado local de Core sin OpenClaw', async () => {
+    const core = {
+      appendOpenClawTurn: vi.fn(),
+      status: vi.fn(() => ({ version: '1', chats: 2, memories: 1, voiceStyle: 'warm' })),
+    };
+    const t = await setup(core);
+    t.adapter.disconnect();
+    await t.adapter.send('/core estado');
+    expect(core.status).toHaveBeenCalledOnce();
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+    expect(t.events.some(e => e.type === 'chat' && e.final && e.speak === false && e.message.text.includes('2 chats'))).toBe(true);
+  });
+
   it('consulta memoria local sin enviar texto al Gateway', async () => {
     const core = {
       appendOpenClawTurn: vi.fn(),

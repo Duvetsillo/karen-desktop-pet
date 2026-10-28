@@ -95,5 +95,15 @@ export class CoreStore implements CoreTurnSink {
       .run(style);
   }
 
+  status(): { version: string; chats: number; memories: number; voiceStyle: VoiceStyle | null } {
+    const version = this.db.prepare("SELECT value FROM core_meta WHERE key='schema_version'").get() as { value: string };
+    const chats = this.db.prepare('SELECT COUNT(*) AS count FROM chats').get() as { count: number };
+    const hasMemories = this.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='core_memories'").get();
+    const memories = hasMemories
+      ? (this.db.prepare("SELECT COUNT(*) AS count FROM core_memories WHERE sensitive=0 AND (expires_at IS NULL OR julianday(expires_at)>julianday('now'))").get() as { count: number }).count
+      : 0;
+    return { version: version.value, chats: chats.count, memories, voiceStyle: this.getVoiceStyle() };
+  }
+
   close(): void { this.db.close(); }
 }
