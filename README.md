@@ -43,6 +43,8 @@ npm run dev
 npm run package
 ```
 
+`node scripts/native-smoke.cjs` comprueba ventanas, ajustes, voz Windows, conexión al Gateway y errores del renderizador. Para conservar capturas y perfil QA anteriores, ejecútalo desde un directorio temporal nuevo usando la ruta absoluta del script; la aplicación se localiza desde el propio script. Define `KAREN_SMOKE_EXECUTABLE` con la ruta absoluta de `win-unpacked/Karen Desktop Pet.exe` para comprobar también el ejecutable empaquetado. La prueba no envía un mensaje al modelo ni valida el instalador NSIS tras instalarlo.
+
 Para compilar se requiere Node 24; las funciones nativas requieren Windows 11
 x64. No se necesita Rust ni MSVC. Abre Ajustes en cualquier momento con doble
 clic en Karen o desde la bandeja. La configuración local se lee de
