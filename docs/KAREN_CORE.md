@@ -21,7 +21,11 @@ Karen clásica usa esa ruta por defecto; también admite `KAREN_CORE_DB` para ot
 - Pet crea un chat `openclaw-<hash de sessionKey>` y guarda cada respuesta final junto a su petición. La clave `(session_key,run_id)` evita duplicados por reconexión o eventos repetidos.
 - Los turnos parciales, cancelados o fallidos no se comparten. El historial clásico existente permanece en su archivo y las tablas nuevas son aditivas.
 - Karen clásica puede abrir el chat Pet desde su selector al refrescar o reiniciar. Si usa ese chat con Ollama, el historial compartido puede entrar en el contexto del modelo seleccionado. Configura un modelo local si no quieres enviar ese contenido a un proveedor remoto.
-- Pet puede consultar chats clásicos con `/historial listar` y `/historial ver ID`. La lectura es local, muestra los diez últimos turnos confirmados y no se envía a OpenClaw. No cambia la sesión activa ni permite continuar ese contexto en OpenClaw. No hay permisos por cliente ni sincronización entre equipos en este contrato inicial. No se marca completa la fase Core.
+- Pet puede consultar chats clásicos con `/historial listar` y `/historial ver ID`. La lectura es local, muestra los diez últimos turnos confirmados y no se envía a OpenClaw. No hay permisos por cliente ni sincronización entre equipos en este contrato inicial. No se marca completa la fase Core.
+
+## Continuar un chat clásico desde Pet
+
+`/historial preparar ID` muestra exactamente el texto propuesto para enviar a OpenClaw: los cinco últimos turnos confirmados como máximo, con hasta 700 caracteres de cada mensaje. No transmite nada. Para enviar esa vista previa al proveedor del modelo activo, escribe `/historial enviar ID` antes de cinco minutos. `/historial cancelar` descarta la preparación. La confirmación consume la preparación una sola vez; si falla el envío, vuelve a preparar y revisa el historial de OpenClaw antes de repetir. La transferencia no se copia de vuelta al archivo Core como un turno nuevo. Los mensajes posteriores de la misma sesión OpenClaw pueden usar ese contexto, pero esta función no fusiona ni migra sesiones. Si el proveedor activo es remoto, el texto aprobado sale del PC. Las autorizaciones de herramientas de OpenClaw siguen aplicándose por separado.
 
 ## Memoria local inicial
 

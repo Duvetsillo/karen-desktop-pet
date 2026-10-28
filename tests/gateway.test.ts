@@ -240,6 +240,36 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     expect(t.events.some(e => e.type === 'chat' && e.final && e.speak === false && e.message.text.includes('Hola de nuevo'))).toBe(true);
   });
 
+  it('solo transfiere historial revisado tras un segundo comando y evita duplicarlo en Core', async () => {
+    const chatId = 'a'.repeat(32);
+    const core = {
+      appendOpenClawTurn: vi.fn(),
+      listChats: vi.fn(() => []),
+      readChat: vi.fn(() => [{ prompt: 'Proyecto privado', answer: 'Estado confirmado' }]),
+    };
+    const t = await setup(core);
+    await expect(t.adapter.send(`/historial enviar ${chatId}`)).rejects.toThrow('Prepara');
+    await t.adapter.send(`/historial preparar ${chatId}`);
+    const preview = [...t.events].reverse().find(e => e.type === 'chat' && e.final && e.message.role === 'assistant');
+    expect(preview?.type === 'chat' ? preview.message.text : '').toContain('Proyecto privado');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+    await t.adapter.send('/historial cancelar');
+    await expect(t.adapter.send(`/historial enviar ${chatId}`)).rejects.toThrow('Prepara');
+    await t.adapter.send(`/historial preparar ${chatId}`);
+    await expect(t.adapter.send(`/historial enviar ${'b'.repeat(32)}`)).rejects.toThrow('Prepara');
+    await t.adapter.send(`/historial preparar ${chatId}`);
+    await t.adapter.send(`/historial enviar ${chatId}`);
+    const sends = t.requests.filter(r => r.method === 'chat.send');
+    expect(sends).toHaveLength(1);
+    expect(sends[0].params.message).toContain('Proyecto privado');
+    expect(sends[0].params.message).toContain('Estado confirmado');
+    const run = sends[0].params.idempotencyKey as string;
+    t.event('chat', { sessionKey: 'agent:main:main', runId: run, state: 'final', deltaText: 'Lista para continuar.' });
+    await until(() => t.events.some(e => e.type === 'chat' && e.message.id === run && e.final));
+    expect(core.appendOpenClawTurn).not.toHaveBeenCalled();
+    await expect(t.adapter.send(`/historial enviar ${chatId}`)).rejects.toThrow('Prepara');
+  });
+
   it('comparte solo respuestas finales confirmadas con Karen clásica', async () => {
     const core = { appendOpenClawTurn: vi.fn() };
     const t = await setup(core);
