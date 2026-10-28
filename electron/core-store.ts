@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { CoreTurnSink } from './gateway.js';
+import { VOICE_STYLES, type VoiceStyle } from '../shared/types.js';
 
 /** Optional v1 bridge to Karen classic's existing SQLite conversation archive. */
 export class CoreStore implements CoreTurnSink {
@@ -81,6 +82,17 @@ export class CoreStore implements CoreTurnSink {
       throw new Error('ID de conversación inválido.');
     return this.db.prepare('SELECT prompt,answer FROM exchanges WHERE chat_id=? AND ok=1 ORDER BY id DESC LIMIT 10')
       .all(chatId).reverse() as { prompt: string; answer: string }[];
+  }
+
+  getVoiceStyle(): VoiceStyle | null {
+    const row = this.db.prepare("SELECT value FROM preferences WHERE key='core.voice_style'").get() as { value: string } | undefined;
+    return row && VOICE_STYLES.includes(row.value as VoiceStyle) ? row.value as VoiceStyle : null;
+  }
+
+  setVoiceStyle(style: VoiceStyle): void {
+    if (!VOICE_STYLES.includes(style)) throw new Error('Estilo de voz desconocido.');
+    this.db.prepare("INSERT INTO preferences (key,value) VALUES ('core.voice_style',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+      .run(style);
   }
 
   close(): void { this.db.close(); }

@@ -288,6 +288,10 @@ function protect(w: BrowserWindow) {
 function updateSettings(patch: Partial<Settings>) {
   const before = storage.settings;
   const saved = storage.saveSettings(patch);
+  if (patch.voiceStyle !== undefined && before.voiceStyle !== saved.voiceStyle && coreStore) {
+    try { coreStore.setVoiceStyle(saved.voiceStyle); }
+    catch { log('warn', 'Karen Core', 'No se pudo compartir el estilo de voz.'); }
+  }
   if ((before.sttEnabled && !saved.sttEnabled) || before.voiceRoot !== saved.voiceRoot) stopPerception();
   pet?.setAlwaysOnTop(saved.alwaysOnTop, "floating");
   pet?.setOpacity(1);
@@ -346,6 +350,12 @@ async function ready() {
   if (!qa && process.env.KAREN_CORE_DB) {
     try { coreStore = new CoreStore(process.env.KAREN_CORE_DB); }
     catch { log('warn', 'Karen Core', 'Archivo compartido no disponible; revisa KAREN_CORE_DB.'); }
+  }
+  if (coreStore) {
+    try {
+      const style = coreStore.getVoiceStyle();
+      if (style && style !== storage.settings.voiceStyle) storage.saveSettings({ voiceStyle: style });
+    } catch { log('warn', 'Karen Core', 'No se pudo aplicar el estilo de voz compartido.'); }
   }
   gateway = new OpenClawAdapter(storage, emitGateway, log, coreStore);
   const area = screen.getPrimaryDisplay().workArea;

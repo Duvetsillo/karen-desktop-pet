@@ -29,6 +29,10 @@ Karen clásica dispone de `/memoria guardar PROYECTO | TEXTO`, `/memoria listar 
 
 Pet ofrece solo `/memoria listar PROYECTO` y `/memoria buscar PROYECTO | TEXTO` cuando comparte la misma base. La consulta funciona sin conexión a OpenClaw, no se envía al Gateway y excluye memorias sensibles y caducadas. La respuesta se muestra en la sesión Pet sin síntesis de voz. No hay recuperación automática de memoria para respuestas del modelo ni escritura desde Pet. La memoria no equivale todavía a continuidad de conversaciones.
 
+## Preferencia compartida inicial
+
+Con `KAREN_CORE_DB` activo en ambas aplicaciones, el estilo de voz (`neutral`, `serene`, `warm`, `serious`, `bright` o `wry`) se guarda en la tabla `preferences` bajo `core.voice_style`. La base compartida tiene prioridad al iniciar cada aplicación; un cambio desde Ajustes de Pet o al guardar la configuración clásica actualiza esa clave. `KAREN_VOICE_STYLE` tiene prioridad en la clásica. Si la otra aplicación ya está abierta, reiníciala para aplicar el cambio. No se comparten dispositivos, motores de voz, credenciales ni ajustes de privacidad. El registro de Pet o la pantalla clásica avisan si falla la escritura compartida.
+
 ## Verificación
 
 `python qa/verify_core_interop.py` desde `C:\karen` crea una base temporal, escribe un chat clásico y memorias, añade un turno Pet con Node y confirma lectura cruzada de chats y recuerdos, además de exclusión de memorias sensibles. `npm test` cubre deduplicación, versión, consultas locales y emisión solo de respuestas finales. Estas pruebas no conectan a OpenClaw real ni migran datos privados.

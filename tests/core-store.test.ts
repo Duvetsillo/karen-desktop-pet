@@ -63,6 +63,19 @@ describe('Karen Core SQLite v1', () => {
     core.close();
   });
 
+  it('comparte solo estilos de voz permitidos mediante la preferencia existente', () => {
+    const path = legacyArchive();
+    const core = new CoreStore(path);
+    expect(core.getVoiceStyle()).toBeNull();
+    core.setVoiceStyle('warm');
+    expect(core.getVoiceStyle()).toBe('warm');
+    expect(() => core.setVoiceStyle('invalid' as 'warm')).toThrow('desconocido');
+    core.close();
+    const reopened = new CoreStore(path);
+    expect(reopened.getVoiceStyle()).toBe('warm');
+    reopened.close();
+  });
+
   it('rechaza una versión de esquema incompatible antes de escribir turnos', () => {
     const path = legacyArchive();
     const db = new DatabaseSync(path);
