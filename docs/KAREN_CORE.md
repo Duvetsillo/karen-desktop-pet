@@ -41,6 +41,8 @@ Con `KAREN_CORE_DB` activo en ambas aplicaciones, el estilo de voz (`neutral`, `
 
 Pet guarda el modo manual `normal`, `gaming` o `do_not_disturb` bajo `core.mode` en el mismo archivo. Al iniciar toma el valor compartido si existe; después consulta cambios cada cinco segundos. El monitor opcional de alertas de Karen clásica lee esa preferencia si también recibe `KAREN_CORE_DB`: Gaming y No molestar aplazan alertas no críticas, mientras las críticas siguen visibles. El ajuste local `alert_monitor.py gaming on` también puede aplazarlas. Si Core no está disponible, cada interfaz conserva su modo local. La lectura cruzada usa SQLite local y no envía el modo a OpenClaw. Aún falta validar ambas ventanas y el monitor juntos durante una sesión real.
 
+Karen clásica puede escribir el mismo valor con `/modo normal`, `/modo gaming` o `/modo no molestar`; `/modo` consulta el valor. Pet lo aplica en su siguiente ciclo de cinco segundos. La prueba de interoperabilidad comprueba ambas direcciones con SQLite temporal y procesos Python/Node.
+
 Escribe `/core estado` en Pet para consultar si el puente está activo. Muestra versión, número de chats, recuerdos no sensibles vigentes y estilo compartido. Funciona sin OpenClaw y no envía esos datos al Gateway.
 
 ## Verificación
