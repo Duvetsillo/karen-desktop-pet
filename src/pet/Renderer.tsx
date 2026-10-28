@@ -6,6 +6,7 @@ import { petStyles } from '../../shared/pet-styles';
 import { gazeTarget } from "./gaze";
 import { SpeechMotion } from "./speech-motion";
 import { machine, signals, useStore } from "../state/store";
+import { effectiveSettings } from '../../shared/settings';
 
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
@@ -199,7 +200,8 @@ export function PetRenderer({
       app.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.06);
         t += dt;
-        const { settings: s, state, expression: spokenExpression, capture } = useStore.getState();
+        const { settings, state, expression: spokenExpression, capture } = useStore.getState();
+        const s = effectiveSettings(settings);
         const sleeping = state === "SLEEPING";
         app!.ticker.maxFPS = s.lowPower || sleeping ? 15 : preview ? 30 : 60;
         frames++;

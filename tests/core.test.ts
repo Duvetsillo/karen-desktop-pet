@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateSettings, defaults, gatewayAddress } from "../shared/settings";
+import { validateSettings, defaults, gatewayAddress, effectiveSettings } from "../shared/settings";
 import { PetMachine } from "../src/state/machine";
 import { expressionForReply } from '../shared/expression';
 import { APP_VERSION } from '../shared/version';
@@ -11,6 +11,20 @@ import {
   mergeMessages,
 } from "../shared/protocol";
 describe("configuración", () => {
+  it('Gaming y No molestar aplican overrides temporales sin borrar preferencias', () => {
+    const base = validateSettings({voiceEnabled: true, wakeWordEnabled: true,
+      animations: true, particles: true, bubbles: true, alwaysOnTop: true});
+    const gaming = effectiveSettings({...base, mode: 'gaming'});
+    expect(gaming).toMatchObject({lowPower:true, animations:false, particles:false,
+      bubbles:false, alwaysOnTop:false, voiceEnabled:true, wakeWordEnabled:true});
+    const quiet = effectiveSettings({...base, mode: 'do_not_disturb'});
+    expect(quiet).toMatchObject({voiceEnabled:false, wakeWordEnabled:false, lowPower:true});
+    expect(effectiveSettings(base)).toBe(base);
+    expect(base).toMatchObject({animations:true, particles:true, bubbles:true, alwaysOnTop:true});
+    expect(effectiveSettings(validateSettings({mode:'normal'}, {...base, mode:'gaming'})))
+      .toMatchObject({animations:true, particles:true, bubbles:true, alwaysOnTop:true});
+    expect(() => validateSettings({mode:'invalid' as never})).toThrow('Modo');
+  });
   it('anuncia la misma versión que el paquete instalado', () => {
     expect(APP_VERSION).toBe(packageInfo.version);
   });

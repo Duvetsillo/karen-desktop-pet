@@ -37,6 +37,7 @@ import "./style.css";
 import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
 import { PET_SCALE } from "../shared/pet-layout";
+import { effectiveSettings } from '../shared/settings';
 import { Perception, CaptureIndicator } from "./Perception";
 import { ModelPicker } from './ModelPicker';
 import { StylePicker } from './pet/StylePicker';
@@ -62,7 +63,7 @@ const labels: Record<PetState, string> = {
   DRAGGING: "En tus manos",
 };
 const audio = isPet ? new AudioDirector() : undefined;
-const replies = audio ? new VoiceReplies(text => audio.speak(text), () => ({ enabled: useStore.getState().settings.voiceEnabled, capture: useStore.getState().capture })) : undefined;
+const replies = audio ? new VoiceReplies(text => audio.speak(text), () => ({ enabled: effectiveSettings(useStore.getState().settings).voiceEnabled, capture: useStore.getState().capture })) : undefined;
 async function action(operation: () => Promise<unknown>) {
   try {
     useStore.setState({ error: "" });
@@ -968,6 +969,17 @@ function System() {
     );
   return (
     <>
+      <Group title="Modo de funcionamiento" description="Se aplica mientras esté seleccionado; conserva tus ajustes normales.">
+        <div className="input-field">
+          <label htmlFor="pet-mode">Modo activo</label>
+          <select id="pet-mode" value={s.mode} onChange={e => void patch({mode: e.target.value as Settings['mode']})}>
+            <option value="normal">Normal</option>
+            <option value="gaming">Gaming</option>
+            <option value="do_not_disturb">No molestar</option>
+          </select>
+        </div>
+        <p className="quiet-note">Gaming reduce animación, partículas y overlays; conserva la voz configurada. No molestar también pausa escucha y voz automáticas. No detecta juegos ni cambia Windows.</p>
+      </Group>
       <Group title="En tu escritorio">
         <Toggle
           label="Iniciar con Windows"
@@ -1111,7 +1123,7 @@ function PetApp() {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
   const last = messages.filter((m) => m.role === "assistant").at(-1);
-  const showReply = Boolean(s.bubbles && bubble && last && !compose && !error);
+  const showReply = Boolean(effectiveSettings(s).bubbles && bubble && last && !compose && !error);
   const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
   useEffect(() => {
     if (last) setBubble(true);
@@ -1308,7 +1320,7 @@ function PetApp() {
 function Root() {
   const ready = useStore(s => s.ready);
   const runtime = useStore(s => s.runtime);
-  const wakeEnabled = useStore(s => s.settings.wakeWordEnabled);
+  const wakeEnabled = useStore(s => effectiveSettings(s.settings).wakeWordEnabled);
   const sttEnabled = useStore(s => s.settings.sttEnabled);
   const inputDevice = useStore(s => s.settings.inputDevice);
   const sensitivity = useStore(s => s.settings.sensitivity);
@@ -1336,7 +1348,7 @@ function Root() {
       if (e.type === "voice-cancel") { replies?.clear(); audio?.cancel(); }
       if (e.type === "voice-listen") void audio?.toggleListening();
       if (e.type === "voice-speak") void audio?.speak(e.text);
-      if (e.type === "settings" && !e.settings.voiceEnabled) { replies?.clear(); audio?.cancel(); }
+      if (e.type === "settings" && !effectiveSettings(e.settings).voiceEnabled) { replies?.clear(); audio?.cancel(); }
     });
     void bridge
       .snapshot()

@@ -30,7 +30,19 @@ export const defaults: Settings = {
   autoStart: false,
   lowPower: false,
   nightMode: false,
+  mode: 'normal',
 };
+/** Temporary runtime profile: underlying user preferences stay intact. */
+export function effectiveSettings(settings: Settings): Settings {
+  if (!settings.mode || settings.mode === 'normal') return settings;
+  const quiet = {
+    ...settings, lowPower: true, particles: false, animations: false,
+    cursorTracking: false, bubbles: false, alwaysOnTop: false,
+  };
+  return settings.mode === 'gaming' ? quiet : {
+    ...quiet, voiceEnabled: false, wakeWordEnabled: false,
+  };
+}
 export function gatewayAddress(value: string): string {
   const url = new URL(value);
   if (
@@ -55,6 +67,11 @@ export function validateSettings(
   current: Settings = defaults,
 ): Settings {
   const s = { ...current };
+  if (raw.mode !== undefined) {
+    if (!['normal', 'gaming', 'do_not_disturb'].includes(raw.mode))
+      throw new Error('Modo desconocido.');
+    s.mode = raw.mode;
+  }
   if (raw.petStyle !== undefined) {
     if (!PET_STYLES.includes(raw.petStyle)) throw new Error('Apariencia desconocida.');
     s.petStyle = raw.petStyle;

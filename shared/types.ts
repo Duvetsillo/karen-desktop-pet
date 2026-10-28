@@ -69,6 +69,7 @@ export interface Settings {
   autoStart: boolean;
   lowPower: boolean;
   nightMode: boolean;
+  mode: "normal" | "gaming" | "do_not_disturb";
 }
 export interface Diagnostic {
   time: number;

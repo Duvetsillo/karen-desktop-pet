@@ -1,4 +1,13 @@
-Cambios posteriores a 1.6.8 (sin versión publicada): `/memoria preparar PROYECTO | CONSULTA` muestra hasta tres recuerdos confirmados y públicos. `/memoria enviar` exige aprobación explícita y consume esa vista previa una vez; no la duplica en Core. Una desconexión invalida la preparación. Contratos WebSocket automatizados cubren el flujo; falta prueba con OpenClaw real.
+Cambios posteriores a 1.6.8 (sin versión publicada): modos manuales Normal,
+Gaming y No molestar en Sistema y menú de bandeja. Los perfiles aplican un
+overlay en tiempo de ejecución y conservan todas las preferencias existentes.
+Gaming reduce renderizado y presencia visual sin desactivar voz configurada.
+No molestar también silencia respuesta automática y pausa escucha continua;
+los controles manuales siguen disponibles. No hay detección automática de
+juegos ni alertas críticas todavía. Pruebas de contrato y de audio cubren
+restauración y silencio; falta observar consumo real con un juego abierto.
+
+`/memoria preparar PROYECTO | CONSULTA` muestra hasta tres recuerdos confirmados y públicos. `/memoria enviar` exige aprobación explícita y consume esa vista previa una vez; no la duplica en Core. Una desconexión invalida la preparación. Contratos WebSocket automatizados cubren el flujo; falta prueba con OpenClaw real.
 
 Al caer el Gateway,
 Desktop Pet retira la respuesta local pendiente antes de reconectar. Los eventos

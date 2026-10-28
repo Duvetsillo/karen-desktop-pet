@@ -20,6 +20,7 @@ import { CoreStore } from "./core-store.js";
 import { applyCoreVoiceStyle } from './core-style-sync.js';
 import { NativeVoice } from "./voice.js";
 import { petBounds } from "../shared/pet-layout.js";
+import { effectiveSettings } from '../shared/settings.js';
 import { ScreenCapture } from "./capture.js";
 import { pointCoordinates, pointingMarkup, parsePointDirective, screenPointIntent, stripPointPrefix } from "./pointing.js";
 import { LoopbackRecorder } from "./loopback.js";
@@ -242,6 +243,15 @@ function contextMenu() {
     { label: "Despertar / recuperar control · Ctrl+Alt+K", click: recover },
     { type: "separator" },
     {
+      label: 'Modo de funcionamiento',
+      submenu: ([
+        ['Normal', 'normal'], ['Gaming', 'gaming'], ['No molestar', 'do_not_disturb'],
+      ] as const).map(([label, mode]) => ({
+        label, type: 'radio' as const, checked: storage.settings.mode === mode,
+        click: () => updateSettings({mode}),
+      })),
+    },
+    {
       label: "Ignorar todos los clics",
       type: "checkbox",
       checked: clickThrough,
@@ -296,7 +306,7 @@ function updateSettings(patch: Partial<Settings>) {
     catch { log('warn', 'Karen Core', 'No se pudo compartir el estilo de voz.'); }
   }
   if ((before.sttEnabled && !saved.sttEnabled) || before.voiceRoot !== saved.voiceRoot) stopPerception();
-  pet?.setAlwaysOnTop(saved.alwaysOnTop, "floating");
+  pet?.setAlwaysOnTop(effectiveSettings(saved).alwaysOnTop, "floating");
   pet?.setOpacity(1);
   resizePet();
   if (before.autoStart !== saved.autoStart && !qa)
@@ -356,7 +366,7 @@ async function ready() {
   }
   voice = new NativeVoice(
     process.env.KAREN_PROJECT_ROOT || join(app.getPath("userData"), "voice"),
-    () => storage.settings,
+    () => effectiveSettings(storage.settings),
     app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/recognize.py") : join(here, "../../python/recognize.py"),
     app.isPackaged ? join(process.resourcesPath, "app.asar.unpacked/python/shared_voice_service.py") : join(here, "../../python/shared_voice_service.py"),
   );
@@ -398,7 +408,7 @@ async function ready() {
     resizable: false,
     hasShadow: false,
     skipTaskbar: true,
-    alwaysOnTop: storage.settings.alwaysOnTop,
+    alwaysOnTop: effectiveSettings(storage.settings).alwaysOnTop,
     show: false,
     backgroundColor: "#00000000",
     title: "Karen Desktop Pet",
@@ -651,7 +661,7 @@ async function ready() {
     const p = screen.getCursorScreenPoint(),
       b = pet.getBounds();
     if (dragging) pet.setPosition(p.x - dragOffset.x, p.y - dragOffset.y);
-    else if (storage.settings.cursorTracking)
+    else if (effectiveSettings(storage.settings).cursorTracking)
       pet.webContents.send("desktop-event", {
         type: "cursor",
         x: (p.x - b.x) / b.width,

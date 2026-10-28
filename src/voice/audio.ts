@@ -6,6 +6,7 @@ import { TranscriptionWakeDetector } from './wake';
 import { pcm16 } from './pcm';
 import { speechAudio } from './pipeline';
 import { expressionForReply } from '../../shared/expression';
+import { effectiveSettings } from '../../shared/settings';
 
 export interface TtsEngine {
   synthesize(text: string, signal: AbortSignal): Promise<ArrayBuffer>;
@@ -156,7 +157,7 @@ export class AudioDirector {
   async speak(text: string) {
     this.cancel(false);
     const generation = this.generation;
-    const settings = useStore.getState().settings;
+    const settings = effectiveSettings(useStore.getState().settings);
     if (!settings.voiceEnabled) { this.resumeWake(); return; }
     const phrases = speechPhrases(text);
     if (!phrases.length) { this.resumeWake(); return; }

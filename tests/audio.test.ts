@@ -33,6 +33,15 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 describe("ciclo real de reproducción", () => {
+  it('No molestar suprime TTS automático sin alterar la preferencia de voz', async () => {
+    useStore.setState({settings: {...defaults, mode:'do_not_disturb', voiceEnabled:true}});
+    const synthesize = vi.fn(async () => new ArrayBuffer(12));
+    const director = new AudioDirector({synthesize});
+    await director.speak('Hola, soy Karen.');
+    expect(synthesize).not.toHaveBeenCalled();
+    expect(TestAudio.instances).toHaveLength(0);
+    expect(useStore.getState().settings.voiceEnabled).toBe(true);
+  });
   it("sintetiza y reproduce una respuesta normal como una sola pieza", async () => {
     const synthesize = vi.fn(async () => new ArrayBuffer(12));
     const director = new AudioDirector({ synthesize });

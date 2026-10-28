@@ -53,6 +53,7 @@ se guardan cifrados con DPAPI en tu cuenta Windows.
 - Las zonas transparentes dejan pasar clics mediante una máscara alfa.
 - **Ctrl+Alt+K** o la bandeja recuperan el control tras ignorar clics.
 - Activa opcionalmente inicio con Windows, prioridad de ventana y bajo consumo.
+- **Sistema → Modo de funcionamiento** o el menú de bandeja: Normal, Gaming y No molestar. Gaming aplica 15 FPS, quita partículas, animación, seguimiento del cursor, burbujas y prioridad de ventana; conserva la voz configurada. No molestar además suspende la escucha continua y la voz automática. Volver a Normal restaura las preferencias guardadas. La selección es manual: no detecta juegos ni cambia Windows.
 - Los quince estados incluyen reposo, escucha, procesamiento, habla, risa, enojo, tristeza, sorpresa, orgullo, curiosidad y errores.
 - La expresión de una respuesta sigue las palabras de Karen; no interpreta el ánimo privado del usuario.
 - **Apariencia → Tamaño del PET:** escala de 50 a 200 %, presets y vista previa en directo.
