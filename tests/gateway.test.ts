@@ -255,6 +255,21 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
   });
 
+  it('no envía una memoria editada o borrada después de la vista previa', async () => {
+    let rows = [{ id: '1', content: 'Dato anterior', status: 'confirmed' }];
+    const core = { appendOpenClawTurn: vi.fn(), listMemories: vi.fn(() => rows) };
+    const t = await setup(core);
+    await t.adapter.send('/memoria preparar Karen | dato');
+    rows = [{ id: '1', content: 'Dato corregido', status: 'confirmed' }];
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('cambiaron');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('Prepara');
+    await t.adapter.send('/memoria preparar Karen | dato');
+    rows = [];
+    await expect(t.adapter.send('/memoria enviar')).rejects.toThrow('cambiaron');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
+  });
+
   it('descarta una memoria preparada al desconectar', async () => {
     const core = { appendOpenClawTurn: vi.fn(), listMemories: vi.fn(() => [
       { id: '1', content: 'Contexto local', status: 'confirmed' },
@@ -321,6 +336,18 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
     t.event('chat', { sessionKey: 'agent:main:main', runId: run, state: 'final', deltaText: 'Lista para continuar.' });
     await until(() => t.events.some(e => e.type === 'chat' && e.message.id === run && e.final));
     expect(core.appendOpenClawTurn).not.toHaveBeenCalled();
+    await expect(t.adapter.send(`/historial enviar ${chatId}`)).rejects.toThrow('Prepara');
+  });
+
+  it('no envía un historial editado después de la vista previa', async () => {
+    const chatId = 'a'.repeat(32);
+    let rows = [{ prompt: 'Texto anterior', answer: 'Respuesta anterior' }];
+    const core = { appendOpenClawTurn: vi.fn(), listChats: vi.fn(() => []), readChat: vi.fn(() => rows) };
+    const t = await setup(core);
+    await t.adapter.send(`/historial preparar ${chatId}`);
+    rows = [{ prompt: 'Texto corregido', answer: 'Respuesta anterior' }];
+    await expect(t.adapter.send(`/historial enviar ${chatId}`)).rejects.toThrow('cambió');
+    expect(t.requests.filter(r => r.method === 'chat.send')).toHaveLength(0);
     await expect(t.adapter.send(`/historial enviar ${chatId}`)).rejects.toThrow('Prepara');
   });
 
