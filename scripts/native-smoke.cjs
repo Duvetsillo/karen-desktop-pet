@@ -6,8 +6,10 @@ const assert = require("node:assert/strict");
   fs.mkdirSync("qa", { recursive: true });
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
+  const packaged = process.env.KAREN_SMOKE_EXECUTABLE;
   const app = await electron.launch({
-    args: [path.resolve("."), "--qa"],
+    ...(packaged ? { executablePath: packaged, args: ["--qa"] }
+      : { args: [path.resolve(__dirname, ".."), "--qa"] }),
     env,
     timeout: 30000,
   });

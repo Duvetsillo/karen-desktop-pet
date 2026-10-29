@@ -243,6 +243,12 @@ export function createKarenServer(options: ServerOptions) {
       >;
       try {
         switch (url.pathname) {
+          case '/api/models':
+            json(response, 200, await gateway.models());
+            return;
+          case '/api/select-model':
+            json(response, 200, await gateway.selectModel(payload.model));
+            return;
           case "/api/settings": {
             if (
               !payload.patch ||

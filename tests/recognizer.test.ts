@@ -17,7 +17,9 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(),'karen-recognizer-'));
   roots.push(root);
   mkdirSync(join(root,'voice-runtime/Scripts'),{recursive:true});
+  mkdirSync(join(root,'voice-models/faster-whisper-small'),{recursive:true});
   writeFileSync(join(root,'voice-runtime/Scripts/python.exe'),'fixture');
+  writeFileSync(join(root,'voice-models/faster-whisper-small/model.bin'),'fixture');
   const worker=join(root,'recognize.py'); writeFileSync(worker,'fixture');
   const child=Object.assign(new EventEmitter(),{stdin:new PassThrough(),stdout:new PassThrough(),stderr:new PassThrough(),kill:vi.fn()});
   vi.mocked(spawn).mockReturnValue(child as never);
@@ -58,9 +60,22 @@ describe('reconocedor local persistente',()=>{
     engine.cancel();
     await expect(result).rejects.toThrow('cancelado');
   });
+  it('explica el fallo del modelo sin mostrar la envoltura técnica',async()=>{
+    const {root,child,engine,pcm}=fixture();
+    const result=engine.transcribe(root,pcm);
+    child.stdout.write('{"error":"model"}\n');
+    await expect(result).rejects.toThrow('No se pudo cargar el modelo de voz');
+    expect(child.kill).toHaveBeenCalled();
+  });
   it('rechaza audio fuera de límites antes de iniciar Python',async()=>{
     const {root,engine}=fixture();
     await expect(engine.transcribe(root,new ArrayBuffer(2))).rejects.toThrow('Audio inválido');
+    expect(spawn).not.toHaveBeenCalled();
+  });
+  it('identifica el recurso ausente sin confundirlo con una falta de voz',async()=>{
+    const {root,engine,pcm}=fixture();
+    rmSync(join(root,'voice-models/faster-whisper-small/model.bin'));
+    await expect(engine.transcribe(root,pcm)).rejects.toThrow('voice-models/faster-whisper-small/model.bin');
     expect(spawn).not.toHaveBeenCalled();
   });
 });

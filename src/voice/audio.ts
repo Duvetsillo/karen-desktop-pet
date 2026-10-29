@@ -4,6 +4,9 @@ import { speechPhrases } from "./replies";
 import type { CaptureStatus } from "../../shared/types";
 import { TranscriptionWakeDetector } from './wake';
 import { pcm16 } from './pcm';
+import { speechAudio } from './pipeline';
+import { expressionForReply } from '../../shared/expression';
+import { effectiveSettings } from '../../shared/settings';
 
 export interface TtsEngine {
   synthesize(text: string, signal: AbortSignal): Promise<ArrayBuffer>;
@@ -47,7 +50,13 @@ export class AudioDirector {
   }
   constructor(
     private tts: TtsEngine = {
-      synthesize: async (text) => bridge.synthesize(text),
+      synthesize: async (text, signal) => {
+        const cancel = () => { void bridge.cancelSynthesis?.().catch(() => {}); };
+        signal.throwIfAborted();
+        signal.addEventListener('abort', cancel, {once:true});
+        try { return await bridge.synthesize(text); }
+        finally { signal.removeEventListener('abort', cancel); }
+      },
     },
     private stt: SttEngine = {
       transcribe: async (pcm) => bridge.transcribe(pcm),
@@ -103,7 +112,7 @@ export class AudioDirector {
           if (raw > (this.kind === "system" ? 0.004 : 0.008)) {
             this.speechSeen = true;
             this.silenceAt = now;
-          } else if (this.kind === "microphone" && this.speechSeen && now - this.silenceAt > 1800)
+          } else if (this.kind === "microphone" && this.speechSeen && now - this.silenceAt > 1200)
             this.recorder?.stop();
         }
       }
@@ -129,7 +138,10 @@ export class AudioDirector {
     this.context = undefined;
     if (finish) this.status("idle");
   }
-  cancel() {
+  cancel(resumeListening = true) {
+    // Invalidate an in-flight wake transcription before its cancellation rejects.
+    // resumeWake rearms it; a stale rejection cannot turn off the new listener.
+    this.detector?.pause();
     this.generation++;
     this.speechController?.abort();
     this.speechController = undefined;
@@ -139,30 +151,26 @@ export class AudioDirector {
     this.recorder = undefined;
     this.recording = false;
     this.cleanup();
-    this.resumeWake();
+    if (resumeListening) this.resumeWake();
     useStore.getState().transition("IDLE");
   }
   async speak(text: string) {
-    this.cancel();
+    this.cancel(false);
     const generation = this.generation;
-    const settings = useStore.getState().settings;
-    if (!settings.voiceEnabled) return;
+    const settings = effectiveSettings(useStore.getState().settings);
+    if (!settings.voiceEnabled) { this.resumeWake(); return; }
     const phrases = speechPhrases(text);
-    if (!phrases.length) return;
+    if (!phrases.length) { this.resumeWake(); return; }
+    useStore.setState({ expression: expressionForReply(text) });
     this.kind = "voice";
     this.processing = true;
     const controller = new AbortController();
     this.speechController = controller;
     this.detector?.pause();
     try {
-      for (const phrase of phrases) {
-        if (generation !== this.generation) return;
-        useStore.getState().transition("THINKING", "Preparando voz original");
-        this.status("preparing");
-        const bytes = await this.tts.synthesize(
-          phrase,
-          controller.signal,
-        );
+      useStore.getState().transition("THINKING", "Preparando voz original");
+      this.status("preparing");
+      for await (const bytes of speechAudio(phrases, (phrase, signal) => this.tts.synthesize(phrase, signal), controller.signal)) {
         if (generation !== this.generation) return;
         this.context = new AudioContext();
         const outputContext = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
@@ -173,7 +181,7 @@ export class AudioDirector {
         if (generation !== this.generation) return;
         this.analyser = this.context.createAnalyser();
         this.analyser.fftSize = 512;
-        this.url = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+        this.url = URL.createObjectURL(new Blob([bytes], { type: settings.ttsEngine === 'edge' ? "audio/mpeg" : "audio/wav" }));
         this.audio = new Audio(this.url);
         this.audio.volume = settings.volume;
         const output = this.audio as HTMLAudioElement & {
@@ -203,12 +211,14 @@ export class AudioDirector {
         if (generation !== this.generation) return;
         // Keep ownership between phrases so another reply cannot overtake us.
         this.cleanup(false);
+        useStore.getState().transition("THINKING", "Preparando voz original");
+        this.status("preparing");
       }
       if (generation === this.generation) {
         this.processing = false;
         this.cleanup();
         this.resumeWake();
-        useStore.getState().transition("HAPPY", "Voz completada");
+        useStore.getState().transition(useStore.getState().expression, "Voz completada");
       }
     } catch (e) {
       if (generation === this.generation) {
@@ -227,17 +237,19 @@ export class AudioDirector {
       if (this.recorder?.state === "recording") this.recorder.stop();
       return;
     }
-    this.cancel();
+    this.cancel(false);
     this.kind = "microphone";
     const generation = this.generation;
     this.stopRecording = false;
     if (!useStore.getState().settings.sttEnabled) {
       report(new Error("Activa el reconocimiento local en Voz."));
+      this.resumeWake();
       return;
     }
     this.detector?.pause();
     try {
       await bridge.cancelTranscription?.();
+      void bridge.prepareVoice?.().catch(() => {});
       const settings = useStore.getState().settings;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -275,7 +287,13 @@ export class AudioDirector {
       this.recorder.start();
       useStore.getState().transition("LISTENING");
       this.status("recording");
-      stream.getAudioTracks().forEach(track => { track.onended = () => { if (recorder.state === "recording") recorder.stop(); }; });
+      stream.getAudioTracks().forEach(track => { track.onended = () => {
+        if (generation !== this.generation || !this.recording) return;
+        this.cancel(false);
+        report(new Error("El micrófono se desconectó durante el dictado."));
+        useStore.getState().transition("ERROR");
+        this.resumeWake();
+      }; });
       this.meter();
       this.limit = setTimeout(() => {
         if (this.recorder?.state === "recording") this.recorder.stop();
@@ -313,9 +331,11 @@ export class AudioDirector {
         useStore.getState().transition("ERROR");
       }
     } finally {
-      this.processing = false;
-      if (generation === this.generation) this.status("idle");
-      this.resumeWake();
+      if (generation === this.generation) {
+        this.processing = false;
+        this.status("idle");
+        this.resumeWake();
+      }
     }
   }
   dispose() {

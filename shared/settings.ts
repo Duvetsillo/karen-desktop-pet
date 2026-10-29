@@ -1,7 +1,8 @@
 import type { Settings } from "./types.js";
-import { VOICE_STYLES } from './types.js';
+import { PET_STYLES, VOICE_STYLES } from './types.js';
 import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
+  petStyle: 'crystal',
   scale: 1,
   brightness: 1,
   opacity: 0.94,
@@ -29,7 +30,19 @@ export const defaults: Settings = {
   autoStart: false,
   lowPower: false,
   nightMode: false,
+  mode: 'normal',
 };
+/** Temporary runtime profile: underlying user preferences stay intact. */
+export function effectiveSettings(settings: Settings): Settings {
+  if (!settings.mode || settings.mode === 'normal') return settings;
+  const quiet = {
+    ...settings, lowPower: true, particles: false, animations: false,
+    cursorTracking: false, bubbles: false, alwaysOnTop: false,
+  };
+  return settings.mode === 'gaming' ? quiet : {
+    ...quiet, voiceEnabled: false, wakeWordEnabled: false,
+  };
+}
 export function gatewayAddress(value: string): string {
   const url = new URL(value);
   if (
@@ -54,6 +67,15 @@ export function validateSettings(
   current: Settings = defaults,
 ): Settings {
   const s = { ...current };
+  if (raw.mode !== undefined) {
+    if (!['normal', 'gaming', 'do_not_disturb'].includes(raw.mode))
+      throw new Error('Modo desconocido.');
+    s.mode = raw.mode;
+  }
+  if (raw.petStyle !== undefined) {
+    if (!PET_STYLES.includes(raw.petStyle)) throw new Error('Apariencia desconocida.');
+    s.petStyle = raw.petStyle;
+  }
   for (const key of [
     "particles",
     "animations",
@@ -108,7 +130,7 @@ export function validateSettings(
   }
   if (raw.authSource === "local" || raw.authSource === "stored")
     s.authSource = raw.authSource;
-  if (raw.ttsEngine === "system" || raw.ttsEngine === "local")
+  if (raw.ttsEngine === "system" || raw.ttsEngine === "local" || raw.ttsEngine === 'fast' || raw.ttsEngine === 'edge')
     s.ttsEngine = raw.ttsEngine;
   if (raw.voiceStyle !== undefined) {
     if (!VOICE_STYLES.includes(raw.voiceStyle)) throw new Error('Estilo de voz desconocido.');

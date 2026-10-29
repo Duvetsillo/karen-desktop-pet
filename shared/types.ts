@@ -4,15 +4,36 @@ export const PET_STATES = [
   "THINKING",
   "SPEAKING",
   "HAPPY",
+  "LAUGHING",
+  "ANGRY",
+  "SAD",
+  "SURPRISED",
+  "PROUD",
+  "CURIOUS",
   "CONFUSED",
   "ERROR",
   "SLEEPING",
   "DRAGGING",
 ] as const;
 export type PetState = (typeof PET_STATES)[number];
+export const PET_STYLES = ['crystal', 'cloud', 'orbit', 'sprite', 'bloom'] as const;
+export type PetStyle = (typeof PET_STYLES)[number];
+export interface ModelOption {
+  id: string;
+  name: string;
+  provider: string;
+  available: boolean;
+}
+export interface ModelSelection {
+  busy: boolean;
+  sessionKey: string;
+  selected: string | null;
+  effective: string | null;
+  models: ModelOption[];
+}
 export const VOICE_STYLES = ['neutral', 'serene', 'warm', 'serious', 'bright', 'wry'] as const;
 export type VoiceStyle = (typeof VOICE_STYLES)[number];
-export type WakeStatus = 'off' | 'listening' | 'processing' | 'paused' | 'error';
+export type WakeStatus = 'off' | 'listening' | 'processing' | 'recovering' | 'paused' | 'error';
 export type ConnectionState =
   | "disconnected"
   | "connecting"
@@ -20,6 +41,7 @@ export type ConnectionState =
   | "reconnecting"
   | "action-required";
 export interface Settings {
+  petStyle: PetStyle;
   scale: number;
   brightness: number;
   opacity: number;
@@ -34,7 +56,7 @@ export interface Settings {
   authSource: "local" | "stored";
   bubbles: boolean;
   voiceEnabled: boolean;
-  ttsEngine: "system" | "local";
+  ttsEngine: "system" | "local" | "fast" | "edge";
   voiceStyle: VoiceStyle;
   wakeWordEnabled: boolean;
   inputDevice: string;
@@ -47,6 +69,7 @@ export interface Settings {
   autoStart: boolean;
   lowPower: boolean;
   nightMode: boolean;
+  mode: "normal" | "gaming" | "do_not_disturb";
 }
 export interface Diagnostic {
   time: number;
@@ -73,13 +96,14 @@ export interface ImageAttachment {
   fileName: string;
   content: string;
 }
-export interface CaptureSource { id: string; name: string; }
+export interface CaptureSource { id: string; name: string; canPoint?: boolean; }
 export interface CaptureStatus {
   kind: "microphone" | "system" | "voice";
   phase: "idle" | "recording" | "transcribing" | "preparing" | "speaking";
   startedAt?: number;
 }
 export type DesktopEvent =
+  | { type: 'models'; selection: ModelSelection }
   | { type: 'wake-status'; status: WakeStatus }
   | { type: "connection"; info: ConnectionInfo }
   | { type: "pet"; state: PetState; reason?: string }
@@ -87,6 +111,7 @@ export type DesktopEvent =
   | { type: "diagnostic"; item: Diagnostic }
   | { type: "settings"; settings: Settings }
   | { type: "cursor"; x: number; y: number }
+  | { type: "pointing"; side: -1 | 0 | 1 }
   | { type: "voice-cancel" }
   | { type: "voice-listen" }
   | { type: "voice-speak"; text: string }
@@ -108,6 +133,8 @@ export interface Snapshot {
   wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
+  models(): Promise<ModelSelection>;
+  selectModel(model: string | null): Promise<ModelSelection>;
   snapshot(): Promise<Snapshot>;
   settings(patch: Partial<Settings>): Promise<Settings>;
   credential(value: string): Promise<void>;
@@ -122,6 +149,8 @@ export interface DesktopBridge {
   hitTest(interactive: boolean): void;
   drag(action: "start" | "end"): void;
   synthesize(text: string): Promise<ArrayBuffer>;
+  cancelSynthesis?(): Promise<void>;
+  prepareVoice?(): Promise<void>;
   voiceHealth(): Promise<string>;
   transcribe(pcm: ArrayBuffer): Promise<string>;
   cancelTranscription?(): Promise<void>;
@@ -132,6 +161,9 @@ export interface DesktopBridge {
   chooseVoiceRoot(): Promise<string | null>;
   captureSources(): Promise<CaptureSource[]>;
   captureScreen(id: string): Promise<ImageAttachment>;
+  pointAt(id: string, x: number, y: number): Promise<void>;
+  locateOnScreen(id: string, description: string, image: ImageAttachment): Promise<void>;
+  stopPointing(): Promise<void>;
   systemAudio(action: "start" | "finish"): Promise<void>;
   captureStatus(status: CaptureStatus): void;
   wakeStatus?(status: WakeStatus): void;

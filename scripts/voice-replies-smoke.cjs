@@ -7,7 +7,8 @@ const fs = require('node:fs');
   fs.mkdirSync('qa', { recursive: true });
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  const app = await electron.launch({ args: [path.resolve('.'), '--qa'], env });
+  const app = await electron.launch({ args: [path.resolve('.'), '--qa',
+    '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'], env });
   const report = { source: 'synthetic native events; Windows System.Speech playback', rendererErrors: [] };
   try {
     const panel = app.windows().find(page => page.url().includes('view=settings')) ||
@@ -18,7 +19,7 @@ const fs = require('node:fs');
     assert(pet);
     await panel.evaluate(() => window.karen.settings({ voiceRoot:'', wakeWordEnabled:false, voiceEnabled: true, sttEnabled: false, ttsEngine: 'system', outputDevice: '', volume: .4, scale: 1 }));
     await expect(pet.getByRole('button', { name: 'Repetir última respuesta', exact: true })).toBeDisabled();
-    await expect(pet.getByRole('button', { name: 'Iniciar o terminar voz', exact: true })).toBeDisabled();
+    await expect(pet.getByRole('button', { name: 'Hablar ahora o terminar dictado', exact: true })).toBeDisabled();
     await panel.evaluate(() => {
       window.__voicePhases = [];
       window.__maxVoiceEnergy = 0;
@@ -55,6 +56,13 @@ const fs = require('node:fs');
     await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase, { timeout: 30000 }).toBe('speaking');
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).connection.state, 'disconnected');
     report.replayWithoutGateway = true;
+    await panel.evaluate(() => window.karen.settings({ sttEnabled: true }));
+    await pet.getByRole('button', { name: 'Hablar ahora o terminar dictado', exact: true }).click();
+    await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase, { timeout: 10000 }).toBe('recording');
+    report.microphoneInterruptsSpeech = true;
+    await panel.evaluate(() => window.karen.abort());
+    await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase).toBe('idle');
+    await panel.evaluate(() => window.karen.settings({ sttEnabled: false }));
     await pet.getByRole('button', { name: 'Leer respuestas', exact: true }).click();
     await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).capture.phase).toBe('idle');
     await expect(replay).toBeDisabled();
@@ -67,12 +75,26 @@ const fs = require('node:fs');
     await expect(pet.locator('.capture-clock')).toContainText(/0:1[6-9]/);
     for (const scale of [.5, 1, 2]) {
       await panel.evaluate(scale => window.karen.settings({ scale }), scale);
+      await emit([{type:'chat',final:true,speak:false,message:{id:`qa-layout-${scale}`,role:'assistant',text:'Esta respuesta permanece legible mientras Karen prepara el audio, sin superponerse al indicador de voz.'}}]);
+      await expect(pet.locator('.pet-bubble')).toBeVisible();
+      const layout = await pet.evaluate(() => {
+        const status=document.querySelector('.capture-status').getBoundingClientRect();
+        const bubble=document.querySelector('.pet-bubble').getBoundingClientRect();
+        const toolbar=document.querySelector('.pet-toolbar').getBoundingClientRect();
+        return {
+          separate:status.bottom+4<=bubble.top && toolbar.bottom<=bubble.top,
+          characterClear:status.bottom<=innerHeight*.25 && bubble.top>=innerHeight*.8,
+          inside:bubble.bottom<=innerHeight&&bubble.left>=0&&bubble.right<=innerWidth,
+        };
+      });
+      assert(layout.separate&&layout.characterClear&&layout.inside,'Voice status and reply bubble must stay clear of Karen at '+scale);
       const fits = await pet.locator('.pet-toolbar').evaluate(node => { const r = node.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth; });
       assert(fits, 'Toolbar must fit the pet at ' + scale);
       await pet.waitForTimeout(180);
       await pet.screenshot({ path: `qa/quick-controls-${scale}.png`, omitBackground: true });
     }
     report.waitClockAndScale = true;
+    report.dialogueDoesNotOverlap = true;
     await emit([{ type: 'capture', status: { kind: 'voice', phase: 'idle' } }]);
     report.phases = await panel.evaluate(() => window.__voicePhases);
     report.mouthEnergy = await panel.evaluate(() => window.__maxVoiceEnergy);

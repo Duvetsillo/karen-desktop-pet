@@ -37,7 +37,10 @@ import "./style.css";
 import { APP_VERSION } from "../shared/version";
 import { mergeMessages } from "../shared/protocol";
 import { PET_SCALE } from "../shared/pet-layout";
+import { effectiveSettings } from '../shared/settings';
 import { Perception, CaptureIndicator } from "./Perception";
+import { ModelPicker } from './ModelPicker';
+import { StylePicker } from './pet/StylePicker';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -48,13 +51,19 @@ const labels: Record<PetState, string> = {
   THINKING: "Pensando",
   SPEAKING: "Hablando",
   HAPPY: "Feliz",
+  LAUGHING: "Riendo",
+  ANGRY: "Molesta",
+  SAD: "Triste",
+  SURPRISED: "Sorprendida",
+  PROUD: "Orgullosa",
+  CURIOUS: "Curiosa",
   CONFUSED: "Con duda",
   ERROR: "Algo ocurrió",
   SLEEPING: "Descansando",
   DRAGGING: "En tus manos",
 };
 const audio = isPet ? new AudioDirector() : undefined;
-const replies = audio ? new VoiceReplies(text => audio.speak(text), () => ({ enabled: useStore.getState().settings.voiceEnabled, capture: useStore.getState().capture })) : undefined;
+const replies = audio ? new VoiceReplies(text => audio.speak(text), () => ({ enabled: effectiveSettings(useStore.getState().settings).voiceEnabled, capture: useStore.getState().capture })) : undefined;
 async function action(operation: () => Promise<unknown>) {
   try {
     useStore.setState({ error: "" });
@@ -106,18 +115,23 @@ function Status({ compact = false }: { compact?: boolean }) {
 }
 function ErrorBanner() {
   const error = useStore((s) => s.error);
+  const [expanded, setExpanded] = useState(false);
   if (!error) return null;
   return (
-    <div className="error-banner" role="alert">
-      <CircleHelp size={18} />
-      <span>{error}</span>
-      <button
-        aria-label="Cerrar aviso"
-        onClick={() => useStore.setState({ error: "" })}
-      >
-        <X size={16} />
-      </button>
-    </div>
+    <>
+      {isPet && expanded && <div className="error-detail" id="karen-error-detail" role="status">{error}</div>}
+      <div className="error-banner" role="alert">
+        <CircleHelp size={18} />
+        <span title={error}>{error}</span>
+        {isPet && <button aria-label="Ver error completo" aria-expanded={expanded} aria-controls="karen-error-detail" onClick={() => setExpanded(value => !value)}><ChevronRight size={16} /></button>}
+        <button
+          aria-label="Cerrar aviso"
+          onClick={() => { setExpanded(false); useStore.setState({ error: "" }); }}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </>
   );
 }
 function Toggle({
@@ -380,6 +394,7 @@ function Conversation() {
         <h2>Tu espacio con Karen</h2>
         <Status compact />
       </div>
+      <ModelPicker />
       <div className="messages" role="log" aria-label="Conversación con Karen">
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -486,6 +501,9 @@ function Appearance() {
   const s = useStore((x) => x.settings);
   return (
     <>
+      <Group title="Cinco formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
+        <StylePicker value={s.petStyle} onChange={petStyle => void patch({petStyle})}/>
+      </Group>
       <Group
         title="Tamaño del PET"
         description="Cambia al instante y se recuerda al volver a abrir Karen."
@@ -638,10 +656,18 @@ function Behavior() {
 function OpenClaw() {
   const s = useStore((x) => x.settings),
     c = useStore((x) => x.connection),
-    hasCredential = useStore((x) => x.hasCredential);
+    hasCredential = useStore((x) => x.hasCredential),
+    diagnostics = useStore((x) => x.diagnostics);
   const [url, setUrl] = useState(s.gatewayUrl),
     [agent, setAgent] = useState(s.agentId),
-    [token, setToken] = useState("");
+    [token, setToken] = useState(""),
+    [mode, setMode] = useState<"local" | "remote">(s.authSource === "stored" ? "remote" : "local"),
+    [busy, setBusy] = useState(false);
+  const isLocalAddress = (value: string) => {
+    try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(value).hostname); }
+    catch { return false; }
+  };
+  const pairing = [...diagnostics].reverse().find(item => item.area === "OpenClaw" && item.message.includes("solicitud de vinculación"));
   const runtime = useStore((x) => x.runtime);
   if (runtime === "server")
     return (
@@ -650,6 +676,7 @@ function OpenClaw() {
         description="La dirección, el agente y los secretos se configuran mediante variables de entorno o archivos privados del administrador."
       >
         <Status />
+        <ModelPicker />
         <dl className="service-list">
           <div>
             <dt>Gateway</dt>
@@ -674,7 +701,8 @@ function OpenClaw() {
     );
   return (
     <>
-      <Group title="Gateway">
+      <Group title="Modelo para esta conversación"><ModelPicker /></Group>
+      <Group title="Conectar Karen con OpenClaw" description="Elige dónde está tu Gateway. Karen usa tu instalación y tus permisos de OpenClaw.">
         <div className="gateway-status">
           <Radio size={21} />
           <div>
@@ -690,20 +718,45 @@ function OpenClaw() {
           onSubmit={(e) => {
             e.preventDefault();
             void action(async () => {
-              await bridge.settings({ gatewayUrl: url, agentId: agent });
-              await bridge.connect();
+              setBusy(true);
+              try {
+                const gatewayUrl = mode === "local" && !isLocalAddress(url)
+                  ? "ws://127.0.0.1:18789" : url.trim();
+                const settings = await bridge.settings({ gatewayUrl, agentId: agent.trim(), authSource: mode === "local" ? "local" : "stored" });
+                useStore.setState({ settings });
+                setUrl(settings.gatewayUrl);
+                if (mode === "remote" && token.trim()) {
+                  await bridge.credential(token.trim());
+                  setToken("");
+                  useStore.setState({ hasCredential: true });
+                }
+                await bridge.connect();
+              } finally { setBusy(false); }
             });
           }}
         >
+          <div className="input-field">
+            <label htmlFor="gateway-mode">¿Dónde está OpenClaw?</label>
+            <select id="gateway-mode" value={mode} onChange={e => {
+              const next = e.target.value as "local" | "remote";
+              setMode(next);
+              if (next === "local" && !isLocalAddress(url)) setUrl("ws://127.0.0.1:18789");
+            }}>
+              <option value="local">En este equipo</option>
+              <option value="remote">En otro equipo</option>
+            </select>
+          </div>
           <div className="input-field">
             <label htmlFor="gateway">Dirección del Gateway</label>
             <input
               id="gateway"
               type="url"
+              required
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               spellCheck={false}
             />
+            <p className="quiet-note">{mode === "local" ? "Normalmente ws://127.0.0.1:18789; se lee la credencial de OpenClaw en este equipo." : "Usa wss:// para un Gateway remoto. El token se cifra en tu cuenta Windows."}</p>
           </div>
           <div className="input-field">
             <label htmlFor="agent">Agente</label>
@@ -714,10 +767,14 @@ function OpenClaw() {
               spellCheck={false}
             />
           </div>
+          {mode === "remote" && <div className="input-field">
+            <label htmlFor="token">Token del Gateway</label>
+            <input id="token" type="password" autoComplete="off" value={token} onChange={e => setToken(e.target.value)} placeholder={hasCredential && s.authSource === "stored" && s.gatewayUrl === url ? "Ya guardado; déjalo vacío para conservarlo" : "Pega el token de tu Gateway"} required={s.authSource !== "stored" || !hasCredential || s.gatewayUrl !== url} />
+          </div>}
           <div className="button-row">
-            <button className="primary" type="submit">
+            <button className="primary" type="submit" disabled={busy}>
               <RefreshCw size={15} />
-              Guardar y conectar
+              {busy ? "Conectando…" : "Guardar y conectar"}
             </button>
             <button
               type="button"
@@ -727,71 +784,11 @@ function OpenClaw() {
             </button>
           </div>
         </form>
-      </Group>
-      <Group
-        title="Autenticación segura"
-        description="Las credenciales permanecen en Windows. No se incluyen en el personaje ni en los registros."
-      >
-        <div className="input-field">
-          <label htmlFor="auth">Origen de la credencial</label>
-          <select
-            id="auth"
-            value={s.authSource}
-            onChange={(e) =>
-              void patch({
-                authSource: e.target.value as Settings["authSource"],
-              })
-            }
-          >
-            <option value="local">Configuración local de OpenClaw</option>
-            <option value="stored">Token guardado en este equipo</option>
-          </select>
-        </div>
-        {s.authSource === "local" ? (
-          <p className="info-note">
-            Se lee el token de <code>~/.openclaw/openclaw.json</code> únicamente
-            para el Gateway local. El archivo original se conserva.
-          </p>
-        ) : (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void action(async () => {
-                await bridge.credential(token);
-                setToken("");
-                useStore.setState({ hasCredential: true });
-                await bridge.connect();
-              });
-            }}
-          >
-            <div className="input-field">
-              <label htmlFor="token">Token del Gateway</label>
-              <input
-                id="token"
-                type="password"
-                autoComplete="off"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Pega tu token de forma segura"
-              />
-            </div>
-            <button className="primary" disabled={!token}>
-              Cifrar y conectar
-            </button>
-          </form>
-        )}
-        <p className="credential-status">
-          <Check size={14} />
-          {hasCredential
-            ? "Credencial disponible en el proceso nativo"
-            : "La credencial se verifica al conectar"}
-        </p>
-        <p className="quiet-note">
-          Si OpenClaw solicita vinculación: revisa{" "}
-          <code>openclaw devices list</code> y aprueba el identificador mostrado
-          en Diagnóstico. La mascota solicita lectura y escritura de
-          conversación.
-        </p>
+        {c.state === "action-required" && <div className="info-note" role="status">
+          <strong>Puede faltar aprobar este dispositivo.</strong> En el equipo del Gateway, ejecuta <code>openclaw devices list</code>, comprueba que la solicitud sea de Karen y apruébala en OpenClaw. Después pulsa «Guardar y conectar».
+          {pairing && <p>Detalle de la solicitud: {pairing.message}</p>}
+        </div>}
+        <p className="quiet-note">{mode === "local" ? "Karen lee ~/.openclaw/openclaw.json solo para el Gateway local." : "El token se almacena cifrado con DPAPI y nunca aparece en el PET."} La conexión solicita lectura y escritura de conversación.</p>
       </Group>
     </>
   );
@@ -843,12 +840,16 @@ function Voice() {
           >
             <option value="system">Voz instalada en Windows</option>
             <option value="local">Voz original compartida de Karen</option>
+            <option value="fast">Rápida local · Kokoro (otro timbre)</option>
+            <option value="edge">Natural rápida · Dalia (en línea)</option>
           </select>
         </div>
         {s.ttsEngine === "local" && <p className="quiet-note">Usa el mismo perfil fijo que Karen Local y WhatsApp. Se inicia al hablar; si no está disponible, muestra un error sin sustituir la voz.</p>}
+        {s.ttsEngine === 'fast' && <p className="quiet-note">Prioriza rapidez con Kokoro en CPU. Usa otro timbre fijo; no es la referencia original de WhatsApp. Requiere tus modelos locales de Kokoro.</p>}
+        {s.ttsEngine === 'edge' && <p className="quiet-note">Voz femenina neural en español de México. Necesita internet; si falla, conserva la respuesta escrita.</p>}
         <div className="input-field">
           <label htmlFor="voice-style">Estilo de la voz original</label>
-          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine !== 'local'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
+          <select id="voice-style" value={s.voiceStyle} disabled={s.ttsEngine === 'system' || s.ttsEngine === 'edge'} onChange={e => void patch({voiceStyle:e.target.value as Settings['voiceStyle']})}>
             <option value="serene">Serena · madura y pausada</option>
             <option value="warm">Cercana · cálida</option>
             <option value="serious">Seria · sobria</option>
@@ -968,6 +969,17 @@ function System() {
     );
   return (
     <>
+      <Group title="Modo de funcionamiento" description="Se aplica mientras esté seleccionado; conserva tus ajustes normales.">
+        <div className="input-field">
+          <label htmlFor="pet-mode">Modo activo</label>
+          <select id="pet-mode" value={s.mode} onChange={e => void patch({mode: e.target.value as Settings['mode']})}>
+            <option value="normal">Normal</option>
+            <option value="gaming">Gaming</option>
+            <option value="do_not_disturb">No molestar</option>
+          </select>
+        </div>
+        <p className="quiet-note">Gaming reduce animación, partículas y overlays; conserva la voz configurada. No molestar también pausa escucha y voz automáticas. No detecta juegos ni cambia Windows.</p>
+      </Group>
       <Group title="En tu escritorio">
         <Toggle
           label="Iniciar con Windows"
@@ -1103,6 +1115,7 @@ function PetApp() {
     messages = useStore((x) => x.messages),
     connection = useStore((x) => x.connection),
     capture = useStore((x) => x.capture),
+    error = useStore((x) => x.error),
     native = useStore((x) => x.native);
   const [bubble, setBubble] = useState(false),
     [compose, setCompose] = useState(false),
@@ -1110,13 +1123,16 @@ function PetApp() {
   const root = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; started: boolean } | null>(null);
   const last = messages.filter((m) => m.role === "assistant").at(-1);
+  const showReply = Boolean(effectiveSettings(s).bubbles && bubble && last && !compose && !error);
+  const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
   useEffect(() => {
-    if (last) {
-      setBubble(true);
-      const timer = setTimeout(() => setBubble(false), 16000);
-      return () => clearTimeout(timer);
-    }
+    if (last) setBubble(true);
   }, [last?.text]);
+  useEffect(() => {
+    if (!bubble || voiceActive) return;
+    const timer = setTimeout(() => setBubble(false), 16000);
+    return () => clearTimeout(timer);
+  }, [bubble, last?.text, voiceActive]);
   useEffect(() => {
     const check = (x: number, y: number) => {
       const r = root.current?.getBoundingClientRect();
@@ -1149,26 +1165,27 @@ function PetApp() {
       ref={root}
       className="desktop-pet"
       data-capturing={capture.phase !== "idle"}
+      data-has-dock={showReply || Boolean(error)}
       onContextMenu={(e) => {
         e.preventDefault();
         void action(() => bridge.contextMenu());
       }}
     >
       <PetRenderer />
-      <CaptureIndicator />
-      {s.bubbles && bubble && last && !compose && (
+      <div className="pet-dialogue">
+        <CaptureIndicator />
+      </div>
+      {showReply && last && (
         <div
           className="pet-bubble"
           role="status"
-          onDoubleClick={() => void bridge.openSettings()}
         >
+          <button className="pet-bubble-open" aria-label="Abrir respuesta completa en Conversación" onClick={() => void bridge.openSettings()}>
+            <span>{last.text.slice(0, 240)}{last.text.length > 240 ? "…" : ""}</span>
+          </button>
           <button aria-label="Cerrar globo" onClick={() => setBubble(false)}>
             <X size={12} />
           </button>
-          <p>
-            {last.text.slice(0, 240)}
-            {last.text.length > 240 ? "…" : ""}
-          </p>
         </div>
       )}
       <button
@@ -1215,8 +1232,8 @@ function PetApp() {
           <MessageCircle size={16} />
         </button>
         <button
-          title="Micrófono"
-          aria-label="Iniciar o terminar voz"
+          title="Hablar ahora; interrumpe a Karen"
+          aria-label="Hablar ahora o terminar dictado"
           aria-pressed={capture.kind === "microphone" && capture.phase === "recording"}
           disabled={!native || !s.sttEnabled}
           onClick={() => void action(() => bridge.listen())}
@@ -1303,7 +1320,7 @@ function PetApp() {
 function Root() {
   const ready = useStore(s => s.ready);
   const runtime = useStore(s => s.runtime);
-  const wakeEnabled = useStore(s => s.settings.wakeWordEnabled);
+  const wakeEnabled = useStore(s => effectiveSettings(s.settings).wakeWordEnabled);
   const sttEnabled = useStore(s => s.settings.sttEnabled);
   const inputDevice = useStore(s => s.settings.inputDevice);
   const sensitivity = useStore(s => s.settings.sensitivity);
@@ -1331,7 +1348,7 @@ function Root() {
       if (e.type === "voice-cancel") { replies?.clear(); audio?.cancel(); }
       if (e.type === "voice-listen") void audio?.toggleListening();
       if (e.type === "voice-speak") void audio?.speak(e.text);
-      if (e.type === "settings" && !e.settings.voiceEnabled) { replies?.clear(); audio?.cancel(); }
+      if (e.type === "settings" && !effectiveSettings(e.settings).voiceEnabled) { replies?.clear(); audio?.cancel(); }
     });
     void bridge
       .snapshot()

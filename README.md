@@ -16,9 +16,22 @@ conversación de texto, eventos y animaciones; no necesita escritorio ni Electro
 
 ## Windows
 
-Descarga el instalador desde [Releases](https://github.com/Duvetsillo/karen-desktop-pet/releases).
-Las compilaciones sin certificado pueden mostrar un aviso de editor desconocido.
-Si no hay un instalador para la versión deseada, compila desde el código:
+1. Instala y configura tu propio **OpenClaw Gateway**. Karen es la interfaz del
+   asistente; no instala OpenClaw ni aporta un modelo o credenciales.
+2. Descarga el archivo `Setup.exe` de la versión deseada en
+   [Releases](https://github.com/Duvetsillo/karen-desktop-pet/releases) y ejecútalo.
+   El instalador incluye Electron: **no necesitas Node ni herramientas de desarrollo**.
+3. Al terminar, el instalador abre Karen. También puedes usar el acceso directo.
+   Si aún no encuentra una credencial, abre Ajustes automáticamente. En **OpenClaw**,
+   elige «En este equipo» y pulsa
+   **Guardar y conectar**. Karen usa la configuración local de OpenClaw.
+4. Si el Gateway está en otro equipo, elige «En otro equipo», introduce su
+   dirección `wss://`, el agente y tu token, y pulsa **Guardar y conectar**.
+   OpenClaw puede pedir la aprobación del dispositivo: sigue el aviso de Karen,
+   aprueba solo la solicitud esperada en el host del Gateway y vuelve a conectar.
+
+El instalador sin certificado puede mostrar un aviso de editor desconocido.
+Para compilar desde el código en vez de usar el instalador:
 
 ```powershell
 git clone https://github.com/Duvetsillo/karen-desktop-pet.git
@@ -30,28 +43,37 @@ npm run dev
 npm run package
 ```
 
-Requiere Node 24 para compilar y Windows 11 x64 para las funciones nativas. No
-requiere Rust ni MSVC. Electron incluye su runtime en la distribución.
+`node scripts/native-smoke.cjs` comprueba ventanas, ajustes, voz Windows, conexión al Gateway y errores del renderizador. Para conservar capturas y perfil QA anteriores, ejecútalo desde un directorio temporal nuevo usando la ruta absoluta del script; la aplicación se localiza desde el propio script. Define `KAREN_SMOKE_EXECUTABLE` con la ruta absoluta de `win-unpacked/Karen Desktop Pet.exe` para comprobar también el ejecutable empaquetado. La prueba no envía un mensaje al modelo ni valida el instalador NSIS tras instalarlo.
 
-Abre Ajustes con doble clic en Karen. Configura tu Gateway y agente en **OpenClaw**.
-La configuración local se lee de `~/.openclaw/openclaw.json`; para otro equipo,
-usa **wss://** y guarda tu propio token en el almacén seguro. Las credenciales y
-claves de dispositivo permanecen cifradas con DPAPI en tu cuenta Windows.
+Para compilar se requiere Node 24; las funciones nativas requieren Windows 11
+x64. No se necesita Rust ni MSVC. Abre Ajustes en cualquier momento con doble
+clic en Karen o desde la bandeja. La configuración local se lee de
+`~/.openclaw/openclaw.json`; los tokens remotos y la identidad del dispositivo
+se guardan cifrados con DPAPI en tu cuenta Windows.
 
 - Arrastra el cuerpo para moverla. Clic derecho abre el menú nativo.
 - Las zonas transparentes dejan pasar clics mediante una máscara alfa.
 - **Ctrl+Alt+K** o la bandeja recuperan el control tras ignorar clics.
 - Activa opcionalmente inicio con Windows, prioridad de ventana y bajo consumo.
-- Los nueve estados incluyen reposo, escucha, procesamiento, habla y errores.
+- **Sistema → Modo de funcionamiento** o el menú de bandeja: Normal, Gaming y No molestar. Gaming aplica 15 FPS, quita partículas, animación, seguimiento del cursor, burbujas y prioridad de ventana; conserva la voz configurada. No molestar además suspende la escucha continua y la voz automática. Volver a Normal restaura las preferencias guardadas. La selección es manual: no detecta juegos ni cambia Windows.
+- Los quince estados incluyen reposo, escucha, procesamiento, habla, risa, enojo, tristeza, sorpresa, orgullo, curiosidad y errores.
+- La expresión de una respuesta sigue las palabras de Karen; no interpreta el ánimo privado del usuario.
 - **Apariencia → Tamaño del PET:** escala de 50 a 200 %, presets y vista previa en directo.
+- **Apariencia → Cinco formas:** Cristal, Nube, Órbita, Lucero y Flor. Todas tienen manos y piernas; las dos nuevas destacan más sus gestos. Cambio inmediato y selección guardada.
+- **Conversación / OpenClaw → Modelo de IA:** catálogo real por proveedor, modelo actual y regreso al predeterminado del agente.
+- El modelo se cambia para la sesión actual. Otros clientes de esa sesión comparten el cambio; no se modifica la configuración global.
 - El tamaño se recuerda al abrir y se limita al monitor sin deformar la mascota.
 - Pupilas independientes, cejas y ojos asimétricos hacen más visibles la mirada y las expresiones.
 - El modo de bajo consumo y el reposo limitan el renderizado a 15 FPS.
 - La boca sigue el audio real mediante Web Audio, no una animación de habla falsa.
+- Las respuestas y avisos aparecen bajo Karen; pulsa una respuesta para leerla completa en Conversación.
 - **Voz:** prueba la salida de Windows y configura dictado local con tus propios recursos.
 - **Percepción:** transcribe audio del PC por WASAPI y revisa capturas antes de enviarlas al modelo con visión.
+- **Señalamiento:** toca una captura de pantalla para que Karen marque el lugar en el escritorio, o pídele que encuentre un objeto con tu modelo de visión. La marca dura ocho segundos y deja pasar los clics.
+- Al señalar, Karen levanta la mano del lado del objetivo. El gesto se interrumpe al quitar la marca y respeta movimiento reducido.
 - [Configurar micrófono, audio del PC y pantalla](docs/PERCEPTION.md).
 - [Crear una voz original compartida con Karen Local y WhatsApp](docs/SHARED_VOICE.md).
+- [Estilos del PET y selección de modelos](docs/STYLES_AND_MODELS.md).
 
 ## Servidor Linux / Docker
 

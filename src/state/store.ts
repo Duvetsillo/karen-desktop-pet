@@ -8,21 +8,26 @@ import type {
   Settings,
   CaptureStatus,
   WakeStatus,
+  ModelSelection,
 } from "../../shared/types";
 import { defaults } from "../../shared/settings";
 import { PetMachine } from "./machine";
+import { expressionForReply } from "../../shared/expression";
 export const machine = new PetMachine();
 export const signals: {
   energy: number;
   cursor: { x: number; y: number };
+  pointingSide: -1 | 0 | 1;
   fps: number;
   hitTest?: (x: number, y: number) => boolean;
-} = { energy: 0, cursor: { x: 0.5, y: 0.5 }, fps: 0 };
+} = { energy: 0, cursor: { x: 0.5, y: 0.5 }, pointingSide: 0, fps: 0 };
 interface Store {
+  models?: ModelSelection;
   settings: Settings;
   connection: ConnectionInfo;
   state: PetState;
   reason: string;
+  expression: PetState;
   diagnostics: Diagnostic[];
   messages: ChatMessage[];
   native: boolean;
@@ -42,6 +47,7 @@ export const useStore = create<Store>((set, get) => ({
   connection: { state: "disconnected", message: "Esperando conexión" },
   state: "IDLE",
   reason: "",
+  expression: "HAPPY",
   diagnostics: [],
   messages: [],
   native: false,
@@ -58,7 +64,8 @@ export const useStore = create<Store>((set, get) => ({
     set({ state, reason });
   },
   event: (event) => {
-    if (event.type === 'wake-status') set({wakeStatus:event.status});
+    if (event.type === 'models') set({models:event.selection});
+    else if (event.type === 'wake-status') set({wakeStatus:event.status});
     else if (event.type === "settings") set({ settings: event.settings });
     else if (event.type === "capture") set({ capture: event.status });
     else if (event.type === "transcript") set({ transcript: event.text, tab: "Percepción" });
@@ -74,6 +81,7 @@ export const useStore = create<Store>((set, get) => ({
       set((s) => ({ diagnostics: [...s.diagnostics.slice(-119), event.item] }));
     else if (event.type === "cursor")
       signals.cursor = { x: event.x, y: event.y };
+    else if (event.type === "pointing") signals.pointingSide = event.side;
     else if (event.type === "energy") signals.energy = event.value;
     else if (event.type === "chat")
       set((s) => {
@@ -81,15 +89,13 @@ export const useStore = create<Store>((set, get) => ({
         const i = messages.findIndex((m) => m.id === event.message.id);
         if (i >= 0) messages[i] = event.message;
         else messages.push(event.message);
-        return { messages: messages.slice(-100) };
+        return { messages: messages.slice(-100), ...(event.final && event.message.role === 'assistant' && event.message.text ? { expression: expressionForReply(event.message.text) } : {}) };
       });
   },
 }));
 export function report(error: unknown) {
+  const message = error instanceof Error ? error.message : "No se pudo completar la operación.";
   useStore.setState({
-    error:
-      error instanceof Error
-        ? error.message
-        : "No se pudo completar la operación.",
+    error: message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, ''),
   });
 }

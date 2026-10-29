@@ -29,8 +29,14 @@ export class LocalRecognizer {
     clearTimeout(this.timer);
     const python = join(root, 'voice-runtime', 'Scripts', 'python.exe');
     const worker = this.worker || join(root, 'desktop-pet', 'python', 'recognize.py');
-    if (!existsSync(python) || !existsSync(worker))
-      return Promise.reject(new Error('Faltan los recursos de reconocimiento. Elige la carpeta que contiene voice-runtime y voice-models en Voz.'));
+    const model = join(root, 'voice-models', 'faster-whisper-small', 'model.bin');
+    const missing = [
+      !existsSync(python) && 'voice-runtime/Scripts/python.exe',
+      !existsSync(model) && 'voice-models/faster-whisper-small/model.bin',
+      !existsSync(worker) && 'worker recognize.py de la instalación',
+    ].filter(Boolean);
+    if (missing.length)
+      return Promise.reject(new Error(`Reconocimiento local incompleto en ${root}: falta ${missing.join(', ')}. Revisa Voz → carpeta de recursos; si falta el worker, reinstala Karen.`));
     return new Promise((resolve, reject) => {
       this.pending = { resolve, reject };
       if (!this.child) {
@@ -58,15 +64,26 @@ export class LocalRecognizer {
           const line = this.output.slice(0, end);
           this.output = this.output.slice(end + 1);
           try {
-            const result = JSON.parse(line) as { text?: unknown };
-            if (typeof result.text !== 'string') throw new Error();
+            const result = JSON.parse(line) as { text?: unknown; error?: unknown };
+            if (typeof result.text !== 'string') {
+              const reasons: Record<string, string> = {
+                dependencies: 'Faltan dependencias del reconocimiento local en voice-runtime. Reinstala los recursos de voz.',
+                model: 'No se pudo cargar el modelo de voz en voice-models/faster-whisper-small. Revisa Voz → carpeta de recursos.',
+                audio: 'El fragmento de audio no es válido. Revisa el micrófono en Voz.',
+                recognition: 'El reconocimiento local falló al procesar el audio. Revisa Voz y reintenta.',
+                request: 'El reconocimiento local recibió una petición inválida.',
+              };
+              const message = typeof result.error === 'string' ? reasons[result.error] : undefined;
+              fail(message || 'El reconocimiento local no pudo transcribir. Revisa el modelo y sus dependencias.');
+              return;
+            }
             const pending = this.pending;
             this.pending = undefined;
             clearTimeout(this.timer);
             this.timer = setTimeout(() => this.cancel(), 120_000);
             this.timer.unref();
             pending?.resolve(result.text.trim().slice(0, 16000));
-          } catch { fail('El reconocimiento local no pudo transcribir. Revisa el modelo y sus dependencias.'); }
+          } catch { fail('Respuesta inválida del reconocimiento local. Revisa los recursos de voz.'); }
         });
       }
       this.timer = setTimeout(() => this.cancel(), 180_000);

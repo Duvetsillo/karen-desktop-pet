@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { validateSettings, defaults, gatewayAddress } from "../shared/settings";
+import { validateSettings, defaults, gatewayAddress, effectiveSettings } from "../shared/settings";
 import { PetMachine } from "../src/state/machine";
+import { expressionForReply } from '../shared/expression';
+import { APP_VERSION } from '../shared/version';
+import packageInfo from '../package.json';
 import {
   extractText,
   routeGatewayEvent,
@@ -8,6 +11,33 @@ import {
   mergeMessages,
 } from "../shared/protocol";
 describe("configuración", () => {
+  it('Gaming y No molestar aplican overrides temporales sin borrar preferencias', () => {
+    const base = validateSettings({voiceEnabled: true, wakeWordEnabled: true,
+      animations: true, particles: true, bubbles: true, alwaysOnTop: true});
+    const gaming = effectiveSettings({...base, mode: 'gaming'});
+    expect(gaming).toMatchObject({lowPower:true, animations:false, particles:false,
+      bubbles:false, alwaysOnTop:false, voiceEnabled:true, wakeWordEnabled:true});
+    const quiet = effectiveSettings({...base, mode: 'do_not_disturb'});
+    expect(quiet).toMatchObject({voiceEnabled:false, wakeWordEnabled:false, lowPower:true});
+    expect(effectiveSettings(base)).toBe(base);
+    expect(base).toMatchObject({animations:true, particles:true, bubbles:true, alwaysOnTop:true});
+    expect(effectiveSettings(validateSettings({mode:'normal'}, {...base, mode:'gaming'})))
+      .toMatchObject({animations:true, particles:true, bubbles:true, alwaysOnTop:true});
+    expect(() => validateSettings({mode:'invalid' as never})).toThrow('Modo');
+  });
+  it('anuncia la misma versión que el paquete instalado', () => {
+    expect(APP_VERSION).toBe(packageInfo.version);
+  });
+  it('migra la apariencia existente y valida las tres formas sin cambiar voz o conexión', () => {
+    expect(validateSettings({}).petStyle).toBe('crystal');
+    for (const petStyle of ['crystal', 'cloud', 'orbit', 'sprite', 'bloom'] as const) {
+      const settings = validateSettings({petStyle});
+      expect(settings.petStyle).toBe(petStyle);
+      expect(settings.ttsEngine).toBe(defaults.ttsEngine);
+      expect(settings.gatewayUrl).toBe(defaults.gatewayUrl);
+    }
+    expect(() => validateSettings({petStyle: 'unknown' as never})).toThrow('Apariencia');
+  });
   it("acota recursos y rechaza entradas inválidas", () => {
     expect(validateSettings({ scale: 99, brightness: -1 }).scale).toBe(2);
     expect(validateSettings({ brightness: -1 }).brightness).toBe(0.35);
@@ -43,6 +73,26 @@ describe("máquina de estados", () => {
     expect(m.snapshot.state).toBe("DRAGGING");
     m.transition("ERROR", 90004);
     expect(m.tick(30, 96000).state).toBe("IDLE");
+  });
+  it('muestra emociones breves y vuelve al reposo', () => {
+    const m = new PetMachine(0);
+    m.transition('ANGRY', 1000);
+    expect(m.tick(30, 4400).state).toBe('ANGRY');
+    expect(m.tick(30, 4500).state).toBe('IDLE');
+    m.transition('LAUGHING', 5000);
+    expect(m.tick(30, 8000).state).toBe('IDLE');
+  });
+});
+describe('expresión según la propia respuesta', () => {
+  it('elige matices claros sin atribuir emociones al usuario', () => {
+    expect(expressionForReply('Jajaja, eso sí estuvo bueno.')).toBe('LAUGHING');
+    expect(expressionForReply('Qué rabia, esa falla volvió.')).toBe('ANGRY');
+    expect(expressionForReply('Lo siento, Jefe.')).toBe('SAD');
+    expect(expressionForReply('Lo logramos. Buen trabajo.')).toBe('PROUD');
+    expect(expressionForReply('Me intriga esa posibilidad.')).toBe('CURIOUS');
+    expect(expressionForReply('Aquí tienes el resultado.')).toBe('HAPPY');
+    expect(expressionForReply('> Qué rabia, esa falla volvió.\nYa identifiqué la causa.')).toBe('HAPPY');
+    expect(expressionForReply('El log dice `lo siento` y responde bien.')).toBe('HAPPY');
   });
 });
 describe("eventos reales de OpenClaw", () => {

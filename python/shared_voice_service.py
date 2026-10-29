@@ -37,13 +37,56 @@ class VoiceEngine:
         self.last_used = time.monotonic()
         self.cache = OrderedDict()
         self.phase = 'cold'
+        self.keep_warm_until = 0.0
+
+    def _load(self, profile):
+        import torch
+        from qwen_tts import Qwen3TTSModel
+        signature = (profile.id, profile.reference_sha256, str(profile.model))
+        if signature != self.signature:
+            self.model = self.prompt = None
+            self.cache.clear()
+            gc.collect()
+            torch.cuda.empty_cache()
+        if self.model is None:
+            self.phase = 'loading'
+            if not torch.cuda.is_available():
+                raise RuntimeError('Esta configuración de voz necesita CUDA')
+            torch.set_num_threads(4)
+            self.model = Qwen3TTSModel.from_pretrained(
+                str(profile.model), device_map='cpu', dtype=torch.float32,
+                attn_implementation='eager', local_files_only=True,
+            )
+            # Keep the validated FP32 Turing path and pinned speaker embedding.
+            self.model.model.talker.to('cuda:0')
+            self.model.model.speaker_encoder.to('cuda:0')
+            self.model.device = torch.device('cuda:0')
+            codec = self.model.model.speech_tokenizer
+            codec.model.to('cpu')
+            codec.device = torch.device('cpu')
+            self.prompt = self.model.create_voice_clone_prompt(
+                ref_audio=str(profile.reference), ref_text=profile.reference_text,
+                x_vector_only_mode=True,
+            )
+            self.signature = signature
+
+    def prepare(self, expected_id, expected_hash):
+        """Load the fixed voice while the assistant is still preparing its reply."""
+        with self.lock:
+            profile = load_profile(self.root)
+            if (expected_id, expected_hash) != (profile.id, profile.reference_sha256):
+                raise ValueError('El cliente no seleccionó la misma identidad de voz')
+            self._load(profile)
+            self.last_used = time.monotonic()
+            self.keep_warm_until = self.last_used + 600
+            self.phase = 'ready'
+            return profile
 
     def synthesize(self, text, expected_id, expected_hash, style='neutral'):
         validate_style(style)
         import numpy as np
         import soundfile as sf
         import torch
-        from qwen_tts import Qwen3TTSModel
         with self.lock:
             profile = load_profile(self.root)
             if (expected_id, expected_hash) != (profile.id, profile.reference_sha256):
@@ -54,35 +97,7 @@ class VoiceEngine:
             if key in self.cache:
                 self.cache.move_to_end(key)
                 return style_audio(self.cache[key], self.root, style), profile
-            if signature != self.signature:
-                self.model = self.prompt = None
-                self.cache.clear()
-                gc.collect()
-                torch.cuda.empty_cache()
-            if self.model is None:
-                self.phase = 'loading'
-                if not torch.cuda.is_available():
-                    raise RuntimeError('Esta configuración de voz necesita CUDA')
-                torch.set_num_threads(4)
-                self.model = Qwen3TTSModel.from_pretrained(
-                    str(profile.model), device_map='cpu', dtype=torch.float32,
-                    attn_implementation='eager', local_files_only=True,
-                )
-                # The validated Turing path uses FP32 and explicit attention.
-                self.model.model.talker.to('cuda:0')
-                self.model.model.speaker_encoder.to('cuda:0')
-                self.model.device = torch.device('cuda:0')
-                codec = self.model.model.speech_tokenizer
-                # Leave VRAM for the desktop and avoid WDDM paging on 6 GB GPUs.
-                codec.model.to('cpu')
-                codec.device = torch.device('cpu')
-                self.prompt = self.model.create_voice_clone_prompt(
-                    ref_audio=str(profile.reference), ref_text=profile.reference_text,
-                    # Speaker conditioning preserves the fixed identity while
-                    # avoiding unstable reference-code continuation on Turing.
-                    x_vector_only_mode=True,
-                )
-                self.signature = signature
+            self._load(profile)
             self.phase = 'generating'
             chunks = []
             options = {k: v for k, v in profile.generation.items() if k in {
@@ -111,9 +126,9 @@ class VoiceEngine:
     def cleanup(self):
         while True:
             time.sleep(15)
-            if time.monotonic() - self.last_used > 120 and self.lock.acquire(blocking=False):
+            if time.monotonic() > max(self.last_used + 120, self.keep_warm_until) and self.lock.acquire(blocking=False):
                 try:
-                    if self.model is not None:
+                    if self.model is not None and time.monotonic() > max(self.last_used + 120, self.keep_warm_until):
                         self.model = self.prompt = None
                         self.phase = 'cold'
                         gc.collect()
@@ -157,6 +172,7 @@ def serve(root):
                 profile = load_profile(root)
                 self.reply(200, {'engine': 'qwen3-stable-spanish', 'protocol': 2,
                                 'modelLoaded': engine.model is not None, 'phase': engine.phase,
+                                'capabilities': ['prepare'],
                                 'styles': list(STYLES), 'styleRevision': 1, **profile.public()})
             except Exception:
                 self.reply(503, {'error': 'Configura y verifica el perfil fijo de voz'})
@@ -165,7 +181,7 @@ def serve(root):
             if not self.authorized():
                 self.reply(403, {'error': 'Autenticación de voz requerida'})
                 return
-            if self.path != '/speech':
+            if self.path not in {'/speech', '/prepare'}:
                 self.reply(404, {'error': 'Ruta desconocida'})
                 return
             try:
@@ -173,9 +189,9 @@ def serve(root):
                 if not 0 < length <= 65536:
                     raise ValueError()
                 request = json.loads(self.rfile.read(length))
-                text = request['text']
+                text = request.get('text', '')
                 style = validate_style(request.get('style', 'neutral'))
-                if not isinstance(text, str) or not text.strip() or len(text) > 4096:
+                if self.path == '/speech' and (not isinstance(text, str) or not text.strip() or len(text) > 4096):
                     raise ValueError()
                 profile = load_profile(root)
                 if (request.get('profileId'), request.get('referenceSha256')) != (profile.id, profile.reference_sha256):
@@ -185,6 +201,10 @@ def serve(root):
                 self.reply(400, {'error': 'Petición o perfil de voz inválido'})
                 return
             try:
+                if self.path == '/prepare':
+                    engine.prepare(profile.id, profile.reference_sha256)
+                    self.reply(200, {'ready': True, **profile.public()})
+                    return
                 audio, profile = engine.synthesize(text.strip(), profile.id, profile.reference_sha256, style)
                 self.send_response(200)
                 self.send_header('Content-Type', 'audio/wav')
