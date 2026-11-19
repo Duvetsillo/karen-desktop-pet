@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('karen', {
+  interaction: () => ipcRenderer.send('user-activity'),
+  initiative: (action,id) => ipcRenderer.invoke('initiative',action,id),
+  claimMicrophone: () => ipcRenderer.invoke('claim-microphone'),
+  releaseMicrophone: token => ipcRenderer.invoke('release-microphone', token),
   snapshot: () => ipcRenderer.invoke('snapshot'),
   settings: patch => ipcRenderer.invoke('settings', patch),
   credential: value => ipcRenderer.invoke('credential', value),
@@ -30,6 +34,8 @@ contextBridge.exposeInMainWorld('karen', {
   captureScreen: id => ipcRenderer.invoke('capture-screen', id),
   pointAt: (id, x, y) => ipcRenderer.invoke('point-at', id, x, y),
   locateOnScreen: (id, description, image) => ipcRenderer.invoke('locate-on-screen', id, description, image),
+  approveScreenAction: id => ipcRenderer.invoke('approve-screen-action', id),
+  cancelScreenAction: id => ipcRenderer.invoke('cancel-screen-action', id),
   stopPointing: () => ipcRenderer.invoke('stop-pointing'),
   systemAudio: action => ipcRenderer.invoke('system-audio', action),
   captureStatus: status => ipcRenderer.send('capture-status', status),

@@ -1,18 +1,23 @@
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { CoreTurnSink } from './gateway.js';
 import { VOICE_STYLES, type VoiceStyle, type Settings } from '../shared/types.js';
+import { CoreTaskReader } from './core-tasks.js';
 
 type AssistantMode = Settings['mode'];
 const MODES: AssistantMode[] = ['normal', 'gaming', 'do_not_disturb'];
+export type CoreState = 'IDLE' | 'LISTENING' | 'TRANSCRIBING' | 'THINKING' | 'SPEAKING' | 'ERROR';
+export interface CoreActivity { client_id: string; interface: 'classic' | 'pet'; state: CoreState; updated_at: number }
 
 /** Optional v1 bridge to Karen classic's existing SQLite conversation archive. */
 export class CoreStore implements CoreTurnSink {
   private db: DatabaseSync;
+  private tasks: CoreTaskReader;
 
-  constructor(path: string) {
+  constructor(path: string, taskPath?: string) {
+    this.tasks = new CoreTaskReader(taskPath);
     if (!isAbsolute(path) || !existsSync(path))
       throw new Error('KAREN_CORE_DB debe apuntar a un archivo SQLite existente y absoluto.');
     this.db = new DatabaseSync(path);
@@ -24,15 +29,20 @@ export class CoreStore implements CoreTurnSink {
         const existing = this.db.prepare("SELECT value FROM core_meta WHERE key='schema_version'").get() as { value: string } | undefined;
         if (!existing || existing.value !== '1')
           throw new Error(`Versión de Karen Core no compatible: ${existing?.value ?? 'sin versión'}`);
+        const version = this.db.prepare("SELECT value FROM core_meta WHERE key='events_version'").get() as { value: string } | undefined;
+        if (version && version.value !== '1') throw new Error('Versión de eventos Core no compatible.');
       }
       this.db.exec(`
-        PRAGMA busy_timeout=5000;
+        PRAGMA busy_timeout=200;
         CREATE TABLE IF NOT EXISTS core_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         INSERT OR IGNORE INTO core_meta (key,value) VALUES ('schema_version','1');
         CREATE TABLE IF NOT EXISTS core_external_turns (
           session_key TEXT NOT NULL, run_id TEXT NOT NULL, chat_id TEXT NOT NULL,
           PRIMARY KEY (session_key,run_id));
       `);
+      const eventsVersion = this.db.prepare("SELECT value FROM core_meta WHERE key='events_version'").get() as { value: string } | undefined;
+      if (eventsVersion && eventsVersion.value !== '1') throw new Error('Versión de eventos Core no compatible.');
+      if (!eventsVersion) this.db.exec('BEGIN IMMEDIATE;\n' + readFileSync(new URL('../shared/core-events.sql', import.meta.url), 'utf8') + '\nCOMMIT;');
     } catch (error) {
       this.db.close();
       throw error;
@@ -120,4 +130,25 @@ export class CoreStore implements CoreTurnSink {
   }
 
   close(): void { this.db.close(); }
+  listTasks() { return this.tasks.list(); }
+  readTask(id: string) { return this.tasks.get(id); }
+
+  setActivity(clientId: string, state: CoreState): void {
+    if (!/^[0-9a-f]{32}$/.test(clientId) || !['IDLE','LISTENING','TRANSCRIBING','THINKING','SPEAKING','ERROR'].includes(state))
+      throw new Error('Actividad Core inválida.');
+    this.db.prepare(`INSERT INTO core_activity VALUES (?,?,?,?) ON CONFLICT(client_id)
+      DO UPDATE SET state=excluded.state,updated_at=excluded.updated_at`)
+      .run(clientId, 'pet', state, Date.now() / 1000);
+    this.db.prepare('DELETE FROM core_activity WHERE updated_at<?').run(Date.now() / 1000 - 86400);
+  }
+
+  clearActivity(clientId: string): void {
+    this.db.prepare('DELETE FROM core_activity WHERE client_id=?').run(clientId);
+  }
+
+  activities(): CoreActivity[] {
+    const now = Date.now() / 1000;
+    return this.db.prepare('SELECT client_id,interface,state,updated_at FROM core_activity WHERE updated_at>? AND updated_at<=? ORDER BY interface,client_id')
+      .all(now - 15, now + 1) as unknown as CoreActivity[];
+  }
 }

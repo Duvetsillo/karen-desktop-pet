@@ -1,6 +1,7 @@
 import { wakeCommand } from '../../shared/wake-word';
 import type { WakeStatus } from '../../shared/types';
 import { pcm16 } from './pcm';
+import { openMicrophone } from './microphone';
 
 /** Offline transcription gates addressed commands. Quiet audio never reaches STT. */
 export class TranscriptionWakeDetector {
@@ -68,7 +69,7 @@ export class TranscriptionWakeDetector {
     this.opening = true;
     const generation = this.generation;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({audio: {
+      const stream = await openMicrophone({audio: {
         deviceId: this.device ? {exact: this.device} : undefined,
         echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       },video:false});

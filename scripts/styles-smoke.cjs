@@ -2,10 +2,15 @@ const { _electron: electron, expect } = require('@playwright/test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const { createCoreQaProfile } = require('./core-qa-profile.cjs');
 
 (async () => {
   fs.mkdirSync('qa', {recursive:true});
-  const env = {...process.env}; delete env.ELECTRON_RUN_AS_NODE;
+  const {directory,profile,cleanup} = createCoreQaProfile('karen-native-styles-');
+  const core = path.join(directory,'core.sqlite3');
+  execFileSync('python',['-c','from conversations import Conversations; import sys; Conversations(sys.argv[1]).current()',core],{cwd:path.resolve('..')});
+  const env = {...process.env,KAREN_QA_PROFILE:profile,KAREN_CORE_DB:core}; delete env.ELECTRON_RUN_AS_NODE;
   const launch = () => electron.launch({args:[path.resolve('.'), '--qa'], env});
   let app = await launch();
   const errors = [], frames = [];
@@ -23,10 +28,10 @@ const path = require('node:path');
     await panel.getByRole('button', {name:'Apariencia', exact:true}).click();
     const preview = panel.locator('.preview-window canvas');
     await preview.waitFor();
-    for (const [style, name] of [['crystal','Cristal'], ['cloud','Nube'], ['orbit','Órbita'], ['sprite','Lucero'], ['bloom','Flor']]) {
+    for (const [style, name] of [['crystal','Cristal'], ['cloud','Nube'], ['orbit','Órbita'], ['sprite','Lucero'], ['bloom','Flor'], ['aurora','Aurora'], ['ember','Ámbar'], ['midnight','Nocturna']]) {
       await panel.getByRole('radio', {name:new RegExp(name)}).check();
       await expect.poll(async () => (await panel.evaluate(() => window.karen.snapshot())).settings.petStyle).toBe(style);
-      await panel.getByRole('img', {name:`Karen, estilo ${name}, con ojos expresivos`}).waitFor();
+      await panel.getByRole('img', {name:new RegExp(`Karen, estilo ${name},`)}).waitFor();
       await panel.waitForTimeout(400);
       for (const state of ['IDLE','LISTENING','THINKING','SPEAKING','HAPPY','LAUGHING','ANGRY','SAD','SURPRISED','PROUD','CURIOUS','CONFUSED','ERROR','SLEEPING','DRAGGING']) {
         await panel.evaluate(state => window.karen.demo(state), state);
@@ -54,9 +59,9 @@ const path = require('node:path');
     await panel.waitForSelector('h1');
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).settings.petStyle, 'cloud');
     assert.deepEqual(errors, []);
-    const report = {styles:['crystal','cloud','orbit','sprite','bloom'],statesPerStyle:15,keyboard:true,persisted:'cloud',reducedMotion:true,disconnectedModel:true,errors};
+    const report = {styles:['crystal','cloud','orbit','sprite','bloom','aurora','ember','midnight'],statesPerStyle:15,keyboard:true,persisted:'cloud',reducedMotion:true,disconnectedModel:true,errors};
     fs.writeFileSync('qa/styles-160.json',JSON.stringify(report,null,2));
     console.log(JSON.stringify(report));
-  } finally {await app.close();}
+  } finally {await app.close();cleanup();}
   process.exit(0);
 })().catch(e => {console.error(e);process.exit(1)});

@@ -7,6 +7,7 @@ import { gazeTarget } from "./gaze";
 import { SpeechMotion } from "./speech-motion";
 import { machine, signals, useStore } from "../state/store";
 import { effectiveSettings } from '../../shared/settings';
+import { IdleActivities } from './idle-activities';
 
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
@@ -23,9 +24,12 @@ export function PetRenderer({
   preview?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
-  const accent = useStore((s) => s.settings.accent);
+  const ready = useStore(s=>s.ready);
   const petStyle = useStore((s) => s.settings.petStyle);
+  const showArms = useStore((s) => s.settings.showArms);
+  const showLegs = useStore((s) => s.settings.showLegs);
   useEffect(() => {
+    if(!ready)return;
     let disposed = false;
     let initialized = false;
     let app: Application | undefined;
@@ -50,7 +54,7 @@ export function PetRenderer({
       }
       host.current!.appendChild(app.canvas);
       app.canvas.setAttribute("aria-hidden", "true");
-      const tex = createPetTextures(accent, petStyle);
+      let tex = createPetTextures(useStore.getState().settings.accent, useStore.getState().settings.petStyle);
       const scene = new Container();
       app.stage.addChild(scene);
       const make = (
@@ -90,7 +94,7 @@ export function PetRenderer({
       legR.scale.set(-0.64, 0.64);
       const armL = new Container();
       root.addChild(armL);
-      armL.position.set(-111, 35);
+      armL.position.set(-126, 45);
       const armLSprite = make(tex.arm, armL);
       armLSprite.scale.set(0.65);
       const handL = make(tex.hand, armL);
@@ -99,7 +103,7 @@ export function PetRenderer({
       armL.rotation = -0.25;
       const armR = new Container();
       root.addChild(armR);
-      armR.position.set(111, 35);
+      armR.position.set(126, 45);
       const armRSprite = make(tex.arm, armR);
       armRSprite.scale.set(-0.65, 0.65);
       const handR = make(tex.hand, armR);
@@ -108,8 +112,8 @@ export function PetRenderer({
       armR.rotation = 0.25;
       const body = make(tex.body, root);
       body.scale.set(0.94);
-      if (!preview) {
-        const masks = [body, finL, finR, armLSprite, armRSprite, handL, handR, legL, legR].map((sprite) => {
+      const maskSprites = [body, finL, finR, armLSprite, armRSprite, handL, handR, legL, legR];
+      const readMasks = () => maskSprites.map((sprite) => {
           const canvas = sprite.texture.source.resource as HTMLCanvasElement;
           return {
             sprite,
@@ -120,8 +124,11 @@ export function PetRenderer({
               .getImageData(0, 0, canvas.width, canvas.height).data,
           };
         });
+      let masks = preview ? [] : readMasks();
+      if (!preview) {
         signals.hitTest = (x, y) =>
           masks.some((m) => {
+            if (!m.sprite.visible || !m.sprite.parent?.visible) return false;
             const p = m.sprite.toLocal({ x, y });
             const px = Math.floor(p.x + m.sprite.anchor.x * m.width),
               py = Math.floor(p.y + m.sprite.anchor.y * m.height);
@@ -151,6 +158,8 @@ export function PetRenderer({
       const irisR = make(tex.iris, eyeR);
       const facial = new Graphics();
       root.addChild(facial);
+      const pastime = new Graphics();
+      root.addChild(pastime);
       const sparkles = Array.from({ length: 22 }, (_, i) => {
         const s = make(tex.particle, scene);
         s.scale.set(0.14 + Math.random() * 0.18);
@@ -162,12 +171,28 @@ export function PetRenderer({
           phase: Math.random() * 6.28,
         };
       });
+      // One WebGL context for the lifetime of this surface. Replacing an app
+      // during saved-settings hydration can invalidate Pixi's shared batch pool.
+      const offStyle=useStore.subscribe((next,previous)=>{
+        if(next.settings.accent===previous.settings.accent && next.settings.petStyle===previous.settings.petStyle)return;
+        const old=tex;
+        tex=createPetTextures(next.settings.accent,next.settings.petStyle);
+        body.texture=tex.body;shadow.texture=tex.shadow;halo.texture=tex.glow;
+        finL.texture=finR.texture=tex.fin;legL.texture=legR.texture=tex.leg;
+        armLSprite.texture=armRSprite.texture=tex.arm;handL.texture=handR.texture=tex.hand;
+        eyeL.children[0] && ((eyeL.children[0] as Sprite).texture=tex.eye);
+        eyeR.children[0] && ((eyeR.children[0] as Sprite).texture=tex.eye);
+        irisL.texture=irisR.texture=tex.iris;
+        sparkles.forEach(p=>p.sprite.texture=tex.particle);
+        masks=preview?[]:readMasks();
+        Object.values(old).forEach(t=>t.destroy(true));
+      });
       const resize = () => {
         if (!app || !host.current) return;
         const { width, height } = host.current.getBoundingClientRect();
         app.renderer.resize(width, height);
         scene.position.set(width / 2, height * 0.54);
-        scene.scale.set(Math.min(width / 380, height / 440) * (preview ? 0.5 : 0.8));
+        scene.scale.set(Math.min(width / 380, height / 440) * (preview ? 0.72 : 0.8));
         // Resizing clears WebGL even while Windows has paused the hidden ticker.
         // Draw this frame immediately; no background animation loop is needed.
         app.render();
@@ -192,27 +217,67 @@ export function PetRenderer({
         bodyTint = 0xffffff,
         haloTint = 0xffffff;
       const speechMotion = new SpeechMotion();
+      const idleActivities = new IdleActivities();
+      let lastIdleKind = '';
       const visibility = () => {
-        if (document.hidden) app?.stop();
-        else app?.start();
+        idleActivities.suspend(Date.now(), useStore.getState().settings.idleAfter);
+        pastime.clear();
+        if (host.current) host.current.dataset.idleActivity = 'none';
+        lastIdleKind = 'none';
+        if (document.hidden || !useStore.getState().surfaceVisible) app?.stop();
+        else { app?.render();app?.start(); }
       };
       document.addEventListener("visibilitychange", visibility);
+      const offVisibility = useStore.subscribe((next,previous) => {
+        if (next.surfaceVisible !== previous.surfaceVisible) visibility();
+      });
+      visibility();
       app.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.06);
         t += dt;
-        const { settings, state, expression: spokenExpression, capture } = useStore.getState();
+        const { settings, state, expression: spokenExpression, capture, coreActivity, wakeStatus, messages, surfaceVisible } = useStore.getState();
         const s = effectiveSettings(settings);
         const sleeping = state === "SLEEPING";
-        app!.ticker.maxFPS = s.lowPower || sleeping ? 15 : preview ? 30 : 60;
+        app!.ticker.maxFPS = s.lowPower || sleeping || !s.animations || reduced.matches ? 12 : state === 'IDLE' ? 24 : preview ? 30 : 60;
         frames++;
-        frameTime += dt;
+        frameTime += ticker.deltaMS / 1000;
         if (frameTime > 3) {
           signals.fps = Math.round(frames / frameTime);
+          host.current!.dataset.renderFps = String(signals.fps);
           if (signals.fps < 24 && !s.lowPower && !sleeping) quality = 0.5;
           frames = 0;
           frameTime = 0;
         }
         const motion = s.animations && !reduced.matches;
+        armL.visible = armR.visible = s.showArms;
+        legL.visible = legR.visible = s.showLegs;
+        if (host.current!.dataset.arms !== String(s.showArms)) host.current!.dataset.arms = String(s.showArms);
+        if (host.current!.dataset.legs !== String(s.showLegs)) host.current!.dataset.legs = String(s.showLegs);
+        const idle = idleActivities.update({ settings: s, state, lastActivity: machine.snapshot.lastActivity,
+          blocked: document.hidden || !surfaceVisible || capture.phase !== 'idle' || signals.pointingSide !== 0 ||
+            wakeStatus === 'processing' || wakeStatus === 'recovering' || Boolean(messages.at(-1)?.pending) ||
+            coreActivity.some(client => client.state !== 'IDLE'),
+          reducedMotion: reduced.matches });
+        if (lastIdleKind !== idle.kind) {
+          host.current!.dataset.idleActivity = lastIdleKind = idle.kind;
+        }
+        const idleEnvelope = Math.sin(Math.PI * idle.progress) ** 2;
+        const play = idle.kind === 'play' ? idleEnvelope : 0;
+        const stretch = idle.kind === 'stretch' ? idleEnvelope : 0;
+        const stargaze = idle.kind === 'stargaze' ? idleEnvelope : 0;
+        pastime.clear();
+        if (play > 0) {
+          const ballX = Math.sin(idle.progress * Math.PI * 6) * 112;
+          const ballY = 154 - Math.abs(Math.sin(idle.progress * Math.PI * 6)) * 37;
+          pastime.circle(ballX, ballY, 9).fill({ color: 0xc9f4ff, alpha: idleEnvelope * .9 });
+          pastime.circle(ballX - 2, ballY - 3, 2).fill({ color: 0xffffff, alpha: idleEnvelope });
+        } else if (stargaze > 0) {
+          for (let i = 0; i < 5; i++) {
+            const x = -69 + i * 33, y = -180 - Math.sin(i * 1.8) * 15;
+            pastime.moveTo(x - 4, y).lineTo(x + 4, y).moveTo(x, y - 4).lineTo(x, y + 4)
+              .stroke({ color: 0xdcf9ff, width: 1.5, alpha: stargaze * (.55 + .35 * Math.sin(idle.progress * 5 + i)) });
+          }
+        }
         const speaking = state === "SPEAKING";
         const preparingVoice = capture.kind === "voice" && capture.phase === "preparing";
         const expression = speaking || preparingVoice ? spokenExpression : state;
@@ -226,7 +291,7 @@ export function PetRenderer({
         const entrance = motion ? Math.max(0, 1 - expressiveAge / 0.7) : 0;
         const voiceEnergy = speaking ? Math.sqrt(Math.max(0, Math.min(1, signals.energy))) : 0;
         const speech = speechMotion.update(voiceEnergy, dt, speaking, motion);
-        if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.5 * s.scale);
+        if (preview) scene.scale.set(Math.min(app!.screen.width / 380, app!.screen.height / 440) * 0.72 * Math.sqrt(s.scale));
         const activity = motion ? s.activity : 0;
         let targetTilt =
           state === "CONFUSED"
@@ -241,7 +306,7 @@ export function PetRenderer({
                 : surprised ? 0.06
                 : 0;
         const gaze = gazeTarget(signals.cursor, s.cursorTracking && !sleeping);
-        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + Math.sin(t * 2.8) * speech.envelope * 0.045 + speech.side * speech.gesture * 0.055;
+        if (motion) targetTilt += Math.sin(t * 0.6) * 0.022 + gaze.x * 0.002 + Math.sin(t * 2.8) * speech.envelope * 0.045 + speech.side * speech.gesture * 0.055 + Math.sin(idle.progress * Math.PI * 6) * play * .06 - stargaze * .12;
         tilt = damp(tilt, motion ? targetTilt : 0, dt, 7);
         root.rotation = tilt;
         root.x = damp(root.x, motion ? Math.sin(t * 2.8) * speech.envelope * 6 + speech.side * speech.gesture * 4 : 0, dt, 8);
@@ -268,7 +333,7 @@ export function PetRenderer({
         const breathe =
           1 + (motion ? Math.sin(t * (sleeping ? 1.2 : 2.3)) * 0.009 : 0);
         const voicePulse = motion ? speech.envelope * 0.028 : 0;
-        root.scale.set(breathe - voicePulse, 2 - breathe + voicePulse);
+        root.scale.set(breathe - voicePulse - stretch * .035, 2 - breathe + voicePulse + stretch * .055);
         root.alpha = damp(
           root.alpha,
           (sleeping ? 0.57 : 1) * (s.nightMode ? 0.7 : 1) * s.opacity,
@@ -318,12 +383,12 @@ export function PetRenderer({
           7,
         );
         armL.rotation = damp(armL.rotation,
-          (signals.pointingSide === -1 ? 0.85 : -0.25) +
+          (signals.pointingSide === -1 ? 0.85 : -0.25) - stretch * .8 + play * Math.sin(idle.progress * Math.PI * 6) * .2 +
           Math.sin(t * 2 + 0.3) * 0.07 * activity +
           (motion ? laughing ? -0.42 : proud ? -0.36 : angry ? 0.2 : sad ? 0.12 : expression === "HAPPY" ? -0.25 : 0 : 0) -
           (signals.pointingSide === -1 ? 0 : -speech.envelope * 0.13 - (speech.side < 0 ? speech.gesture * 0.4 : speech.gesture * 0.08)), dt, motion ? 10 : 60);
         armR.rotation = damp(armR.rotation,
-          (signals.pointingSide === 1 ? -0.85 : 0.25) -
+          (signals.pointingSide === 1 ? -0.85 : 0.25) + stretch * .8 + play * Math.sin(idle.progress * Math.PI * 6) * .2 -
           Math.sin(t * 2) * 0.07 * activity +
           (motion ? laughing ? 0.42 : proud ? 0.36 : angry ? -0.2 : sad ? -0.12 : expression === "HAPPY" ? 0.25 : 0 : 0) +
           (signals.pointingSide === 1 ? 0 : -speech.envelope * 0.13 + (speech.side > 0 ? speech.gesture * 0.4 : speech.gesture * 0.08)), dt, motion ? 10 : 60);
@@ -353,8 +418,8 @@ export function PetRenderer({
         rightOpen = damp(rightOpen, targetOpen * (asymmetry ? 1.08 : 1), dt, blink > 0 ? 60 : 12);
         // Pursuit is damped, not restarted by each cursor event. Reduced motion
         // keeps a legible gaze but removes face translation and head sway.
-        eyeX = damp(eyeX, gaze.x, dt, reduced.matches ? 18 : 12);
-        eyeY = damp(eyeY, gaze.y, dt, reduced.matches ? 18 : 12);
+        eyeX = damp(eyeX, play ? Math.sin(idle.progress * Math.PI * 6) * play * 12 : gaze.x, dt, reduced.matches ? 18 : 12);
+        eyeY = damp(eyeY, play ? play * 5 : stargaze ? -stargaze * 8 : gaze.y, dt, reduced.matches ? 18 : 12);
         eyes.position.set(motion ? eyeX * 0.2 : 0, -7 + (motion ? eyeY * 0.16 : 0));
         irisL.position.set(3 + eyeX, 6 + eyeY);
         irisR.position.set(3 - eyeX, 6 + eyeY);
@@ -443,8 +508,10 @@ export function PetRenderer({
       };
       document.addEventListener("pointermove", pointer, { passive: true });
       cleanup = () => {
+        offStyle();
         document.removeEventListener("pointermove", pointer);
         document.removeEventListener("visibilitychange", visibility);
+        offVisibility();
         oldCleanup();
         Object.values(tex).forEach((t) => t.destroy(true));
       };
@@ -472,13 +539,13 @@ export function PetRenderer({
       disposed = true;
       cleanup();
     };
-  }, [accent, petStyle, preview]);
+  }, [ready, preview]);
   return (
     <div
       ref={host}
       className={`pet-renderer ${className}`}
       role="img"
-      aria-label={`Karen, estilo ${petStyles[petStyle].name}, con ojos expresivos`}
+      aria-label={`Karen, estilo ${petStyles[petStyle].name}, ${showArms ? 'con' : 'sin'} brazos y ${showLegs ? 'con' : 'sin'} piernas`}
     />
   );
 }

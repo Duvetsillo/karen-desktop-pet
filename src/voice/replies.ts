@@ -37,8 +37,8 @@ export class VoiceReplies {
   }
 }
 
-/** Speak a normal reply in one uninterrupted clip; split only at the engine limit. */
-export function speechPhrases(text: string, limit = 4096): string[] {
+/** Sentence boundaries allow the next clip to generate while this one plays. */
+export function speechPhrases(text: string, limit = 4096, sentenceTarget = 0, firstSentenceTarget = sentenceTarget): string[] {
   const plain = text
     .replace(/```[\s\S]*?(?:```|$)/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
@@ -64,6 +64,11 @@ export function speechPhrases(text: string, limit = 4096): string[] {
         result.push(phrase);
         phrase = "";
       }
+    }
+    const target = result.length === 0 ? firstSentenceTarget : sentenceTarget;
+    if (target > 0 && phrase.length >= target && /[.!?…]["'»”)]?$/.test(word)) {
+      result.push(phrase);
+      phrase = "";
     }
   }
   if (phrase) result.push(phrase);

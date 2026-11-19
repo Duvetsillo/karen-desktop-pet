@@ -2,7 +2,18 @@ import type { Settings } from "./types.js";
 import { PET_STYLES, VOICE_STYLES } from './types.js';
 import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
+  initiativeEnabled: false,
+  initiativeSpeak: false,
+  initiativeInterval: 45,
+  initiativeDailyLimit: 4,
+  initiativeQuietStart: 22,
+  initiativeQuietEnd: 9,
   petStyle: 'crystal',
+  showArms: true,
+  showLegs: true,
+  idleActivities: true,
+  idleActivity: 'variety',
+  idleAfter: 30,
   scale: 1,
   brightness: 1,
   opacity: 0.94,
@@ -76,8 +87,18 @@ export function validateSettings(
     if (!PET_STYLES.includes(raw.petStyle)) throw new Error('Apariencia desconocida.');
     s.petStyle = raw.petStyle;
   }
+  if (raw.idleActivity !== undefined) {
+    if (!['variety', 'play', 'stretch', 'stargaze'].includes(raw.idleActivity))
+      throw new Error('Actividad de reposo desconocida.');
+    s.idleActivity = raw.idleActivity;
+  }
   for (const key of [
     "particles",
+    "initiativeEnabled",
+    "initiativeSpeak",
+    "showArms",
+    "showLegs",
+    "idleActivities",
     "animations",
     "cursorTracking",
     "bubbles",
@@ -96,11 +117,16 @@ export function validateSettings(
     }
   }
   const ranges = {
+    initiativeInterval: [15, 240],
+    initiativeDailyLimit: [1, 12],
+    initiativeQuietStart: [0, 23],
+    initiativeQuietEnd: [0, 23],
     scale: [PET_SCALE.min, PET_SCALE.max],
     brightness: [0.35, 1.4],
     opacity: [0.35, 1],
     sleepAfter: [30, 3600],
     activity: [0, 1],
+    idleAfter: [15, 300],
     volume: [0, 1],
     sensitivity: [0.2, 5],
   } as const;
@@ -108,7 +134,8 @@ export function validateSettings(
     const n = raw[key];
     if (n !== undefined) {
       if (!Number.isFinite(n)) throw new Error("Número inválido.");
-      s[key] = Math.min(ranges[key][1], Math.max(ranges[key][0], n));
+      const value = Math.min(ranges[key][1], Math.max(ranges[key][0], n));
+      s[key] = key.startsWith('initiative') ? Math.round(value) : value;
     }
   }
   if (raw.gatewayUrl !== undefined)

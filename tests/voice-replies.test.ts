@@ -4,6 +4,22 @@ import type { CaptureStatus } from "../shared/types";
 
 const reply = (id: string) => ({ id, role: "assistant" as const, text: `Respuesta ${id}.` });
 describe("respuestas habladas", () => {
+  it('la primera oración local empieza antes sin fragmentar saludos ni acortar el contenido', () => {
+    const first = 'Puedo ayudarte a organizar mejor tus pendientes.';
+    const second = 'Después revisamos los pasos necesarios para terminar cada tarea.';
+    expect(speechPhrases(`${first} ${second}`,240,70,40)).toEqual([first,second]);
+    expect(speechPhrases(`${first} ${second}`,240,70)).toEqual([`${first} ${second}`]);
+    expect(speechPhrases('Claro. Estoy aquí para ayudarte con tus tareas pendientes.',240,70,40))
+      .toEqual(['Claro. Estoy aquí para ayudarte con tus tareas pendientes.']);
+  });
+  it('divide voz local por oraciones y conserva el texto completo', () => {
+    const text = 'Esta oración es suficientemente larga para comenzar una respuesta hablada. Después seguimos conversando y conservamos el contexto completo de la respuesta.';
+    const phrases = speechPhrases(text, 240, 70);
+    expect(phrases).toHaveLength(2);
+    expect(phrases[0].endsWith('.')).toBe(true);
+    expect(phrases.join(' ')).toBe(text);
+    expect(speechPhrases('Hola. ¿Seguimos?', 240, 70)).toEqual(['Hola. ¿Seguimos?']);
+  });
   it("conserva una respuesta que llega antes de terminar la transcripción", () => {
     let capture: CaptureStatus = { kind: "microphone", phase: "transcribing" };
     const speak = vi.fn(async () => {});

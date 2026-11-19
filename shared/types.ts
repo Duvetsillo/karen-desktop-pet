@@ -16,7 +16,7 @@ export const PET_STATES = [
   "DRAGGING",
 ] as const;
 export type PetState = (typeof PET_STATES)[number];
-export const PET_STYLES = ['crystal', 'cloud', 'orbit', 'sprite', 'bloom'] as const;
+export const PET_STYLES = ['crystal', 'cloud', 'orbit', 'sprite', 'bloom', 'aurora', 'ember', 'midnight'] as const;
 export type PetStyle = (typeof PET_STYLES)[number];
 export interface ModelOption {
   id: string;
@@ -41,7 +41,18 @@ export type ConnectionState =
   | "reconnecting"
   | "action-required";
 export interface Settings {
+  initiativeEnabled: boolean;
+  initiativeSpeak: boolean;
+  initiativeInterval: number;
+  initiativeDailyLimit: number;
+  initiativeQuietStart: number;
+  initiativeQuietEnd: number;
   petStyle: PetStyle;
+  showArms: boolean;
+  showLegs: boolean;
+  idleActivities: boolean;
+  idleActivity: 'variety' | 'play' | 'stretch' | 'stargaze';
+  idleAfter: number;
   scale: number;
   brightness: number;
   opacity: number;
@@ -97,12 +108,25 @@ export interface ImageAttachment {
   content: string;
 }
 export interface CaptureSource { id: string; name: string; canPoint?: boolean; }
+export interface ScreenActionProposal {
+  id: string;
+  kind: 'click' | 'type';
+  target: string;
+  text?: string;
+  x: number;
+  y: number;
+  expiresAt: number;
+}
 export interface CaptureStatus {
   kind: "microphone" | "system" | "voice";
   phase: "idle" | "recording" | "transcribing" | "preparing" | "speaking";
   startedAt?: number;
 }
 export type DesktopEvent =
+  | { type: 'initiative'; snapshot: import('./initiative.js').InitiativeSnapshot; notice?: import('./initiative.js').InitiativeNotice }
+  | { type: 'surface-visibility'; visible: boolean }
+  | { type: 'core-activity'; clients: { interface: string; state: string }[] }
+  | { type: 'screen-action-proposal'; proposal: ScreenActionProposal | null }
   | { type: 'models'; selection: ModelSelection }
   | { type: 'wake-status'; status: WakeStatus }
   | { type: "connection"; info: ConnectionInfo }
@@ -121,6 +145,7 @@ export type DesktopEvent =
   | { type: "energy"; value: number }
   | { type: "wake" };
 export interface Snapshot {
+  initiative?: import('./initiative.js').InitiativeSnapshot;
   settings: Settings;
   connection: ConnectionInfo;
   diagnostics: Diagnostic[];
@@ -133,6 +158,10 @@ export interface Snapshot {
   wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
+  interaction?(): void;
+  initiative?(action: import('./initiative.js').InitiativeAction, id?: string): Promise<import('./initiative.js').InitiativeSnapshot>;
+  claimMicrophone?(): Promise<string>;
+  releaseMicrophone?(token: string): Promise<void>;
   models(): Promise<ModelSelection>;
   selectModel(model: string | null): Promise<ModelSelection>;
   snapshot(): Promise<Snapshot>;
@@ -163,6 +192,8 @@ export interface DesktopBridge {
   captureScreen(id: string): Promise<ImageAttachment>;
   pointAt(id: string, x: number, y: number): Promise<void>;
   locateOnScreen(id: string, description: string, image: ImageAttachment): Promise<void>;
+  approveScreenAction(id: string): Promise<void>;
+  cancelScreenAction(id: string): Promise<void>;
   stopPointing(): Promise<void>;
   systemAudio(action: "start" | "finish"): Promise<void>;
   captureStatus(status: CaptureStatus): void;

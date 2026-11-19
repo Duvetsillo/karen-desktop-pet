@@ -63,6 +63,8 @@ export function serverBridge(): DesktopBridge {
     captureScreen: unsupported,
     pointAt: unsupported,
     locateOnScreen: unsupported,
+    approveScreenAction: unsupported,
+    cancelScreenAction: unsupported,
     stopPointing: unsupported,
     systemAudio: unsupported,
     captureStatus: () => {},

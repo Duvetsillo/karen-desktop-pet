@@ -43,6 +43,9 @@ export class PetMachine {
   wake(now = Date.now()) {
     return this.transition("HAPPY", now);
   }
+  touch(now = Date.now()) {
+    this.snapshot = { ...this.snapshot, lastActivity: now };
+  }
   tick(sleepAfter: number, now = Date.now()) {
     if (this.snapshot.expires && now >= this.snapshot.expires)
       this.transition("IDLE", now);

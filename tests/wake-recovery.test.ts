@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../src/native', () => ({ bridge: {} }));
 import { TranscriptionWakeDetector } from '../src/voice/wake';
 
 vi.mock('../src/voice/pcm', () => ({ pcm16: async () => new Int16Array(16000).buffer }));
@@ -80,6 +81,7 @@ describe('recuperación de escucha local', () => {
   it('recupera la escucha al desconectarse una pista activa', async () => {
     const tracks = [{ stop: vi.fn(), onended: null as null | (() => void) },
       { stop: vi.fn(), onended: null as null | (() => void) }];
+    const stoppedFirst = tracks[0].stop;
     let next = 0;
     const getUserMedia = vi.fn(async () => {
       const track = tracks[next++];
@@ -108,7 +110,7 @@ describe('recuperación de escucha local', () => {
       expect(statuses.at(-1)).toBe('recovering');
       await vi.waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2), { timeout: 2500 });
       await vi.waitFor(() => expect(statuses.at(-1)).toBe('listening'));
-      expect(tracks[0].stop).toHaveBeenCalled();
+      expect(stoppedFirst).toHaveBeenCalled();
       expect(fail).not.toHaveBeenCalled();
     } finally { detector.stop(); }
   }, 4000);

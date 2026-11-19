@@ -197,6 +197,22 @@ async function setup(core?: { appendOpenClawTurn(sessionKey: string, runId: stri
   };
 }
 describe("adaptador contra servidor de contrato WebSocket", () => {
+  it('consulta el ID de una tarea local sin Gateway, TTS, argumentos ni ejecución', async () => {
+    const taskId = 'a'.repeat(32);
+    const readTask = vi.fn(() => ({ id: taskId, status: 'running', cursor: 0,
+      created_at: '2026-10-31', updated_at: '2026-10-31', cancel_requested: false,
+      steps: [{ ordinal: 0, tool: 'cpu_sample', permission: 'read' as const, status: 'running' }] }));
+    const core = { appendOpenClawTurn: vi.fn(), listTasks: vi.fn(() => []), readTask };
+    const t = await setup(core);
+    t.adapter.disconnect();
+    await t.adapter.send(`/tareas estado ${taskId}`);
+    expect(readTask).toHaveBeenCalledExactlyOnceWith(taskId);
+    expect(t.events.some(event => event.type === 'chat' && event.final && event.speak === false && event.message.text.includes('paso 0/1'))).toBe(true);
+    await t.adapter.send(`/tareas cancelar ${taskId}`);
+    expect(readTask).toHaveBeenCalledTimes(1);
+    expect(t.requests.filter(request => request.method === 'chat.send')).toHaveLength(0);
+    expect(core.appendOpenClawTurn).not.toHaveBeenCalled();
+  });
   it('muestra estado local de Core sin OpenClaw', async () => {
     const core = {
       appendOpenClawTurn: vi.fn(),

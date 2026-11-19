@@ -12,6 +12,8 @@ import type {
   ModelSelection,
 } from "../shared/types.js";
 import { validateImages } from "../shared/attachments.js";
+import { isCoreCommand } from '../shared/local-commands.js';
+import type { CoreTaskSummary, CoreTaskDetail } from '../shared/core-tasks.js';
 import {
   extractText,
   routeGatewayEvent,
@@ -29,6 +31,9 @@ export interface CoreTurnSink {
   listChats?(): { id: string; title: string; updated: string }[];
   readChat?(chatId: string): { prompt: string; answer: string }[];
   status?(): { version: string; chats: number; memories: number; voiceStyle: string | null };
+  activities?(): { interface: string; state: string }[];
+  listTasks?(): CoreTaskSummary[];
+  readTask?(id: string): CoreTaskDetail | null;
 }
 export class OpenClawAdapter {
   client?: GatewayClient;
@@ -358,11 +363,12 @@ export class OpenClawAdapter {
       await this.send(prepared.payload, undefined, true);
       return;
     }
-    if (/^\/(?:memoria|historial|core)(?:\s|$)/i.test(text)) {
-      if (images.length) throw new Error('La consulta local de memoria no admite capturas.');
+    if (isCoreCommand(text)) {
+      if (images.length) throw new Error('Los comandos locales de Core no admiten capturas.');
       if (this.pending) throw new Error('Espera a que termine la respuesta actual.');
       const reply = /^\/memoria(?:\s|$)/i.test(text) ? this.memoryReply(text)
-        : /^\/historial(?:\s|$)/i.test(text) ? this.historyReply(text) : this.coreReply(text);
+        : /^\/historial(?:\s|$)/i.test(text) ? this.historyReply(text)
+        : /^\/tareas(?:\s|$)/i.test(text) ? this.taskReply(text) : this.coreReply(text);
       const id = randomUUID();
       const user: ChatMessage = { id: `user:${id}`, role: 'user', text };
       const assistant: ChatMessage = { id, role: 'assistant', text: reply };
@@ -503,8 +509,27 @@ export class OpenClawAdapter {
     if (!this.core?.status) return 'Karen Core: puente local inactivo. Configura KAREN_CORE_DB y reinicia Pet.';
     try {
       const state = this.core.status();
-      return `Karen Core v${state.version}: activo; ${state.chats} chats, ${state.memories} recuerdos no sensibles vigentes; estilo de voz ${state.voiceStyle ?? 'local'}.`;
+      const activity = this.core.activities?.().map(client => `${client.interface}: ${client.state}`).join('; ');
+      return `Karen Core v${state.version}: activo; ${state.chats} chats, ${state.memories} recuerdos no sensibles vigentes; estilo de voz ${state.voiceStyle ?? 'local'}.${activity ? ` Actividad: ${activity}.` : ''}`;
     } catch { return 'Karen Core: no se pudo consultar la base compartida.'; }
+  }
+  private taskReply(text: string): string {
+    if (!this.core?.listTasks || !this.core.readTask)
+      return 'Puente de tareas inactivo. Configura KAREN_CORE_DB y KAREN_TASKS_DB.';
+    try {
+      if (/^\/tareas(?:\s+listar)?$/i.test(text)) {
+        const tasks = this.core.listTasks();
+        return tasks.length ? tasks.slice(0, 10).map(task => `${task.id}: ${task.status}; paso ${task.cursor}; actualizado ${task.updated_at}`).join('\n')
+          : 'No hay tareas registradas.';
+      }
+      const match = /^\/tareas\s+estado\s+([0-9a-f]{32})$/i.exec(text);
+      if (!match) return 'En Pet: /tareas listar o /tareas estado ID. Las acciones y cancelaciones se solicitan desde clásica.';
+      const task = this.core.readTask(match[1].toLowerCase());
+      if (!task) return 'Tarea desconocida.';
+      return `Tarea ${task.id}: ${task.status}; paso ${task.cursor}/${task.steps.length}; actualizado ${task.updated_at}.` +
+        (task.cancel_requested ? ' Cancelación solicitada.' : '') +
+        task.steps.map(step => `\n${step.ordinal + 1}. ${step.tool}: ${step.status}`).join('');
+    } catch { return 'No pude leer el registro local de tareas. Revisa KAREN_TASKS_DB y vuelve a consultar.'; }
   }
   async abort() {
     this.emit({ type: "voice-cancel" });

@@ -50,3 +50,24 @@ Escribe `/core estado` en Pet para consultar si el puente está activo. Muestra 
 ## Verificación
 
 `python qa/verify_core_interop.py` desde `C:\karen` crea una base temporal, escribe un chat clásico y memorias, añade un turno Pet con Node y confirma lectura cruzada de chats y recuerdos, además de exclusión de memorias sensibles y del filtro Gaming/crítica. `npm test` cubre deduplicación, versión, consultas locales y emisión solo de respuestas finales. Estas pruebas no conectan a OpenClaw real ni migran datos privados.
+# Coordinación añadida el 2026-10-31
+
+El contrato v1 incorpora el SQL compartido `shared/core-events.sql`: registro acotado a 2.000 eventos sin contenido de conversaciones, y actividad con heartbeat de cinco segundos y expiración de 15 segundos. El panel muestra actividad de otras interfaces; `/core estado` también la consulta. No unifica la sesión interna OpenClaw ni sus permisos con Karen clásica.
+
+Micrófono: `electron/core-resource.ts` obtiene un lock OS mediante `python/core_resource.py` antes de abrir hardware. Se usan tickets ligados al renderer autorizado, se liberan al cerrar los tracks y se limpian al cerrar el renderer/aplicación. La clásica importa esa misma implementación. La ubicación predeterminada es `%LOCALAPPDATA%/KarenCore/locks/microphone.lock`; `KAREN_RESOURCE_DIR`, si se define, debe ser absoluto e idéntico en los clientes. No borrar el lock con clientes activos. El navegador remoto no participa en este lock local.
+
+Se necesita la carpeta de voz configurada con `voice-runtime/Scripts/python.exe`. Fallar el worker impide abrir el micrófono; no se salta el arbitraje. El worker se distribuye fuera de ASAR y no recibe audio ni carga modelos. Esto evita competencia entre capturas cooperantes; no implementa barge-in ni sustituye permisos de micrófono de Windows.
+
+Pruebas nuevas: `npm test`, `npm run build`, `node scripts/core-resource-smoke.cjs`. El último comando usa el perfil QA y locks temporales, sin abrir audio. Puede apuntarse al EXE con `KAREN_SMOKE_EXECUTABLE`. Los smokes desde código y EXE empaquetado pasaron en Windows 11. El [informe principal del repositorio clásico](../../IMPLEMENTATION_REPORT.md) contiene límites, métricas y reversión.
+
+## Continuación: tareas compartidas y comandos sin Gateway
+
+Configurar, en ambos procesos, `KAREN_CORE_DB` y `KAREN_TASKS_DB` con rutas absolutas a sus archivos existentes. Para la instalación clásica habitual, las rutas son `C:\karen\.private\conversations.sqlite3` y `C:\karen\.private\karen-tasks.sqlite3`. La clásica conserva la ruta anterior si no se define la segunda variable; Pet requiere autorización explícita mediante esa variable para leer tareas. Un archivo inexistente no se crea al consultarlo desde Pet.
+
+`/tareas listar` muestra hasta diez de las últimas cincuenta tareas; `/tareas estado ID` muestra estado registrado, cursor, fecha y hasta 32 pasos. Las consultas usan SQLite de solo lectura y conservan el mismo ID del ejecutor clásico. No reanudan, recuperan, ejecutan, aprueban ni cancelan trabajos. No incluyen argumentos, hashes ni valores de resultados. Las filas pueden sobrevivir a un proceso terminado: consultar su fecha y permitir que el ejecutor clásico concilie estados interrupted/uncertain antes de inferir actividad real.
+
+Ambos compositores permiten comandos Core locales con Gateway desconectado. Las transferencias `/memoria enviar` y `/historial enviar ID` siguen exigiendo conexión y revisión previa. Las respuestas de tareas no se envían al modelo ni a TTS.
+
+`node scripts/core-tasks-smoke.cjs` crea bases temporales y una herramienta sintética. Comprueba en Electron real el mismo ID pending/running/completed, una tarea inexistente, el botón habilitado sin Gateway y la exclusión de argumentos privados. Usar `KAREN_SMOKE_EXECUTABLE` permite repetirlo contra el paquete. `--qa --qa-core` habilita el Core temporal del smoke y mantiene desactivada la conexión automática del Gateway. La prueba no administra servicios ni valida herramientas físicas.
+
+Los dos smokes Core usan perfiles nuevos bajo el directorio temporal, con reconocimiento, wake y reproducción desactivados desde el arranque. `KAREN_QA_PROFILE` selecciona ese perfil únicamente con `--qa`; no cambia el perfil normal. Su limpieza comprueba el límite del directorio resuelto antes de borrarlo. No reutilizan credenciales ni preferencias del perfil QA persistente.

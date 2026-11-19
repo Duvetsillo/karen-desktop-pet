@@ -52,6 +52,8 @@ const preview: DesktopBridge = {
   captureScreen: unavailable,
   pointAt: unavailable,
   locateOnScreen: unavailable,
+  approveScreenAction: unavailable,
+  cancelScreenAction: unavailable,
   stopPointing: unavailable,
   systemAudio: unavailable,
   captureStatus: () => {},

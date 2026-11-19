@@ -11,7 +11,7 @@ export function parsePointDirective(text: string) {
 }
 
 export function stripPointPrefix(text: string) {
-  return text.replace(/^\s*\[\[(?:POINT|NO_POINT)[^\]]*(?:\]\])?\s*/i, '').trim();
+  return text.replace(/^\s*\[\[(?:POINT|NO_POINT|KAREN_(?:NO_)?ACTION)(?::[^\]]*)?(?:\]\])?\s*/i, '').trim();
 }
 
 export function screenPointIntent(text: string): string | null {

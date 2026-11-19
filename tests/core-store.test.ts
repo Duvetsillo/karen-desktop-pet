@@ -29,6 +29,24 @@ function legacyArchive() {
 }
 
 describe('Karen Core SQLite v1', () => {
+  it('persiste eventos sin contenido y elimina la actividad al cerrar ordenadamente', () => {
+    const path = legacyArchive();
+    const core = new CoreStore(path);
+    core.appendOpenClawTurn('agent:main:main', 'event-run', 'Private prompt', 'Private answer');
+    core.setActivity('a'.repeat(32), 'THINKING');
+    expect(core.activities()).toEqual([expect.objectContaining({ interface: 'pet', state: 'THINKING' })]);
+    const db = new DatabaseSync(path);
+    try {
+      const count = (db.prepare('SELECT COUNT(*) n FROM core_events').get() as { n: number }).n;
+      core.setActivity('a'.repeat(32), 'THINKING');
+      expect((db.prepare('SELECT COUNT(*) n FROM core_events').get() as { n: number }).n).toBe(count);
+      expect(JSON.stringify(db.prepare('SELECT * FROM core_events').all())).not.toContain('Private');
+      db.prepare('UPDATE core_activity SET updated_at=?').run(Date.now() / 1000 - 20);
+      expect(core.activities()).toEqual([]);
+      core.clearActivity('a'.repeat(32));
+      expect(db.prepare('SELECT * FROM core_activity').all()).toEqual([]);
+    } finally { db.close(); core.close(); }
+  });
   it('guarda un turno de OpenClaw una sola vez en el archivo clásico', () => {
     const path = legacyArchive();
     const core = new CoreStore(path);

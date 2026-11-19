@@ -1,9 +1,11 @@
 """A pinned-identity client; cancellation never interrupts another client."""
 import json
+import http.client
 import os
 from pathlib import Path
 import queue
 import secrets
+import socket
 import subprocess
 import threading
 import time
@@ -15,6 +17,32 @@ from voice_style import validate_style
 
 START_LOCK = threading.Lock()
 URL = 'http://127.0.0.1:18790'
+
+
+class CancellableConnection(http.client.HTTPConnection):
+    """One utterance owns one socket, including the wait for response headers."""
+    def __init__(self, cancelled, host='127.0.0.1', port=18790):
+        super().__init__(host, port, timeout=600)
+        self.cancelled = cancelled
+        self.transport = None
+
+    def connect(self):
+        if self.cancelled.is_set():
+            raise InterruptedError('Síntesis cancelada')
+        super().connect()
+        self.transport = self.sock
+        if self.cancelled.is_set():
+            self.interrupt()
+            raise InterruptedError('Síntesis cancelada')
+
+    def interrupt(self):
+        connection = self.sock or self.transport
+        if connection is not None:
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        self.close()
 
 
 def session(root):
@@ -75,6 +103,7 @@ def synthesize(root, text, cancelled, style='neutral'):
         raise ValueError('Texto de voz inválido')
     profile = load_profile(root)
     results = queue.Queue(maxsize=1)
+    connection = CancellableConnection(cancelled)
 
     def worker():
         try:
@@ -83,10 +112,15 @@ def synthesize(root, text, cancelled, style='neutral'):
             if cancelled.is_set():
                 results.put((b'', None))
                 return
-            with request(opener, token, '/speech', {'text': text, 'style': style, **profile.public()}, timeout=600) as response:
-                if response.headers.get('X-Karen-Voice-Id') != profile.id or response.headers.get('X-Karen-Voice-Sha256') != profile.reference_sha256:
+            body = json.dumps({'text': text, 'style': style, **profile.public()}).encode()
+            connection.request('POST', '/speech', body=body,
+                               headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+            with connection.getresponse() as response:
+                if response.status != 200:
+                    raise RuntimeError(f'El servicio de voz respondió {response.status}')
+                if response.getheader('X-Karen-Voice-Id') != profile.id or response.getheader('X-Karen-Voice-Sha256') != profile.reference_sha256:
                     raise RuntimeError('El audio recibido pertenece a otro perfil de voz')
-                if style != 'neutral' and response.headers.get('X-Karen-Voice-Style') != style:
+                if style != 'neutral' and response.getheader('X-Karen-Voice-Style') != style:
                     raise RuntimeError('Actualiza el servicio compartido para usar estilos de voz')
                 audio = response.read(24_000_001)
                 if len(audio) > 24_000_000 or not audio.startswith(b'RIFF'):
@@ -94,14 +128,20 @@ def synthesize(root, text, cancelled, style='neutral'):
                 results.put((audio, None))
         except Exception as error:
             results.put((None, error))
+        finally:
+            connection.close()
 
     threading.Thread(target=worker, daemon=True).start()
     while not cancelled.is_set():
         try:
             audio, error = results.get(timeout=.05)
+            if cancelled.is_set():
+                connection.interrupt()
+                return b''
             if error:
                 raise error
             return audio if not cancelled.is_set() else b''
         except queue.Empty:
             continue
+    connection.interrupt()
     return b''

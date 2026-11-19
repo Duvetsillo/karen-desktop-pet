@@ -11,6 +11,26 @@ function paint(w: number, h: number, draw: Painter): Texture {
 }
 function bodyPath(c: CanvasRenderingContext2D, style: PetStyle) {
   c.beginPath();
+  if (style === 'aurora') {
+    c.moveTo(256, 108);
+    c.bezierCurveTo(314, 147, 403, 184, 399, 279);
+    c.bezierCurveTo(395, 355, 343, 396, 256, 397);
+    c.bezierCurveTo(169, 396, 117, 355, 113, 279);
+    c.bezierCurveTo(109, 184, 198, 147, 256, 108);
+    c.closePath();
+    return;
+  }
+  if (style === 'ember') {
+    c.moveTo(256, 119);
+    c.bezierCurveTo(331, 121, 389, 177, 391, 249);
+    c.bezierCurveTo(393, 304, 362, 343, 311, 369);
+    c.quadraticCurveTo(289, 382, 256, 407);
+    c.quadraticCurveTo(223, 382, 201, 369);
+    c.bezierCurveTo(150, 343, 119, 304, 121, 249);
+    c.bezierCurveTo(123, 177, 181, 121, 256, 119);
+    c.closePath();
+    return;
+  }
   if (style === 'sprite') {
     c.moveTo(256, 113);
     c.bezierCurveTo(341, 113, 390, 172, 385, 249);
@@ -61,13 +81,18 @@ function bodyPath(c: CanvasRenderingContext2D, style: PetStyle) {
   c.closePath();
 }
 export function createPetTextures(accent: string, style: PetStyle = 'crystal') {
+  const finish = style;
+  if (style === 'midnight') style = 'orbit';
   const body = paint(512, 512, (c) => {
     bodyPath(c, style);
     c.shadowColor = accent;
     c.shadowBlur = 22;
     const outer = c.createLinearGradient(125, 140, 370, 385);
     const colors = style === 'cloud' ? ['#fff8ff', '#e9dff5', '#c1b8db', '#f0e2ef'] : style === 'orbit' ? ['#d9e7f5', '#9badc6', '#536780', '#abb7d4'] : style === 'sprite' ? ['#fff9e8', '#b8eaff', '#81c6e8', '#ae9de4'] : style === 'bloom' ? ['#fff2fa', '#ffd5ea', '#bcb6f3', '#f3d6f1'] : ['#edfaff', '#a7def6', '#77badb', '#c0b5ef'];
-    [0, 0.25, 0.6, 1].forEach((stop, i) => outer.addColorStop(stop, colors[i]));
+    const variant = finish === 'aurora' ? ['#effff6', '#b5f5df', '#68b9b9', '#b6d4f8']
+      : finish === 'ember' ? ['#fff7df', '#ffe2ad', '#d59b7b', '#f3c6b8']
+      : finish === 'midnight' ? ['#b9caed', '#7e88b9', '#3c4c78', '#a79fcd'] : colors;
+    [0, 0.25, 0.6, 1].forEach((stop, i) => outer.addColorStop(stop, variant[i]));
     c.fillStyle = outer;
     c.fill();
     c.shadowBlur = 0;

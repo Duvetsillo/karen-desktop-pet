@@ -1,4 +1,5 @@
 import { bridge } from "../native";
+import { openMicrophone } from './microphone';
 import { useStore, signals, report } from "../state/store";
 import { speechPhrases } from "./replies";
 import type { CaptureStatus } from "../../shared/types";
@@ -69,6 +70,7 @@ export class AudioDirector {
       if (!this.audio && !this.recording && !this.processing) {
         this.detector?.pause();
         useStore.getState().transition("HAPPY", "Palabra clave detectada");
+        void bridge.prepareVoice?.().catch(() => {});
         if (command) void bridge.send(command).catch(report).finally(() => this.resumeWake());
         else void this.toggleListening(10000);
       } else {
@@ -159,7 +161,9 @@ export class AudioDirector {
     const generation = this.generation;
     const settings = effectiveSettings(useStore.getState().settings);
     if (!settings.voiceEnabled) { this.resumeWake(); return; }
-    const phrases = speechPhrases(text);
+    // Local cloning has a substantial per-clip cost. Use complete sentences and
+    // the existing one-clip prefetch, instead of buffering a whole long reply.
+    const phrases = settings.ttsEngine === 'local' ? speechPhrases(text, 240, 70, 40) : speechPhrases(text);
     if (!phrases.length) { this.resumeWake(); return; }
     useStore.setState({ expression: expressionForReply(text) });
     this.kind = "voice";
@@ -168,7 +172,7 @@ export class AudioDirector {
     this.speechController = controller;
     this.detector?.pause();
     try {
-      useStore.getState().transition("THINKING", "Preparando voz original");
+      useStore.getState().transition("THINKING", settings.ttsEngine==='local'?"Preparando voz original":"Preparando voz");
       this.status("preparing");
       for await (const bytes of speechAudio(phrases, (phrase, signal) => this.tts.synthesize(phrase, signal), controller.signal)) {
         if (generation !== this.generation) return;
@@ -251,7 +255,7 @@ export class AudioDirector {
       await bridge.cancelTranscription?.();
       void bridge.prepareVoice?.().catch(() => {});
       const settings = useStore.getState().settings;
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await openMicrophone({
         audio: {
           deviceId: settings.inputDevice
             ? { exact: settings.inputDevice }

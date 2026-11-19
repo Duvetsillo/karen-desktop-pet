@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { canSendMessage } from '../shared/local-commands';
 import {
   MessageCircle,
   Sparkles,
@@ -24,6 +25,8 @@ import {
   RotateCcw,
   Power,
   CircleHelp,
+  PersonStanding,
+  Bell,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { PetState, Settings } from "../shared/types";
@@ -41,6 +44,8 @@ import { effectiveSettings } from '../shared/settings';
 import { Perception, CaptureIndicator } from "./Perception";
 import { ModelPicker } from './ModelPicker';
 import { StylePicker } from './pet/StylePicker';
+import {InitiativePanel,Notice} from './InitiativePanel';
+import { ScreenActionApproval } from './ScreenActionApproval';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 document.documentElement.dataset.view = isPet ? "pet" : "settings";
@@ -223,6 +228,7 @@ function Group({
   );
 }
 function PetPreview() {
+  const coreActivity = useStore(s => s.coreActivity);
   const state = useStore((s) => s.state),
     reason = useStore((s) => s.reason),
     scale = useStore((s) => s.settings.scale);
@@ -238,13 +244,14 @@ function PetPreview() {
         </div>
       </div>
       <div className="preview-caption">
-        <span>Karen · {Math.round(scale * 100)} %</span>
+        <span>Karen</span><span className="preview-scale">Tamaño · {Math.round(scale * 100)} %</span>
         <small>{reason || "Aquí contigo, a su ritmo."}</small>
+        {coreActivity.map(client => <small key={client.interface}>Otra interfaz · {client.interface}: {client.state}</small>)}
       </div>
       <div className="preview-commands">
         <button onClick={() => void action(() => bridge.demo("HAPPY"))}>
           <Sparkles size={16} />
-          Saludar
+          Hacer un gesto
         </button>
         <button
           onClick={() =>
@@ -267,6 +274,7 @@ function PetPreview() {
 }
 const tabs: { name: string; icon: LucideIcon }[] = [
   { name: "Conversación", icon: MessageCircle },
+  { name: "Iniciativa", icon: Bell },
   { name: "Apariencia", icon: Sparkles },
   { name: "Comportamiento", icon: SlidersHorizontal },
   { name: "OpenClaw", icon: Radio },
@@ -276,7 +284,8 @@ const tabs: { name: string; icon: LucideIcon }[] = [
   { name: "Diagnóstico", icon: Activity },
 ];
 const subtitles: Record<string, string> = {
-  Conversación: "La misma Karen. Un nuevo lugar para acompañarte.",
+  Conversación: "Aquí para escucharte, pensar contigo y ayudarte.",
+  Iniciativa: 'Cuándo puede hablarte y qué te ha sugerido.',
   Apariencia: "Luz, color y pequeños detalles.",
   Comportamiento: "Encuentra su ritmo en tu escritorio.",
   OpenClaw: "Tu asistente existente, conectado de forma segura.",
@@ -288,18 +297,22 @@ const subtitles: Record<string, string> = {
 function SettingsApp() {
   const tab = useStore((s) => s.tab),
     native = useStore((s) => s.native),
-    runtime = useStore((s) => s.runtime);
+    runtime = useStore((s) => s.runtime),
+    agent = useStore(s=>s.settings.agentId),
+    mode = useStore(s=>s.settings.mode);
   return (
     <div className="app-shell">
       <nav className="sidebar" aria-label="Ajustes de Karen">
         <div className="brand">
           <Logo />
           <div>
-            Karen<small>DESKTOP PET</small>
+            Karen<small>ASISTENTE PERSONAL</small>
           </div>
         </div>
         <div className="nav-links">
           {tabs.map(({ name, icon: Icon }) => (
+            <React.Fragment key={name}>
+            {['Conversación','Apariencia','OpenClaw'].includes(name)&&<span className="nav-section">{name==='Conversación'?'TU ESPACIO':name==='Apariencia'?'PERSONALIZA':'CONEXIONES Y SISTEMA'}</span>}
             <button
               key={name}
               className={tab === name ? "active" : ""}
@@ -310,14 +323,13 @@ function SettingsApp() {
               {name}
               {tab === name && <ChevronRight size={14} />}
             </button>
+            </React.Fragment>
           ))}
         </div>
         <div className="sidebar-foot">
           <Status compact />
-          <span>OpenClaw · agente main</span>
+          <span>Agente · {agent}</span>
           <small>
-            Hecha para estar cerca.
-            <br />
             Versión {APP_VERSION}
           </small>
         </div>
@@ -325,10 +337,13 @@ function SettingsApp() {
       <main className="workspace">
         <header className="page-header">
           <div>
+            <span className="eyebrow">KAREN / {tab==='Conversación'?'CONTIGO':tab==='Iniciativa'?'COMPAÑÍA':'TU ASISTENTE'}</span>
             <h1>{tab}</h1>
             <p>{subtitles[tab]}</p>
           </div>
-          <button
+          <div className="header-actions"><select aria-label="Modo de Karen" value={mode} onChange={e=>void patch({mode:e.target.value as Settings['mode']})}>
+            <option value="normal">Normal</option><option value="gaming">Gaming</option><option value="do_not_disturb">No molestar</option>
+          </select><button
             className="icon-button"
             title="Volver a mostrar a Karen en el escritorio"
             aria-label="Mostrar mascota"
@@ -336,6 +351,7 @@ function SettingsApp() {
           >
             <Sparkles size={18} />
           </button>
+          </div>
         </header>
         {!native && (
           <div className="browser-note">
@@ -347,11 +363,13 @@ function SettingsApp() {
         <ErrorBanner />
         <CaptureIndicator />
         <div
-          className={`page-body ${tab === "Diagnóstico" ? "diagnostics-page" : ""}`}
+          className={`page-body ${tab === "Diagnóstico" ? "diagnostics-page" : ""} ${tab==='Conversación'?'conversation-page':''} ${tab==='Iniciativa'?'initiative-layout':''}`}
         >
           <div className="settings-content">
             {tab === "Conversación" ? (
               <Conversation />
+            ) : tab === 'Iniciativa' ? (
+              <InitiativePanel/>
             ) : tab === "Apariencia" ? (
               <Appearance />
             ) : tab === "Comportamiento" ? (
@@ -368,7 +386,7 @@ function SettingsApp() {
               <Diagnostics />
             )}
           </div>
-          {tab !== "Diagnóstico" && <PetPreview />}
+          {['Apariencia','Comportamiento','Voz'].includes(tab) && <PetPreview />}
         </div>
       </main>
     </div>
@@ -376,32 +394,46 @@ function SettingsApp() {
 }
 function Conversation() {
   const messages = useStore((s) => s.messages),
-    connection = useStore((s) => s.connection);
+    connection = useStore((s) => s.connection),
+    settings=useStore(s=>s.settings),
+    capture=useStore(s=>s.capture),
+    wakeStatus=useStore(s=>s.wakeStatus),
+    initiative=useStore(s=>s.initiative),
+    native=useStore(s=>s.native),
+    draft=useStore(s=>s.conversationDraft);
   const [text, setText] = useState("");
+  const editor=useRef<HTMLTextAreaElement>(null);
+  const [sending,setSending]=useState(false);
+  const latest=initiative?.notices.filter(n=>!n.dismissed).at(-1);
+  const pending=messages.some(m=>m.pending);
+  useEffect(()=>{if(draft){setText(draft);useStore.setState({conversationDraft:''});editor.current?.focus();}},[draft]);
   const end = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "nearest" });
+    if(messages.length)end.current?.scrollIntoView({ block: "nearest" });
   }, [messages]);
   const send = async () => {
     const message = text;
-    if (!message.trim()) return;
-    await bridge.send(message);
-    setText("");
+    if (!canSendMessage(message,connection.state)||sending||pending) return;
+    setSending(true);
+    try {await bridge.send(message);setText(current=>current===message?'':current);}
+    finally{setSending(false);}
   };
   return (
-    <section className="conversation">
+    <section className="conversation" data-has-suggestion={Boolean(latest)}>
       <div className="conversation-heading">
-        <h2>Tu espacio con Karen</h2>
-        <Status compact />
+        <div className="companion-identity"><Logo/><div><h2>Karen</h2><span>{capture.phase==='recording'?'Te estoy escuchando':capture.phase==='speaking'?'Hablando contigo':capture.phase==='preparing'?'Preparando la voz':pending?'Pensando tu respuesta':'Tu asistente personal'}</span></div></div>
+        <button className="voice-pill" onClick={()=>useStore.setState({tab:'Voz'})}><i className={wakeStatus==='listening'?'listening':''}/>{wakeStatus==='listening'?'Escucha activada':settings.voiceEnabled?'Voz activada':'Voz silenciada'}</button>
       </div>
-      <ModelPicker />
+      {latest&&<Notice notice={latest}/>}
+      <ScreenActionApproval />
+      <details className="conversation-model"><summary><span><Status compact/></span><span>Modelo y conexión</span></summary><ModelPicker/></details>
       <div className="messages" role="log" aria-label="Conversación con Karen">
         {messages.length === 0 ? (
           <div className="empty-chat">
             <div className="empty-symbol">
-              <MessageCircle size={27} strokeWidth={1.3} />
+              <Logo/>
             </div>
-            <h3>Lo que necesites, por aquí.</h3>
+            <span className="eyebrow">UN ESPACIO PARA PENSAR JUNTOS</span><h3>¿Qué hacemos hoy?</h3>
             <p>
               {connection.state === "connected"
                 ? "Escribe una idea, una pregunta o una tarea para tu asistente."
@@ -416,6 +448,13 @@ function Conversation() {
                 <ChevronRight size={15} />
               </button>
             )}
+            <div className="chat-starters" aria-label="Comenzar conversación">
+              {[
+                {label:'Ver mis tareas',text:'/tareas'},
+                {label:'Retomar un chat',text:'/historial'},
+                {label:'Que Karen tome la iniciativa',tab:'Iniciativa'},
+              ].map(item=><button key={item.label} onClick={()=>{if(item.tab)useStore.setState({tab:item.tab});else{setText(item.text!);editor.current?.focus();}}}>{item.label}<ChevronRight size={14}/></button>)}
+            </div>
           </div>
         ) : (
           messages.map((m) => (
@@ -424,7 +463,7 @@ function Conversation() {
                 {m.role === "user" ? "Tú" : "Karen"}
                 {m.pending ? " · respondiendo" : ""}
               </span>
-              <p>{m.text}</p>
+              <p>{m.text || (m.pending?'Preparando respuesta…':'')}</p>
             </article>
           ))
         )}
@@ -442,13 +481,14 @@ function Conversation() {
         </label>
         <textarea
           id="message"
+          ref={editor}
           rows={2}
           maxLength={16000}
           value={text}
           placeholder={
             connection.state === "connected"
               ? "Habla con Karen…"
-              : "Conecta OpenClaw para enviar…"
+              : "Comandos Core disponibles; conecta OpenClaw para conversar…"
           }
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -468,6 +508,7 @@ function Conversation() {
             className="icon-button"
             title="Iniciar o terminar captura de voz"
             aria-label="Capturar voz"
+            disabled={!native||!settings.sttEnabled}
             onClick={() => void action(() => bridge.listen())}
           >
             <Mic size={17} />
@@ -485,14 +526,14 @@ function Conversation() {
           <button
             className="send-button"
             aria-label="Enviar mensaje"
-            disabled={!text.trim() || connection.state !== "connected"}
+            disabled={sending||pending||!canSendMessage(text, connection.state)}
           >
             <ArrowUp size={19} />
           </button>
         </div>
       </form>
       <p className="quiet-note">
-        Las órdenes las ejecuta OpenClaw con sus permisos habituales.
+        Los comandos Core se consultan localmente. Las demás órdenes usan los permisos de OpenClaw.
       </p>
     </section>
   );
@@ -501,8 +542,21 @@ function Appearance() {
   const s = useStore((x) => x.settings);
   return (
     <>
-      <Group title="Cinco formas, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
-        <StylePicker value={s.petStyle} onChange={petStyle => void patch({petStyle})}/>
+      <Group title="Ocho estilos, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
+        <StylePicker value={s.petStyle} arms={s.showArms} legs={s.showLegs} onChange={petStyle => void patch({petStyle})}/>
+      </Group>
+      <Group title="Su silueta" description="Cada estilo puede tener brazos, piernas o flotar libremente.">
+        <div className="size-presets" role="group" aria-label="Versiones de cuerpo">
+          {[
+            { name: 'Completa', arms: true, legs: true },
+            { name: 'Sin brazos', arms: false, legs: true },
+            { name: 'Flotante', arms: false, legs: false },
+          ].map(preset => <button key={preset.name} aria-pressed={s.showArms === preset.arms && s.showLegs === preset.legs}
+            onClick={() => void patch({showArms:preset.arms,showLegs:preset.legs})}>{preset.name}</button>)}
+        </div>
+        <Toggle label="Mostrar brazos" value={s.showArms} onChange={showArms => void patch({showArms})}/>
+        <Toggle label="Mostrar piernas" value={s.showLegs} onChange={showLegs => void patch({showLegs})}/>
+        <button onClick={() => void patch({showArms:false,showLegs:false})}>Ocultar brazos y piernas</button>
       </Group>
       <Group
         title="Tamaño del PET"
@@ -593,6 +647,18 @@ function Behavior() {
   const s = useStore((x) => x.settings);
   return (
     <>
+      <Group title="Cuando tiene un rato libre" description="Juega con una luz, se estira o contempla estrellas. Se detiene cuando la necesitas.">
+        <Toggle label="Entretenerse en reposo" value={s.idleActivities} onChange={idleActivities => void patch({idleActivities})}/>
+        <div className="input-field">
+          <label htmlFor="idle-activity">Actividad favorita</label>
+          <select id="idle-activity" value={s.idleActivity} onChange={e => void patch({idleActivity:e.target.value as Settings['idleActivity']})}>
+            <option value="variety">Un poco de todo</option><option value="play">Jugar con una luz</option>
+            <option value="stretch">Estirarse</option><option value="stargaze">Mirar estrellas</option>
+          </select>
+        </div>
+        <Range label="Comenzar tras estar libre" value={s.idleAfter} min={15} max={300} step={1} unit="s" onChange={idleAfter => void patch({idleAfter})}/>
+        <p className="quiet-note">Respeta reposo, bajo consumo, No molestar y movimiento reducido.</p>
+      </Group>
       <Group title="A su manera">
         <Toggle
           label="Movimiento orgánico"
@@ -789,6 +855,14 @@ function OpenClaw() {
           {pairing && <p>Detalle de la solicitud: {pairing.message}</p>}
         </div>}
         <p className="quiet-note">{mode === "local" ? "Karen lee ~/.openclaw/openclaw.json solo para el Gateway local." : "El token se almacena cifrado con DPAPI y nunca aparece en el PET."} La conexión solicita lectura y escritura de conversación.</p>
+      </Group>
+      <Group title="Permisos para actuar" description="Hay dos controles distintos: los permisos del agente en OpenClaw y la aprobación local de Windows para cada acción visual.">
+        <dl className="service-list">
+          <div><dt>Conexión de Karen</dt><dd>{c.state === 'connected' ? c.scopes?.join(', ') || 'Conectada; el Gateway no comunicó los scopes.' : c.message}</dd></div>
+          <div><dt>Herramientas del agente</dt><dd>Las define OpenClaw en el agente y su equipo anfitrión. Karen no puede habilitarlas ni ampliarlas desde esta pantalla.</dd></div>
+          <div><dt>Clic y escritura en la pantalla</dt><dd>Solo desde una captura reciente y después de aprobar la acción exacta en Conversación. Sin comandos, ejecución en segundo plano ni permiso permanente.</dd></div>
+        </dl>
+        <p className="quiet-note">Si esperabas que OpenClaw use archivos, navegador o terminal, revisa las herramientas y reglas de aprobación de tu agente en OpenClaw. Los scopes de conversación de esta conexión no conceden por sí solos permisos de Windows.</p>
       </Group>
     </>
   );
@@ -1116,7 +1190,8 @@ function PetApp() {
     connection = useStore((x) => x.connection),
     capture = useStore((x) => x.capture),
     error = useStore((x) => x.error),
-    native = useStore((x) => x.native);
+    native = useStore((x) => x.native),
+    initiative = useStore(x=>x.initiative);
   const [bubble, setBubble] = useState(false),
     [compose, setCompose] = useState(false),
     [text, setText] = useState("");
@@ -1125,6 +1200,8 @@ function PetApp() {
   const last = messages.filter((m) => m.role === "assistant").at(-1);
   const showReply = Boolean(effectiveSettings(s).bubbles && bubble && last && !compose && !error);
   const voiceActive = capture.kind === 'voice' && capture.phase !== 'idle';
+  const latestNotice=initiative?.notices.filter(n=>!n.dismissed).at(-1);
+  const showInitiative=Boolean(latestNotice && Date.now()-latestNotice.at<120000 && !showReply && !compose && !error && s.mode==='normal');
   useEffect(() => {
     if (last) setBubble(true);
   }, [last?.text]);
@@ -1137,15 +1214,13 @@ function PetApp() {
     const check = (x: number, y: number) => {
       const r = root.current?.getBoundingClientRect();
       if (!r) return;
-      const nx = x / r.width,
-        ny = y / r.height;
       const silhouette = signals.hitTest?.(x, y) ?? false;
       const target = document.elementFromPoint(x, y);
       bridge.hitTest(
         silhouette ||
           Boolean(
             target?.closest(
-              ".pet-bubble,.pet-toolbar,.pet-composer,.pet-error,.capture-status",
+              ".pet-bubble,.pet-initiative,.pet-toolbar,.pet-composer,.pet-error,.capture-status",
             ),
           ),
       );
@@ -1165,7 +1240,7 @@ function PetApp() {
       ref={root}
       className="desktop-pet"
       data-capturing={capture.phase !== "idle"}
-      data-has-dock={showReply || Boolean(error)}
+      data-has-dock={showReply || showInitiative || Boolean(error)}
       onContextMenu={(e) => {
         e.preventDefault();
         void action(() => bridge.contextMenu());
@@ -1175,6 +1250,7 @@ function PetApp() {
       <div className="pet-dialogue">
         <CaptureIndicator />
       </div>
+      {showInitiative&&latestNotice&&<div className="pet-initiative"><Notice notice={latestNotice} compact/></div>}
       {showReply && last && (
         <div
           className="pet-bubble"
@@ -1224,6 +1300,11 @@ function PetApp() {
         }}
       />
       <div className="pet-toolbar">
+        <button title="Mostrar u ocultar brazos y piernas" aria-label="Mostrar brazos y piernas"
+          aria-pressed={s.showArms && s.showLegs}
+          onClick={() => void patch({showArms:!(s.showArms && s.showLegs),showLegs:!(s.showArms && s.showLegs)})}>
+          <PersonStanding size={16}/>
+        </button>
         <button
           title="Conversar"
           aria-label="Abrir mensaje"
@@ -1298,7 +1379,7 @@ function PetApp() {
           />
           <button
             aria-label="Enviar"
-            disabled={!text.trim() || connection.state !== "connected"}
+            disabled={!canSendMessage(text, connection.state)}
           >
             <ArrowUp size={18} />
           </button>
@@ -1332,10 +1413,12 @@ function Root() {
     let connectionSeen = false;
     let settingsSeen = false;
     let captureSeen = false;
+    let initiativeSeen = false;
     const off = bridge.event((e) => {
       if (e.type === "connection") connectionSeen = true;
       if (e.type === "settings") settingsSeen = true;
       if (e.type === "capture") captureSeen = true;
+      if (e.type === 'initiative') initiativeSeen = true;
       useStore.getState().event(e);
       if (e.type === 'capture' && e.status.kind === 'system') audio?.suspendWake(e.status.phase !== 'idle');
       if (
@@ -1371,6 +1454,7 @@ function Root() {
               snapshot.runtime || (snapshot.native ? "desktop" : "preview"),
             hasCredential: snapshot.hasCredential,
             ready: true,
+            initiative: initiativeSeen ? useStore.getState().initiative : snapshot.initiative,
             capture: captureSeen ? useStore.getState().capture : snapshot.capture || { kind: "microphone", phase: "idle" },
             wakeStatus: snapshot.wakeStatus || 'off',
           });
@@ -1382,7 +1466,16 @@ function Root() {
       if (next.state !== current.state)
         useStore.setState({ state: next.state });
     }, 1000);
+    let lastTouch=0;
+    const touch=()=>{
+      machine.touch();
+      if(Date.now()-lastTouch>1000){lastTouch=Date.now();bridge.interaction?.();}
+    };
+    document.addEventListener('keydown',touch,{passive:true});
+    document.addEventListener('pointerdown',touch,{passive:true});
     return () => {
+      document.removeEventListener('keydown',touch);
+      document.removeEventListener('pointerdown',touch);
       alive = false;
       off();
       clearInterval(timer);
