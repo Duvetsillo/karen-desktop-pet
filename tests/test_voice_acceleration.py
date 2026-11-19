@@ -14,6 +14,27 @@ from voice_acceleration import backend, generate, SpeechCancelled, configure_dec
 
 
 class AccelerationTests(unittest.TestCase):
+    def test_release_does_not_interrupt_an_active_voice_and_preserves_identity_cache(self):
+        from shared_voice_service import VoiceEngine
+        with tempfile.TemporaryDirectory() as root:
+            engine = VoiceEngine(root)
+            engine.model = object()
+            engine.prompt = object()
+            engine.signature = ('original', 'reference', 'local-model')
+            engine.cache['existing'] = b'cached-audio'
+            torch = SimpleNamespace(cuda=SimpleNamespace(empty_cache=Mock()))
+            with patch.dict(sys.modules, {'torch': torch}):
+                with engine.lock:
+                    self.assertFalse(engine.release())
+                    self.assertIsNotNone(engine.model)
+                self.assertTrue(engine.release())
+            self.assertIsNone(engine.model)
+            self.assertIsNone(engine.prompt)
+            self.assertEqual(engine.phase, 'cold')
+            self.assertEqual(engine.signature, ('original', 'reference', 'local-model'))
+            self.assertEqual(engine.cache['existing'], b'cached-audio')
+            torch.cuda.empty_cache.assert_called_once()
+
     def test_inference_error_diagnostics_do_not_include_exception_message(self):
         from shared_voice_service import VoiceEngine
         with tempfile.TemporaryDirectory() as root:

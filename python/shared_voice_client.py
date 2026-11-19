@@ -64,6 +64,26 @@ def request(opener, token, path, payload=None, timeout=3):
     return opener.open(req, timeout=timeout)
 
 
+def release(root):
+    """Free an existing idle voice service, without starting another one."""
+    if not (Path(root) / 'voice-models/.expressive-token').is_file():
+        return True
+    opener, token = session(root)
+    try:
+        identity = load_profile(root).public()
+    except (OSError, ValueError, KeyError):
+        return True
+    try:
+        with request(opener, token, '/release', identity, timeout=15) as response:
+            return json.load(response).get('released') is True
+    except urllib.error.HTTPError as error:
+        if error.code == 409:
+            return False
+        raise RuntimeError('Actualiza el servicio local de voz para coordinar memoria.') from error
+    except urllib.error.URLError:
+        return True
+
+
 def ensure_service(root, opener, token, profile):
     with START_LOCK:
         def health():

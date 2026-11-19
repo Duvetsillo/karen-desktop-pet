@@ -127,6 +127,23 @@ class VoiceEngine:
             self.last_error = None
             return profile
 
+    def release(self):
+        """Release idle weights while preserving the audio cache and voice identity."""
+        if not self.lock.acquire(blocking=False):
+            return False
+        try:
+            loaded = self.model is not None or self.prompt is not None
+            self.model = self.prompt = None
+            self.keep_warm_until = 0.0
+            self.phase = 'cold'
+            gc.collect()
+            if loaded:
+                import torch
+                torch.cuda.empty_cache()
+            return True
+        finally:
+            self.lock.release()
+
     def synthesize(self, text, expected_id, expected_hash, style='neutral', cancelled=None):
         check_cancelled(cancelled)
         validate_style(style)
@@ -242,7 +259,7 @@ def serve(root):
             if not self.authorized():
                 self.reply(403, {'error': 'Autenticación de voz requerida'})
                 return
-            if self.path not in {'/speech', '/prepare'}:
+            if self.path not in {'/speech', '/prepare', '/release'}:
                 self.reply(404, {'error': 'Ruta desconocida'})
                 return
             try:
@@ -262,6 +279,10 @@ def serve(root):
                     return
             except (ValueError, KeyError, TypeError, OSError):
                 self.reply(400, {'error': 'Petición o perfil de voz inválido'})
+                return
+            if self.path == '/release':
+                released = engine.release()
+                self.reply(200 if released else 409, {'released': released})
                 return
             if not slots.acquire(blocking=False):
                 self.reply(429, {'error': 'El motor de voz está ocupado; espera o cancela la petición actual'})
