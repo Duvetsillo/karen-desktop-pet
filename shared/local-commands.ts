@@ -1,7 +1,7 @@
 import type { ConnectionState } from './types.js';
 
 export function isCoreCommand(text: string): boolean {
-  return /^\/(?:memoria|historial|core|tareas)(?:\s|$)/i.test(text.trim());
+  return /^\/(?:memoria|historial|core|tareas|planes)(?:\s|$)/i.test(text.trim());
 }
 
 export function canSendMessage(text: string, connection: ConnectionState): boolean {

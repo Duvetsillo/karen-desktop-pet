@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { CoreTaskSummary, CoreTaskDetail } from '../shared/core-tasks.js';
+import type { CoreTaskSummary, CoreTaskDetail, CorePlanSummary, CorePlanDetail } from '../shared/core-tasks.js';
 
 /** Read the same persistent task IDs as classic, without recovering or executing jobs. */
 export class CoreTaskReader {
@@ -20,6 +20,18 @@ export class CoreTaskReader {
   list(): CoreTaskSummary[] {
     return this.read(db => db.prepare(`SELECT id,status,cursor,created_at,updated_at FROM task_jobs
       ORDER BY updated_at DESC,id DESC LIMIT 50`).all() as unknown as CoreTaskSummary[]);
+  }
+  plans(): CorePlanSummary[] {
+    return this.read(db => db.prepare('SELECT id,goal,status,created_at,updated_at FROM core2_plans ORDER BY created_at DESC LIMIT 50').all() as unknown as CorePlanSummary[]);
+  }
+  plan(id: string): CorePlanDetail | null {
+    if (!/^[0-9a-f]{32}$/.test(id)) throw new Error('ID de plan inválido.');
+    return this.read(db => {
+      const plan = db.prepare('SELECT id,goal,status,created_at,updated_at FROM core2_plans WHERE id=?').get(id) as unknown as CorePlanSummary | undefined;
+      if (!plan) return null;
+      const steps = db.prepare('SELECT step_id,ordinal,tool,agent,permission,status,attempts FROM core2_plan_steps WHERE plan_id=? ORDER BY ordinal LIMIT 24').all(id) as unknown as CorePlanDetail['steps'];
+      return {...plan, steps};
+    });
   }
 
   get(id: string): CoreTaskDetail | null {

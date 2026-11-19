@@ -132,6 +132,8 @@ export class CoreStore implements CoreTurnSink {
   close(): void { this.db.close(); }
   listTasks() { return this.tasks.list(); }
   readTask(id: string) { return this.tasks.get(id); }
+  listPlans() { return this.tasks.plans(); }
+  readPlan(id: string) { return this.tasks.plan(id); }
 
   setActivity(clientId: string, state: CoreState): void {
     if (!/^[0-9a-f]{32}$/.test(clientId) || !['IDLE','LISTENING','TRANSCRIBING','THINKING','SPEAKING','ERROR'].includes(state))
