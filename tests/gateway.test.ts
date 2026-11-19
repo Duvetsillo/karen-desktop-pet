@@ -140,13 +140,13 @@ async function setup(core?: { appendOpenClawTurn(sessionKey: string, runId: stri
       }
       if (req.method === "chat.history") payload = { messages: [] };
       if (req.method === 'models.list') payload = {models: [
-        {id:'test-small', name:'Small', provider:'local', available:true},
-        {id:'test-large', name:'Large', provider:'cloud', available:true},
-        {id:'locked', name:'Locked', provider:'cloud', available:false},
+        {id:'test-small', name:'Small', provider:'ollama', available:true},
+        {id:'test-large', name:'Large', provider:'ollama', available:true},
+        {id:'locked', name:'Locked', provider:'ollama', available:false},
       ]};
       if (req.method === 'sessions.list') {
-        const [modelProvider, model] = (selectedModel ?? 'local/test-small').split('/');
-        payload = {defaults: {modelProvider:'local', model:'test-small'}, sessions: [{key:'agent:main:main', model, modelProvider, modelOverrideSource: selectedModel ? 'user' : null}]};
+        const [modelProvider, model] = (selectedModel ?? 'ollama/test-small').split('/');
+        payload = {defaults: {modelProvider:'ollama', model:'test-small'}, sessions: [{key:'agent:main:main', model, modelProvider, modelOverrideSource: selectedModel ? 'user' : null}]};
       }
       if (req.method === 'sessions.patch') {
         if (failModelPatch) {
@@ -405,7 +405,7 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
       t.adapter.disconnect(false);
       return selection;
     };
-    await expect(t.adapter.selectModel('cloud/test-large')).rejects.toThrow('conexión cambió');
+    await expect(t.adapter.selectModel('ollama/test-large')).rejects.toThrow('conexión cambió');
     expect(t.requests.filter(r => r.method === 'sessions.patch')).toHaveLength(before);
     t.adapter.models = models;
   });
@@ -454,11 +454,11 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
   });
   it('consulta catálogo autenticado y cambia solo el modelo de la sesión', async () => {
     const t = await setup();
-    expect((await t.adapter.models()).effective).toBe('local/test-small');
-    const chosen = await t.adapter.selectModel('cloud/test-large');
-    expect(chosen.selected).toBe('cloud/test-large');
-    expect(chosen.effective).toBe('cloud/test-large');
-    expect(t.requests.find(r => r.method === 'sessions.patch')?.params).toEqual({key:'agent:main:main', model:'cloud/test-large'});
+    expect((await t.adapter.models()).effective).toBe('ollama/test-small');
+    const chosen = await t.adapter.selectModel('ollama/test-large');
+    expect(chosen.selected).toBe('ollama/test-large');
+    expect(chosen.effective).toBe('ollama/test-large');
+    expect(t.requests.find(r => r.method === 'sessions.patch')?.params).toEqual({key:'agent:main:main', model:'ollama/test-large'});
     expect((await t.adapter.selectModel(null)).selected).toBeNull();
     expect(t.requests.some(r => r.method.startsWith('config.'))).toBe(false);
     expect(t.events.some(e => e.type === 'models')).toBe(true);
@@ -466,16 +466,16 @@ describe("adaptador contra servidor de contrato WebSocket", () => {
   it('rechaza modelos ajenos, no disponibles y cambios durante una respuesta', async () => {
     const t = await setup();
     await expect(t.adapter.selectModel('invented/model')).rejects.toThrow('catálogo');
-    await expect(t.adapter.selectModel('cloud/locked')).rejects.toThrow('catálogo');
-    await expect(t.adapter.selectModel({model:'cloud/test-large'})).rejects.toThrow('inválido');
+    await expect(t.adapter.selectModel('ollama/locked')).rejects.toThrow('catálogo');
+    await expect(t.adapter.selectModel({model:'ollama/test-large'})).rejects.toThrow('inválido');
     await t.adapter.send('Test');
-    await expect(t.adapter.selectModel('cloud/test-large')).rejects.toThrow('termine');
+    await expect(t.adapter.selectModel('ollama/test-large')).rejects.toThrow('termine');
     expect(t.requests.some(r => r.method === 'sessions.patch')).toBe(false);
   });
   it('mantiene el modelo confirmado cuando el Gateway rechaza el cambio', async () => {
     const t = await setup(); t.failModelPatch();
-    await expect(t.adapter.selectModel('cloud/test-large')).rejects.toThrow('Provider unavailable');
-    expect((await t.adapter.models()).effective).toBe('local/test-small');
+    await expect(t.adapter.selectModel('ollama/test-large')).rejects.toThrow('Provider unavailable');
+    expect((await t.adapter.models()).effective).toBe('ollama/test-small');
     t.adapter.disconnect();
     await expect(t.adapter.models()).rejects.toThrow('Conecta');
   });

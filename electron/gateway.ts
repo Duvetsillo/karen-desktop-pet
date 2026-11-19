@@ -13,7 +13,8 @@ import type {
 } from "../shared/types.js";
 import { validateImages } from "../shared/attachments.js";
 import { isCoreCommand } from '../shared/local-commands.js';
-import type { CoreTaskSummary, CoreTaskDetail } from '../shared/core-tasks.js';
+import { assertLoopbackGateway, isLocalInferenceModel } from '../shared/local-inference.js';
+import type { CoreTaskSummary, CoreTaskDetail, CorePlanSummary, CorePlanDetail } from '../shared/core-tasks.js';
 import {
   extractText,
   routeGatewayEvent,
@@ -34,6 +35,8 @@ export interface CoreTurnSink {
   activities?(): { interface: string; state: string }[];
   listTasks?(): CoreTaskSummary[];
   readTask?(id: string): CoreTaskDetail | null;
+  listPlans?(): CorePlanSummary[];
+  readPlan?(id: string): CorePlanDetail | null;
 }
 export class OpenClawAdapter {
   client?: GatewayClient;
@@ -86,7 +89,8 @@ export class OpenClawAdapter {
     const canonical = (provider?: string, id?: string) => id ? (provider && !id.startsWith(provider + '/') ? `${provider}/${id}` : id) : null;
     const models: ModelOption[] = catalog.models
       .filter(m => typeof m.id === 'string' && typeof m.provider === 'string' && typeof m.name === 'string')
-      .map(m => ({id: canonical(m.provider, m.id)!, name: m.name, provider: m.provider, available: m.available !== false}));
+      .map(m => ({id: canonical(m.provider, m.id)!, name: m.name, provider: m.provider, available: m.available !== false}))
+      .filter(m => isLocalInferenceModel(m.id));
     const row = sessions.sessions.find(s => s.key === sessionKey);
     const effective = canonical(row?.modelProvider, row?.model) ?? canonical(sessions.defaults?.modelProvider, sessions.defaults?.model);
     const selected = row?.modelOverrideSource === 'user' || row?.modelOverride || row?.providerOverride ? effective : null;
@@ -117,6 +121,7 @@ export class OpenClawAdapter {
     } finally { this.modelChanging = false; }
   }
   async connect() {
+    assertLoopbackGateway(this.storage.settings.gatewayUrl);
     this.disconnect(false);
     this.stopped = false;
     const epoch = ++this.epoch;
@@ -366,7 +371,8 @@ export class OpenClawAdapter {
     if (isCoreCommand(text)) {
       if (images.length) throw new Error('Los comandos locales de Core no admiten capturas.');
       if (this.pending) throw new Error('Espera a que termine la respuesta actual.');
-      const reply = /^\/memoria(?:\s|$)/i.test(text) ? this.memoryReply(text)
+      const reply = /^\/planes(?:\s|$)/i.test(text) ? this.planReply(text)
+        : /^\/memoria(?:\s|$)/i.test(text) ? this.memoryReply(text)
         : /^\/historial(?:\s|$)/i.test(text) ? this.historyReply(text)
         : /^\/tareas(?:\s|$)/i.test(text) ? this.taskReply(text) : this.coreReply(text);
       const id = randomUUID();
@@ -383,6 +389,11 @@ export class OpenClawAdapter {
       throw new Error(
         "Hay una respuesta en curso. Puedes detenerla antes de enviar otra orden.",
       );
+    const localSelection = await this.models();
+    if (!localSelection.effective || !isLocalInferenceModel(localSelection.effective))
+      throw new Error('El modelo activo no pertenece al catálogo local Ollama; selecciona uno local antes de enviar.');
+    if (this.pending || this.modelChanging)
+      throw new Error('Hay una respuesta en curso. Espera a que termine.');
     this.pending = true;
     this.accepted = false;
     const id = randomUUID();
@@ -512,6 +523,19 @@ export class OpenClawAdapter {
       const activity = this.core.activities?.().map(client => `${client.interface}: ${client.state}`).join('; ');
       return `Karen Core v${state.version}: activo; ${state.chats} chats, ${state.memories} recuerdos no sensibles vigentes; estilo de voz ${state.voiceStyle ?? 'local'}.${activity ? ` Actividad: ${activity}.` : ''}`;
     } catch { return 'Karen Core: no se pudo consultar la base compartida.'; }
+  }
+  private planReply(text: string): string {
+    if (!this.core?.listPlans || !this.core.readPlan) return 'Planes Core 2 no configurados. Comparte KAREN_TASKS_DB con clásica.';
+    try {
+      if (/^\/planes listar$/i.test(text)) {
+        const plans = this.core.listPlans();
+        return plans.length ? plans.map(plan => `${plan.id}: ${plan.goal} · ${plan.status}`).join('\n') : 'No hay planes guardados.';
+      }
+      const match = /^\/planes estado ([0-9a-f]{32})$/i.exec(text);
+      if (!match) return 'Usa /planes listar o /planes estado ID. La ejecución y aprobación se realizan en clásica.';
+      const plan = this.core.readPlan(match[1]);
+      return plan ? `${plan.goal}: ${plan.status}\n` + plan.steps.map(step => `${step.step_id} [${step.agent}] ${step.tool}: ${step.status}`).join('\n') : 'Plan desconocido.';
+    } catch { return 'Planes Core 2 no disponibles. Revisa el archivo de tareas compartido.'; }
   }
   private taskReply(text: string): string {
     if (!this.core?.listTasks || !this.core.readTask)

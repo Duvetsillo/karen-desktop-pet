@@ -45,6 +45,8 @@ export const defaults: Settings = {
 };
 /** Temporary runtime profile: underlying user preferences stay intact. */
 export function effectiveSettings(settings: Settings): Settings {
+  // Keep the saved preference, but never send voice text to cloud in Core 2.
+  if (settings.ttsEngine === 'edge') settings = {...settings, ttsEngine: 'local'};
   if (!settings.mode || settings.mode === 'normal') return settings;
   const quiet = {
     ...settings, lowPower: true, particles: false, animations: false,

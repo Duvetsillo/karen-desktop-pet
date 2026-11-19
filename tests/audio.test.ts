@@ -85,7 +85,7 @@ describe("ciclo real de reproducción", () => {
     expect(TestAudio.instances[0].pause).toHaveBeenCalled();
     expect(useStore.getState().capture.phase).toBe("idle");
   });
-  it("reproduce la voz neural con el formato MP3 correcto", async () => {
+  it("conserva la preferencia Edge guardada pero reproduce voz local WAV en Core 2", async () => {
     useStore.setState({ settings: { ...defaults, voiceEnabled: true, ttsEngine: 'edge' } });
     let mediaType = '';
     const createObjectURL = URL.createObjectURL;
@@ -94,7 +94,8 @@ describe("ciclo real de reproducción", () => {
       const director = new AudioDirector({ synthesize: async () => new ArrayBuffer(12) });
       const pending = director.speak('Hola. Soy Karen.');
       await vi.waitFor(() => expect(useStore.getState().capture.phase).toBe('speaking'));
-      expect(mediaType).toBe('audio/mpeg');
+      expect(mediaType).toBe('audio/wav');
+      expect(useStore.getState().settings.ttsEngine).toBe('edge');
       TestAudio.instances[0].onended?.();
       await pending;
       director.dispose();
