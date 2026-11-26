@@ -39,8 +39,10 @@ Solo se registró el número de sesiones; no se guardaron metadatos del usuario.
 Pruebas de clasificación/política/memoria y transporte autenticado correctas.
 El complemento usa loopback 18796; los tests de transporte usan un puerto temporal,
 con aislamiento de respuestas y rechazo de orígenes web y credenciales ausentes.
-Spotify, Apple Music, YouTube Music y YouTube reales siguen sin certificación:
-las pruebas de metadatos de esas plataformas son fixtures, no sus cuentas reales.
+Spotify Desktop fue comprobado después con una sesión real: detección, clasificación,
+metadatos y minirreproductor correctos. Sus controles de reproducción reales siguen
+sin probarse. Spotify Web, Apple Music y YouTube reales siguen sin certificación;
+sus pruebas de metadatos son fixtures, no sus cuentas reales.
 
 Referencia primaria: [GSMTC de Microsoft](https://learn.microsoft.com/en-us/uwp/api/windows.media.control.globalsystemmediatransportcontrolssession).
 
@@ -159,3 +161,21 @@ Datos: [MUSIC_METRICS_2026-11-26.json](MUSIC_METRICS_2026-11-26.json).
 Pendientes: pruebas reales por plataforma/cuenta, DOM actual de sitios, llamadas y
 sesiones de presentación/juegos reales, aceptación auditiva humana y pruebas de
 duración prolongada. No se reemplazó el ejecutable instalado ni se descargaron modelos.
+
+## Aceptación Spotify Desktop real — 2026-11-26
+
+El usuario tenía Spotify reproduciendo. El puente recibió la sesión de la aplicación
+de Windows y el clasificador la aceptó como Spotify. El minirreproductor del código
+actual mostró título, artista y portada reales, con duración/progreso y el botón de
+pausa habilitado según capacidades reportadas. No se pulsó ese control ni se envió
+ninguna orden a Spotify. No se guardaron títulos, artistas o historial en el repo.
+
+`node scripts/music-spotify-live.cjs` pasó en un perfil temporal con historial,
+comentarios y voz apagados, sin Core conectado. Cierra únicamente su instancia de
+QA y elimina su perfil. Por defecto imprime solo indicadores técnicos; `--show-track`
+permite ver la pista en consola de forma explícita. No captura pantalla ni audio.
+Este resultado acredita lectura y renderizado con Spotify Desktop real, no prueba
+de todos sus controles ni de Spotify Web. El ejecutable instalado sigue intacto.
+`--keep-open` deja visibles la mascota y el minirreproductor, ocultando los ajustes,
+solo después de pasar la comprobación. Mantiene el perfil aislado hasta salir de
+esa instancia mediante la bandeja; entonces lo elimina. No cierra otra Karen instalada.

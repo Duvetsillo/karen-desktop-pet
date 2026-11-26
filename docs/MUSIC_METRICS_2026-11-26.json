@@ -1,7 +1,7 @@
 {
   "date": "2026-11-26",
   "validation": {
-    "realProviderCompatibility": "Spotify/Apple Music/YouTube Music/YouTube no certificados",
+    "realProviderCompatibility": "Spotify Desktop: lectura y renderizado reales verificados. Controles reales, Spotify Web, Apple Music y YouTube pendientes.",
     "pregeneratedComments": 6,
     "pythonTests": 416,
     "petTests": 190,
