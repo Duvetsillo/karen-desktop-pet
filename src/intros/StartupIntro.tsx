@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { IntroPayload } from '../../shared/startup-intros';
 import { useStore } from '../state/store';
 import { PetRenderer } from '../pet/Renderer';
@@ -13,8 +14,19 @@ export function StartupIntro() {
   const [renderer, setRenderer] = useState<IntroRenderer>();
   useEffect(() => {
     let alive = true, controller: IntroRenderer | undefined;
+    let finishing = false, finishTimer: ReturnType<typeof setTimeout> | undefined;
     const native = window.karenIntro;
-    const finish = () => { void native?.finish().catch(() => {}); };
+    const finish = () => {
+      if (finishing) return;
+      finishing = true;
+      // Leave the Pixi ticker callback before destroying its renderer. Unmount
+      // explicitly so GPU textures/context are released before closing Chromium.
+      finishTimer = setTimeout(() => {
+        controller?.dispose();
+        if (alive) flushSync(() => setRenderer(undefined));
+        void native?.finish().catch(() => {});
+      }, 0);
+    };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && controller?.payload.settings.introEscape) finish();
     };
@@ -38,6 +50,7 @@ export function StartupIntro() {
     })().catch(finish);
     return () => {
       alive = false; controller?.dispose();
+      clearTimeout(finishTimer);
       document.removeEventListener('keydown', key);
       window.removeEventListener('error', onError); window.removeEventListener('unhandledrejection', onError);
       window.removeEventListener('pagehide', pagehide);

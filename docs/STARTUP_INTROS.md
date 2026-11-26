@@ -64,8 +64,23 @@ La boca lee estos datos con el reloj de reproducción, sin modelos de lip sync.
 Sleepy usa la categoría horaria y Surprise prioriza humor. Las demás categorías
 quedan disponibles en la biblioteca para futuras reglas de selección.
 
-El generador offline se documenta con sus comprobaciones y mediciones en la
-siguiente entrega. No se distribuyen referencias privadas ni audios en Git.
+Generación explícita fuera del arranque, con el proveedor y estilo de los ajustes:
+
+```powershell
+npm run generate:intro-greetings -- --settings "$env:APPDATA/karen-desktop-pet/settings.json" --output "$env:APPDATA/karen-desktop-pet/startup-greetings" --resume
+```
+
+El generador rechaza Edge o un perfil local ausente, sin sustituir la voz ni
+descargar modelos. Reutiliza NativeVoice y el servicio local existente. Valida WAV
+PCM, obtiene la envolvente y publica el manifiesto de forma atómica tras cada
+saludo. `--resume` vuelve a analizar los WAV existentes y reutiliza solo coincidencias
+de texto y versión. La síntesis offline puede usar el modelo de voz ya instalado;
+el reproductor de introducciones nunca lo consulta.
+
+En este equipo se generaron y validaron los 40 WAV con la voz original configurada,
+estilo serene, y se copiaron al directorio local de reproducción. No se distribuyen
+referencias privadas ni audios en Git. Una instalación distinta necesita generar
+su biblioteca; el motor funciona en silencio si no está disponible.
 
 ## Referencias estudiadas
 
@@ -81,14 +96,43 @@ siguiente entrega. No se distribuyen referencias privadas ni audios en Git.
   explícita en la raíz de capri-mods. Esta implementación es propia: no incorpora
   código, trazados, recursos, sonidos ni identidad de Capri.
 
-## Evidencia del primer incremento
+## Verificación y mediciones
 
 `npm test`: 179 pruebas correctas. `npm run build`: typecheck, Vite y Electron
 correctos, con el aviso conocido de tamaño del chunk Pixi. Prueba nativa con perfil
 temporal: seis reproducciones a tiempo real y 48 combinaciones intro/apariencia
 con reloj acelerado, todas con restauración de coordenadas y dos ventanas al acabar.
+Las 54 reproducciones de la pasada final cargaron el saludo y su WAV. Escape de
+Playwright, persistencia tras reiniciar, aislamiento de IPC y modo gaming pasaron.
 El arnés inicialmente trató el cierre por Escape como error al enviar key-up sobre
-una ventana ya destruida; la comprobación corregida se registra por separado.
+una ventana ya destruida; la pasada final ya incluye esa comprobación corregida.
+El cierre normal desmonta React/Pixi y libera las texturas antes de destruir la
+ventana; cancelaciones nativas destruyen su WebContents y su guardia acotada.
+
+Comandos reproducibles, con perfil de QA temporal y sin acceso a bases del usuario:
+
+```powershell
+npm test
+npm run build
+node scripts/startup-intros-smoke.cjs --matrix
+```
+
+El smoke usa `.private/startup-greetings` cuando existe; copia únicamente los audios
+y metadatos del perfil a un directorio temporal. No inicia modelos ni Gateway.
+Las capturas PNG contienen solo la superficie generada, con transparencia; no se
+captura el escritorio. Resultados locales en `qa/startup-intros`, ignorado por Git.
+
+Medición final: Windows 11/Electron 44.7.2, 1920×1080; 58–59 FPS en las seis
+reproducciones a tiempo real. 218 muestras de procesos Electron: CPU media 3,996 %,
+pico 9,071 %; suma de working sets 305,39–812,44 MiB, 635,08 MiB tras tres segundos
+de reposo después de la matriz. Incluye panel y mascota, reinicio del perfil de QA
+y páginas compartidas contadas en cada working set; no es RAM exclusiva de la intro.
+
+75 muestras de nvidia-smi: GPU 4–44 %, VRAM 648–913 MiB. Son lecturas del adaptador
+completo compartido y no permiten atribuir ese consumo exclusivamente a Karen.
+No se afirma ausencia de fugas a largo plazo a partir de estas cifras. Sí se
+comprobó que cada reproducción deja exactamente las dos ventanas habituales.
+Datos resumidos: [STARTUP_INTRO_METRICS_2026-11-26.json](STARTUP_INTRO_METRICS_2026-11-26.json).
 
 No se reemplazó el ejecutable instalado. Quedan pendientes la aceptación visual y
 auditiva humana, Escape físico, juegos/presentaciones reales y monitores/DPI físicos

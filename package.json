@@ -8,6 +8,7 @@
   "license": "MIT",
   "main": "dist-electron/electron/main.js",
   "scripts": {
+    "generate:intro-greetings": "tsx scripts/generate-startup-greetings.ts",
     "dev": "npm run build && electron .",
     "preview": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
