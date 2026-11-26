@@ -80,6 +80,9 @@ Carpeta: `extensions/music-presence`. Cargar como extensión sin empaquetar desd
 el modo desarrollador del navegador. En Karen activa percepción y genera el código;
 cópialo a las opciones del complemento y recarga la pestaña musical. La instalación
 en el navegador del usuario no se hizo automáticamente.
+El empaquetado incluye esa carpeta fuera de ASAR, en
+`resources/app.asar.unpacked/extensions/music-presence`, para que Chrome/Edge puedan
+leerla. La configuración se revisó; no se generó un instalador nuevo en esta entrega.
 
 Permiso API: `storage`. Content scripts solo en `open.spotify.com`, `music.apple.com`,
 `music.youtube.com`, `www.youtube.com` y `youtube.com`. Acceso de red del background

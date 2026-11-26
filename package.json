@@ -69,6 +69,7 @@
       "dist/**",
       "dist-electron/**",
       "dist-native/**",
+      "extensions/music-presence/**",
       "assets/**",
       "python/**",
       "!python/**/__pycache__/**",
@@ -77,6 +78,7 @@
     ],
     "asarUnpack": [
       "dist-native/**",
+      "extensions/music-presence/**",
       "python/**"
     ],
     "win": {
