@@ -49,7 +49,7 @@ async function launch() {
   });
 }
 async function play(id, style, accelerated) {
-  await panel.evaluate(style => window.karen.settings({ petStyle: style, introVoice: true, introSounds: true }), style);
+  await panel.evaluate(({ style, accelerated }) => window.karen.settings({ petStyle: style, introVoice: !accelerated, introSounds: !accelerated }), { style, accelerated });
   const home = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find(w => w.getTitle() === 'Karen Desktop Pet').getBounds());
   const opened = app.waitForEvent('window', { predicate: w => w.url().includes('view=intro'), timeout: 15000 });
   const ok = await panel.evaluate(id => window.karen.playIntro(id), id);
@@ -66,7 +66,7 @@ async function play(id, style, accelerated) {
     const p = await window.karenIntro.payload();
     return { greeting: Boolean(p.greeting), audio: Boolean(p.audio?.length) };
   });
-  if (report.greetingCount === 40) assert(resources.greeting && resources.audio);
+  if (report.greetingCount === 40 && !accelerated) assert(resources.greeting && resources.audio);
   await assert.rejects(() => intro.evaluate(() => window.karen.snapshot()), /Origen no autorizado/);
   await assert.rejects(() => panel.evaluate(() => window.karenIntro.payload()), /Origen de introducción no autorizado/);
   let measuredFPS;

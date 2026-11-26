@@ -137,3 +137,42 @@ Datos resumidos: [STARTUP_INTRO_METRICS_2026-11-26.json](STARTUP_INTRO_METRICS_2
 No se reemplazó el ejecutable instalado. Quedan pendientes la aceptación visual y
 auditiva humana, Escape físico, juegos/presentaciones reales y monitores/DPI físicos
 distintos. Contratos y Playwright no sustituyen esas comprobaciones.
+
+
+## Nitidez, saludo y salida — 2026-11-26
+
+Las texturas conservan su tamaño lógico y se rasterizan según pantalla/DPI.
+Awakening reserva más detalle para los ojos (8× en la prueba 1920×1080), con
+mipmaps; el cuerpo y la boca aparecen al terminar el primer plano. Presupuesto
+máximo de 48 MiB de píxeles RGBA fuente, excluyendo copias del driver y mipmaps.
+No equivale a una medición de RAM. El escritorio mantiene su resolución habitual.
+
+El regreso prepara la mascota transparente, espera su fotograma y la revela antes
+de liberar la ventana de introducción; IPC limitado al frame y token esperado,
+con recuperación de 700 ms y watchdog. El saludo sigue el reloj real de audio,
+reintenta una salida suspendida y respeta el dispositivo de salida configurado.
+Apariencia muestra si existe una biblioteca compatible; no genera voz al arrancar.
+
+La despedida dura 780 ms (180 ms con movimiento reducido), con guiño, gesto y
+fundido. Tiene límite nativo de 1200 ms; una mascota oculta o un cierre de sesión
+no esperan la animación. Se puede desactivar en Apariencia. Escape puede omitirla
+cuando el renderer recibe la tecla; no se registra un atajo global nuevo.
+
+Verificación: 197 pruebas Pet, typecheck, Vite y compilación Electron correctos.
+Se reutilizó el puente musical ya compilado para conservar abierta la instancia
+musical del usuario. Matriz nativa: seis secuencias con audio local a tiempo real
+(58–59 FPS) y 48 combinaciones visuales con reloj acelerado, sin errores; persisten
+los ajustes y se omiten en modo gaming. `scripts/polish-smoke.cjs` comprueba tres
+formas de chat a 50/100 %, texto largo y multilingüe sintético, editor multilínea,
+envío offline, Más opciones/Escape, calidad y despedida real (~961 ms incluyendo
+50 ms de espera de QA). Datos resumidos: POLISH_ACCEPTANCE_2026-11-26.json.
+
+Chat: Globo, Panel o Cinta en Apariencia, con entrada breve y movimiento reducido.
+Editor Enter para enviar, Shift+Enter para nueva línea y Escape para cerrar;
+conserva borradores editados durante el envío y bloquea envíos duplicados. La
+conversación deja de seguir respuestas si se está leyendo arriba. Los accesos
+secundarios están en Más opciones. Se conservan las ocho apariencias.
+
+Pendiente: audición humana del saludo, aceptación de ambas salidas y monitores
+físicos HiDPI/4K; el presupuesto 4K está cubierto por pruebas de cálculo. El paquete
+instalado sigue sin reemplazarse; la vista ejecutada procede del repositorio.
