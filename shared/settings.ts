@@ -31,6 +31,7 @@ export const defaults: Settings = {
   agentId: "main",
   authSource: "local",
   bubbles: true,
+  petChatShape: "bubble",
   voiceEnabled: false,
   ttsEngine: "system",
   voiceStyle: 'serene',
@@ -120,7 +121,7 @@ export function validateSettings(
   }
   for (const key of [
     'musicEnabled', 'musicPlayer', 'musicPlayerPinned', 'musicStrictYouTube', 'musicComments', 'musicAnimations', 'musicGamingReactions', 'musicHistory', 'musicObsidian',
-    'introEnabled', 'introVoice', 'introSounds', 'introReducedMotion', 'introEscape',
+    'introEnabled', 'introVoice', 'introSounds', 'introReducedMotion', 'introEscape', 'farewellEnabled',
     "particles",
     "initiativeEnabled",
     "initiativeSpeak",
@@ -192,6 +193,10 @@ export function validateSettings(
   if (raw.voiceStyle !== undefined) {
     if (!VOICE_STYLES.includes(raw.voiceStyle)) throw new Error('Estilo de voz desconocido.');
     s.voiceStyle = raw.voiceStyle;
+  }
+  if (raw.petChatShape !== undefined) {
+    if (!['bubble','panel','ribbon'].includes(raw.petChatShape)) throw new Error('Forma de chat desconocida.');
+    s.petChatShape = raw.petChatShape;
   }
   return s;
 }

@@ -18,7 +18,7 @@ vi.mock('electron', () => ({
   BrowserWindow: class extends EventEmitter {
     webContents = Object.assign(new EventEmitter(), { id: 40, mainFrame: {} });
     dead = false;
-    showInactive = vi.fn(); setIgnoreMouseEvents = vi.fn(); setMenuBarVisibility = vi.fn();
+    showInactive = vi.fn(); hide = vi.fn(); setIgnoreMouseEvents = vi.fn(); setMenuBarVisibility = vi.fn();
     constructor(public options: unknown) { super(); mocks.windows.push(this); }
     isDestroyed() { return this.dead; }
     destroy() { this.dead = true; this.emit('closed'); }
@@ -33,7 +33,8 @@ describe('intro window lifecycle, races and fallback', () => {
     const pet = {
       getBounds: () => ({ x: -500, y: 500, width: 380, height: 440 }),
       isVisible: () => true, isDestroyed: () => false,
-      hide: vi.fn(), showInactive: vi.fn(),
+      hide: vi.fn(), showInactive: vi.fn(), setOpacity: vi.fn(), setIgnoreMouseEvents: vi.fn(),
+      webContents: { id: 10, mainFrame: {}, send: vi.fn(), setBackgroundThrottling: vi.fn() },
     };
     const manager = new StartupIntroManager({ pet: pet as never, settings: () => settings, directory: '/temporary-test-only',
       prefs: () => ({}), load: async () => {}, protect: () => {}, blocked: () => false, log: () => {} });
@@ -60,6 +61,23 @@ describe('intro window lifecycle, races and fallback', () => {
     const { manager, pet } = setup();
     expect(await manager.play('glass', true)).toBe(false);
     expect(mocks.windows).toHaveLength(0); expect(pet.showInactive).toHaveBeenCalledOnce();
+    manager.dispose();
+  });
+  it('pre-renders a click-through desktop pet before revealing it and clearing the overlay', async () => {
+    const { manager, pet } = setup();
+    await manager.play('awakening'); mocks.handlers.get('intro-ready')!(event());
+    const prepared = mocks.handlers.get('intro-prepare-landing')!(event());
+    expect(pet.setOpacity).toHaveBeenCalledWith(0); expect(pet.setIgnoreMouseEvents).toHaveBeenCalledWith(true);
+    expect(manager.coveringPet).toBe(true);
+    const token = pet.webContents.send.mock.calls.find(call => call[1].token)?.[1].token;
+    expect(token).toBeTruthy();
+    await mocks.handlers.get('intro-pet-rendered')!({ sender: pet.webContents, senderFrame: pet.webContents.mainFrame }, token);
+    expect(await prepared).toBe(true);
+    mocks.handlers.get('intro-reveal-pet')!(event());
+    expect(pet.setOpacity).toHaveBeenLastCalledWith(1); expect(mocks.windows[0].hide).toHaveBeenCalledOnce();
+    expect(manager.coveringPet).toBe(false);
+    mocks.handlers.get('intro-finished')!(event());
+    expect(pet.webContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true);
     manager.dispose();
   });
   it('cancels an in-flight guard and ignores its stale completion', async () => {

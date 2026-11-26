@@ -16,6 +16,8 @@ html[data-view="intro"] .intro-canvas { position: fixed; inset: 0; width: 100%; 
 .intro-preferences label { display: grid; gap: 7px; }
 .intro-preferences .intro-option { display: flex; justify-content: space-between; align-items: center; }
 .intro-option input { width: 18px; height: 18px; accent-color: var(--accent); }
+.desktop-pet[data-landing="true"] > :not(.pet-renderer) { opacity: 0; pointer-events: none; }
+.desktop-pet[data-departing="true"] > :not(.pet-renderer) { opacity: 0; pointer-events: none; transition: opacity 120ms var(--ease-out); }
 html[data-view="music"] body { background: #101925; color: #e9f2f7; }
 .music-player { border: 1px solid var(--line); border-radius: 14px; background: #141e2b; padding: 18px; display: grid; gap: 14px; }
 .music-mini { min-height: 100vh; border-radius: 0; align-content: start; }
@@ -1291,3 +1293,30 @@ kbd {
   .conversation[data-has-suggestion="true"] .empty-chat .chat-starters,
   .conversation[data-has-suggestion="true"] .empty-chat .text-button { display:none; }
 }
+
+/* Desktop conversation: three readable silhouettes, shared controls. */
+.pet-bubble { height: auto; min-height: 58px; max-height: 108px; align-items: flex-start; padding: 10px; border-radius: 18px 18px 6px 18px; animation: dialogue-arrive 180ms ease-out; }
+.pet-bubble-open { white-space: normal; line-height: 1.45; overflow-wrap: anywhere; }
+.pet-bubble-open small { display: block; font-size: 10px; color: #aebfdc; margin-bottom: 4px; }
+.pet-bubble-open span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.desktop-pet[data-chat-shape="panel"] .pet-bubble { border-radius: 9px; border-top: 2px solid #8be4f3; }
+.desktop-pet[data-chat-shape="panel"] .pet-bubble-open span { -webkit-line-clamp: 4; }
+.desktop-pet[data-chat-shape="ribbon"] .pet-bubble { border-radius: 5px 18px 18px 5px; min-height: 42px; }
+.desktop-pet[data-chat-shape="ribbon"] .pet-bubble-open small { display: none; }
+.desktop-pet[data-chat-shape="ribbon"] .pet-bubble-open span { -webkit-line-clamp: 2; }
+.desktop-pet[data-has-dock="true"] .pet-toolbar { bottom: 36%; }
+.pet-toolbar { max-width: 94%; flex-wrap: wrap; justify-content: center; }
+.pet-composer { z-index: 8; animation: dialogue-arrive 180ms ease-out; }
+.pet-composer textarea { resize: none; border: 0; background: transparent; padding: 5px; font: inherit; font-size: 12px; color: #e9f3ff; min-width: 0; width: 100%; max-height: 80px; }
+.chat-shapes { display: flex; gap: 8px; flex-wrap: wrap; }
+.chat-shapes button[aria-pressed="true"] { border-color: #8be4f3; background: #263a50; }
+.message p { overflow-wrap: anywhere; }
+@keyframes dialogue-arrive { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pet-bubble,.pet-composer { animation: none; } }
+
+.pet-more { position: relative; }
+.pet-more summary { list-style: none; display: grid; place-items: center; width: 29px; height: 28px; cursor: pointer; color: #dceafb; border-radius: 6px; }
+.pet-more summary::-webkit-details-marker { display: none; }
+.pet-more summary:hover,.pet-more[open] summary { background: #344462; }
+.pet-more-actions { position: absolute; bottom: 36px; right: 0; display: flex; padding: 5px; border-radius: 12px; background: #172238; box-shadow: 0 4px 18px #06112340; }
+.pet-toolbar:has(.pet-more[open]) { opacity: 1; pointer-events: auto; }

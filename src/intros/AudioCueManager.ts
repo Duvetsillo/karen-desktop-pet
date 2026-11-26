@@ -8,19 +8,34 @@ export class AudioCueManager {
   private nodes: OscillatorNode[] = [];
   private greetingStart?: number;
   private fired = new Set<string>();
-  constructor(private volume: number, private greeting?: Greeting) {}
+  private resuming?: Promise<void>;
+  constructor(private volume: number, private greeting?: Greeting, private outputDevice = '') {}
+  get hasGreeting() { return Boolean(this.buffer && this.volume > 0); }
+  get greetingElapsed() { return this.greetingStart === undefined || !this.context ? undefined : Math.max(0, this.context.currentTime - this.greetingStart); }
   async prepare(bytes?: Uint8Array) {
     if (this.volume === 0) return;
     try {
       this.context = new AudioContext();
+      if (this.outputDevice) {
+        const output = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+        if (!output.setSinkId) throw new Error('Salida de audio no disponible.');
+        await output.setSinkId(this.outputDevice);
+      }
       if (bytes) this.buffer = await this.context.decodeAudioData(new Uint8Array(bytes).buffer);
       await this.context.resume();
     } catch { this.buffer = undefined; }
   }
   greetingCue() {
     if (this.fired.has('greeting')) return;
+    if (!this.context || !this.buffer) { this.fired.add('greeting'); return; }
+    if (this.context.state !== 'running') {
+      if (!this.resuming) this.resuming = this.context.resume().then(() => {
+        this.resuming = undefined;
+        if (this.context?.state === 'running') this.greetingCue();
+      }).catch(() => { this.resuming = undefined; this.buffer = undefined; });
+      return;
+    }
     this.fired.add('greeting');
-    if (!this.context || !this.buffer || this.context.state !== 'running') return;
     const gain = this.context.createGain(); gain.gain.value = this.volume;
     this.source = this.context.createBufferSource(); this.source.buffer = this.buffer;
     this.source.connect(gain).connect(this.context.destination);

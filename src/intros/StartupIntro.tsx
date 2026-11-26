@@ -7,7 +7,7 @@ import { IntroRenderer } from './IntroRenderer';
 
 declare global {
   interface Window {
-    karenIntro?: { payload(): Promise<IntroPayload>; ready(): Promise<boolean>; finish(): Promise<void> };
+    karenIntro?: { payload(): Promise<IntroPayload>; ready(): Promise<boolean>; finish(): Promise<void>; prepareLanding?(): Promise<boolean>; revealPet?(): Promise<void> };
   }
 }
 export function StartupIntro() {
@@ -21,7 +21,9 @@ export function StartupIntro() {
       finishing = true;
       // Leave the Pixi ticker callback before destroying its renderer. Unmount
       // explicitly so GPU textures/context are released before closing Chromium.
-      finishTimer = setTimeout(() => {
+      finishTimer = setTimeout(async () => {
+        // Reveal the already-rendered desktop avatar before clearing this canvas.
+        await native?.revealPet?.().catch(() => {});
         controller?.dispose();
         if (alive) flushSync(() => setRenderer(undefined));
         void native?.finish().catch(() => {});
@@ -41,7 +43,8 @@ export function StartupIntro() {
       const payload = await native.payload();
       if (!alive) return;
       const reduced = payload.settings.introReducedMotion || matchMedia('(prefers-reduced-motion: reduce)').matches || !payload.settings.animations;
-      controller = new IntroRenderer(payload, reduced, () => native.ready(), finish);
+      controller = new IntroRenderer(payload, reduced, () => native.ready(), finish,
+        () => native.prepareLanding?.().catch(() => false) ?? Promise.resolve(false));
       await controller.audio.prepare(payload.audio);
       payload.audio = undefined;
       if (!alive) { controller.dispose(); return; }

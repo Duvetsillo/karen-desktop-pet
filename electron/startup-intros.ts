@@ -4,6 +4,7 @@ import type { Settings } from '../shared/types.js';
 import { INTRO_IDS, IntroTimeline, selectIntro, type IntroId, type IntroPayload } from '../shared/startup-intros.js';
 import { GreetingLibrary, ResourceCache, greetingVoiceVersion } from './greeting-library.js';
 import { IntroGuard } from './intro-guard.js';
+import { randomUUID } from 'node:crypto';
 
 export class StartupIntroManager {
   private window?: BrowserWindow;
@@ -16,6 +17,11 @@ export class StartupIntroManager {
   private busy = false;
   private restorePet = false;
   private started = false;
+  private landingToken?: string;
+  private landingPromise?: Promise<boolean>;
+  private landingResolve?: (ready: boolean) => void;
+  private landingTimer?: ReturnType<typeof setTimeout>;
+  private revealed = false;
   constructor(private options: {
     pet: BrowserWindow; settings: () => Settings; directory: string;
     prefs: () => Electron.WebPreferences;
@@ -38,8 +44,52 @@ export class StartupIntroManager {
       return true;
     });
     ipcMain.handle('intro-finished', event => { own(event); this.cancel(); });
+    ipcMain.handle('intro-prepare-landing', event => { own(event); return this.prepareLanding(); });
+    ipcMain.handle('intro-reveal-pet', event => { own(event); this.revealPet(); });
+    ipcMain.handle('intro-pet-rendered', (event, token: unknown) => {
+      if (event.sender.id !== this.options.pet.webContents.id || event.senderFrame !== event.sender.mainFrame)
+        throw new Error('Origen de mascota no autorizado.');
+      if (typeof token === 'string' && token === this.landingToken) {
+        clearTimeout(this.landingTimer); this.landingResolve?.(true); this.landingResolve = undefined;
+      }
+    });
   }
   get active() { return this.busy; }
+  greetingStatus() {
+    const s = this.options.settings(), cache = new ResourceCache();
+    try {
+      const version = greetingVoiceVersion(s, s.voiceRoot || process.env.KAREN_PROJECT_ROOT || join(this.options.directory, 'voice'));
+      const result = new GreetingLibrary(join(this.options.directory, 'startup-greetings'), cache, version).choose(s.introFixed, new Date().getHours());
+      return result.greeting ? { available: true, message: 'Saludo local preparado con tu voz configurada.' } :
+        { available: false, message: 'Falta un saludo compatible con tu voz actual. La entrada se reproducirá en silencio.' };
+    } catch { return { available: false, message: 'No hay una biblioteca local compatible con la voz configurada.' }; }
+    finally { cache.clear(); }
+  }
+  get coveringPet() { return Boolean(this.landingToken && !this.revealed); }
+  private prepareLanding(): Promise<boolean> {
+    if (this.landingPromise) return this.landingPromise;
+    if (!this.restorePet || this.options.pet.isDestroyed()) return Promise.resolve(false);
+    this.landingToken = randomUUID();
+    this.landingPromise = new Promise(resolve => {
+      this.landingResolve = resolve;
+      this.landingTimer = setTimeout(() => { this.landingResolve = undefined; resolve(false); }, 700);
+    });
+    const pet = this.options.pet;
+    pet.setOpacity(0); pet.setIgnoreMouseEvents(true);
+    pet.webContents.setBackgroundThrottling(false);
+    pet.webContents.send('desktop-event', { type: 'intro-landing', token: this.landingToken });
+    pet.showInactive();
+    return this.landingPromise;
+  }
+  private revealPet() {
+    this.revealed = true;
+    if (this.restorePet && !this.options.pet.isDestroyed()) {
+      this.options.pet.setOpacity(1); this.options.pet.showInactive();
+    }
+    // Swap native surfaces before the intro's React/Pixi cleanup can clear its
+    // final frame. The regular avatar has already rendered under zero opacity.
+    this.window?.hide();
+  }
   async play(id?: IntroId, startup = false): Promise<boolean> {
     if (id !== undefined && !INTRO_IDS.includes(id)) throw new Error('Introducción desconocida.');
     if (this.busy || this.options.blocked()) return false;
@@ -94,14 +144,22 @@ export class StartupIntroManager {
     ++this.epoch;
     clearTimeout(this.watchdog); this.watchdog = undefined;
     this.guard?.stop(); this.guard = undefined;
+    clearTimeout(this.landingTimer); this.landingTimer = undefined;
+    this.landingResolve?.(false); this.landingResolve = undefined;
+    this.landingPromise = undefined; this.landingToken = undefined;
     const w = this.window; this.window = undefined;
+    if (!this.options.pet.isDestroyed()) {
+      this.options.pet.setOpacity(1);
+      this.options.pet.webContents.setBackgroundThrottling(true);
+      this.options.pet.webContents.send('desktop-event', { type: 'intro-landing', token: null });
+    }
+    if (this.restorePet && !this.options.pet.isDestroyed()) this.options.pet.showInactive();
     if (w && !w.isDestroyed()) w.destroy();
     this.cache?.clear(); this.cache = undefined; this.payload = undefined;
-    if (this.restorePet && !this.options.pet.isDestroyed()) this.options.pet.showInactive();
-    this.restorePet = false; this.started = false; this.busy = false;
+    this.restorePet = false; this.started = false; this.busy = false; this.revealed = false;
   }
   dispose() {
     this.restorePet = false; this.cancel();
-    for (const channel of ['intro-payload', 'intro-ready', 'intro-finished']) ipcMain.removeHandler(channel);
+    for (const channel of ['intro-payload', 'intro-ready', 'intro-finished', 'intro-prepare-landing', 'intro-reveal-pet', 'intro-pet-rendered']) ipcMain.removeHandler(channel);
   }
 }

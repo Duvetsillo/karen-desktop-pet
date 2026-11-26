@@ -8,11 +8,18 @@ export function IntroPreferencesPanel({ settings: s, patch, report }: {
 }) {
   const [monitors, setMonitors] = useState<{ id: string; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [greeting, setGreeting] = useState<{ available: boolean; message: string }>();
+  useEffect(() => {
+    let alive = true;
+    void bridge.introGreetingStatus?.().then(result => { if (alive) setGreeting(result); }).catch(report);
+    return () => { alive = false; };
+  }, [s.voiceStyle,s.ttsEngine,s.voiceRoot,s.introFixed,report]);
   useEffect(() => { void bridge.introMonitors?.().then(setMonitors).catch(report); }, [report]);
-  const toggle = (label: string, key: 'introEnabled' | 'introVoice' | 'introSounds' | 'introReducedMotion' | 'introEscape') =>
+  const toggle = (label: string, key: 'introEnabled' | 'introVoice' | 'introSounds' | 'introReducedMotion' | 'introEscape' | 'farewellEnabled') =>
     <label className="intro-option"><span>{label}</span><input type="checkbox" checked={s[key]} onChange={e => void patch({ [key]: e.target.checked })} /></label>;
   return <div className="intro-preferences">
     {toggle('Activar al arrancar la aplicación', 'introEnabled')}
+    {toggle('Despedida animada al salir de Karen', 'farewellEnabled')}
     <label>Selección<select value={s.introSelection} onChange={e => void patch({ introSelection: e.target.value as Settings['introSelection'] })}>
       <option value="random">Aleatoria</option><option value="fixed">Fija</option><option value="contextual">Según la hora</option>
     </select></label>
@@ -25,6 +32,7 @@ export function IntroPreferencesPanel({ settings: s, patch, report }: {
         .catch(report).finally(() => setBusy(false));
     }}>Vista previa</button>
     {toggle('Saludos de voz pregrabados', 'introVoice')}
+    {s.introVoice && greeting && <p className="quiet-note" role="status">{greeting.message}</p>}
     {toggle('Efectos sonoros', 'introSounds')}
     <label>Volumen de introducción<input type="range" min="0" max="1" step="0.05" value={s.introVolume} onChange={e => void patch({ introVolume: Number(e.target.value) })} /></label>
     {toggle('Movimiento reducido', 'introReducedMotion')}

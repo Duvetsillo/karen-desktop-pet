@@ -3,6 +3,7 @@ import type { Rectangle } from './pet-layout.js';
 export const INTRO_IDS = ['breakthrough', 'glass', 'awakening', 'materialization', 'sleepy', 'surprise'] as const;
 export type IntroId = typeof INTRO_IDS[number];
 export interface IntroPreferences {
+  farewellEnabled: boolean;
   introEnabled: boolean;
   introSelection: 'random' | 'fixed' | 'contextual';
   introFixed: IntroId;
@@ -16,6 +17,7 @@ export interface IntroPreferences {
   introMonitor: string;
 }
 export const introDefaults: IntroPreferences = {
+  farewellEnabled: true,
   introEnabled: true, introSelection: 'random', introFixed: 'awakening',
   introVoice: true, introSounds: true, introVolume: .65,
   introReducedMotion: false, introEscape: true, introFPS: 60, introMonitor: '',
@@ -65,6 +67,7 @@ export const easeOut = (n: number) => 1 - (1 - clamp01(n)) ** 3;
 export const easeInOut = (n: number) => { const p = clamp01(n); return p * p * (3 - 2 * p); };
 const mix = (a: number, b: number, p: number) => a + (b - a) * p;
 export interface IntroPose {
+  bodyAlpha: number;
   x: number; y: number; scale: number; alpha: number; dark: number;
   eye: number; wink: number; gazeX: number; gazeY: number;
   ear: number; tilt: number; breathe: number; mouth: number;
@@ -127,10 +130,11 @@ export class IntroTimeline {
       ear += Math.sin(t * 2.2) * .045;
     }
     const targetX = target.x + target.width / 2, targetY = target.y + target.height * .54;
+    const bodyAlpha = this.id === 'awakening' && !this.reduced ? easeInOut((t - 2.05) / .85) : 1;
     return { x: mix(x, targetX, exit), y: mix(y, targetY, exit) - (this.reduced ? 0 : Math.sin(exit * Math.PI) * height * .08),
-      scale: mix(scale, normal, exit), alpha, dark: dark * (1 - exit), eye, wink,
-      gazeX: this.reduced ? 0 : Math.sin(t * 1.4) * 7 * (1 - exit), gazeY: this.reduced ? 0 : Math.cos(t) * 3,
-      ear: ear * (1 - exit), tilt: tilt * (1 - exit), breathe, mouth, effect, exit, done: t >= this.duration };
+      scale: mix(scale, normal, exit), alpha, bodyAlpha, dark: dark * (1 - exit), eye: mix(eye, 1, exit), wink: mix(wink, 1, exit),
+      gazeX: this.reduced ? 0 : Math.sin(t * 1.4) * 7 * (1 - exit), gazeY: this.reduced ? 0 : Math.cos(t) * 3 * (1 - exit),
+      ear: ear * (1 - exit), tilt: tilt * (1 - exit), breathe: mix(breathe, 1, exit), mouth: mouth * (1 - exit), effect, exit, done: t >= this.duration };
   }
 }
 export interface IntroPayload {

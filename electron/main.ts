@@ -26,6 +26,7 @@ import { MicrophoneArbiter } from './core-resource.js';
 import { applyCoreMode, applyCoreVoiceStyle } from './core-style-sync.js';
 import { NativeVoice } from "./voice.js";
 import { StartupIntroManager } from './startup-intros.js';
+import { PetDeparture } from './pet-departure.js';
 import { MusicPresence } from './music-presence.js';
 import { musicCommand, chooseMusicSession, type MusicRequest } from '../shared/music.js';
 import { INTRO_IDS, introCommand, type IntroId } from '../shared/startup-intros.js';
@@ -85,6 +86,8 @@ let cursorTimer: ReturnType<typeof setInterval>,
 const diagnostics: Diagnostic[] = [];
 const screenCapture = new ScreenCapture();
 let startupIntros: StartupIntroManager | undefined;
+let departure: PetDeparture | undefined;
+let departurePending = false;
 let musicPresence: MusicPresence | undefined;
 let musicWindow: BrowserWindow | undefined;
 let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
@@ -407,7 +410,6 @@ function contextMenu() {
     {
       label: "Salir de Karen",
       click: () => {
-        quitting = true;
         app.quit();
       },
     },
@@ -595,6 +597,8 @@ async function ready() {
   });
   pet.setMenuBarVisibility(false);
   protect(pet);
+  departure = new PetDeparture(() => pet);
+  pet.on('query-session-end', () => { quitting = true; departure?.finish(); });
   pet.once("ready-to-show", () => {
     if (qa || process.argv.includes('--settings')) pet?.showInactive();
     else void startupIntros?.play(undefined, true).then(played => { if (!played) pet?.showInactive(); });
@@ -706,6 +710,7 @@ async function ready() {
     return updateSettings(patch as Partial<Settings>);
   });
   handle('play-intro', id => startupIntros?.play(id as IntroId));
+  handle('intro-greeting-status', () => startupIntros?.greetingStatus());
   handle('intro-monitors', () => screen.getAllDisplays().map(d => ({ id: String(d.id), name: d.label || `Monitor ${d.id}` })));
   const musicHandle = (name: string, callback: (...args: any[]) => unknown) => ipcMain.handle(name, (event, ...args) => {
     if (![pet?.webContents.id, panel?.webContents.id, musicWindow?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame) throw new Error('Origen musical no autorizado.');
@@ -941,6 +946,8 @@ async function ready() {
     });
   });
   ipcMain.on("hit-test", (event, interactive) => {
+    if (event.sender.id === pet?.webContents.id && departure?.active) { pet?.setIgnoreMouseEvents(true); return; }
+    if (event.sender.id === pet?.webContents.id && startupIntros?.coveringPet) { pet?.setIgnoreMouseEvents(true); return; }
     if (event.sender.id === pet?.webContents.id && !clickThrough && !dragging)
       pet?.setIgnoreMouseEvents(!interactive, { forward: true });
   });
@@ -1000,7 +1007,16 @@ else {
     .then(ready)
     .catch(() => app.quit());
   app.on("window-all-closed", () => {});
-  app.on("before-quit", () => {
+  app.on("before-quit", event => {
+    if (departurePending && !quitting) { quitting = true; departure?.finish(); }
+    if (!quitting && departure && storage?.settings.farewellEnabled && storage.settings.mode === 'normal' &&
+      !sessionLocked && !startupIntros?.active && (!qa || process.argv.includes('--qa-farewell'))) {
+      event.preventDefault(); departurePending = true;
+      stopPerception();
+      void departure.play().finally(() => { quitting = true; app.quit(); });
+      return;
+    }
+    departure?.dispose();
     musicPresence?.stop();
     startupIntros?.dispose();
     if(initiativeTimer)clearInterval(initiativeTimer);

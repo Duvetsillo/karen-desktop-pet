@@ -68,6 +68,7 @@ export interface Settings extends IntroPreferences, MusicPreferences {
   agentId: string;
   authSource: "local" | "stored";
   bubbles: boolean;
+  petChatShape: "bubble" | "panel" | "ribbon";
   voiceEnabled: boolean;
   ttsEngine: "system" | "local" | "fast" | "edge";
   voiceStyle: VoiceStyle;
@@ -125,6 +126,8 @@ export interface CaptureStatus {
   startedAt?: number;
 }
 export type DesktopEvent =
+  | { type: 'pet-departure'; token: string }
+  | { type: 'intro-landing'; token: string | null }
   | { type: 'music'; snapshot: import('./music.js').MusicSnapshot }
   | { type: 'initiative'; snapshot: import('./initiative.js').InitiativeSnapshot; notice?: import('./initiative.js').InitiativeNotice }
   | { type: 'surface-visibility'; visible: boolean }
@@ -162,8 +165,11 @@ export interface Snapshot {
   wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
+  departureComplete?(token: string): Promise<void>;
+  introPetRendered?(token: string): Promise<void>;
   music?: import('./music.js').MusicBridge;
   playIntro?(id?: import('./startup-intros.js').IntroId): Promise<boolean>;
+  introGreetingStatus?(): Promise<{ available: boolean; message: string }>;
   introMonitors?(): Promise<{ id: string; name: string }[]>;
   interaction?(): void;
   initiative?(action: import('./initiative.js').InitiativeAction, id?: string): Promise<import('./initiative.js').InitiativeSnapshot>;
