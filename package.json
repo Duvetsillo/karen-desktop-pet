@@ -9,10 +9,11 @@
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "generate:intro-greetings": "tsx scripts/generate-startup-greetings.ts",
+    "build:music": "node scripts/build-music-bridge.cjs",
     "dev": "npm run build && electron .",
     "preview": "vite --host 127.0.0.1",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "build": "npm run typecheck && vite build && tsc -p tsconfig.electron.json && node scripts/copy-preload.cjs",
+    "build": "npm run typecheck && vite build && tsc -p tsconfig.electron.json && node scripts/copy-preload.cjs && npm run build:music",
     "test": "vitest run",
     "test:native": "node scripts/native-smoke.cjs",
     "test:appearance": "node scripts/appearance-smoke.cjs",
@@ -67,6 +68,7 @@
     "files": [
       "dist/**",
       "dist-electron/**",
+      "dist-native/**",
       "assets/**",
       "python/**",
       "!python/**/__pycache__/**",
@@ -74,6 +76,7 @@
       "package.json"
     ],
     "asarUnpack": [
+      "dist-native/**",
       "python/**"
     ],
     "win": {

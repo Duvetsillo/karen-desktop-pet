@@ -7,6 +7,7 @@ import type { CoreHandoffSummary } from '../shared/core-tasks.js';
 import { publicCoreLabel } from '../shared/core-tasks.js';
 import { VOICE_STYLES, type VoiceStyle, type Settings } from '../shared/types.js';
 import { CoreTaskReader } from './core-tasks.js';
+import { MusicMemory } from './music-memory.js';
 
 type AssistantMode = Settings['mode'];
 const MODES: AssistantMode[] = ['normal', 'gaming', 'do_not_disturb'];
@@ -17,6 +18,8 @@ export interface CoreActivity { client_id: string; interface: 'classic' | 'pet';
 export class CoreStore implements CoreTurnSink {
   private db: DatabaseSync;
   private tasks: CoreTaskReader;
+  private musicStore?: MusicMemory;
+  musicMemory() { return this.musicStore ??= new MusicMemory(this.db); }
 
   constructor(path: string, taskPath?: string) {
     this.tasks = new CoreTaskReader(taskPath);

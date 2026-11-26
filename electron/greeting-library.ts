@@ -31,7 +31,7 @@ export class ResourceCache {
 }
 export class GreetingLibrary {
   constructor(private root: string, private cache: ResourceCache, private voiceVersion?: string) {}
-  choose(id: IntroId, hour: number): { greeting?: Greeting; audio?: Uint8Array } {
+  choose(id: IntroId, hour: number, text?: string): { greeting?: Greeting; audio?: Uint8Array } {
     try {
       const path = join(this.root, 'manifest.json');
       if (statSync(path).size > 500_000) return {};
@@ -41,6 +41,7 @@ export class GreetingLibrary {
         g && typeof g.id === 'string' && typeof g.text === 'string' && g.text.length < 500 &&
         typeof g.file === 'string' && typeof g.voiceVersion === 'string' &&
         (this.voiceVersion === undefined || g.voiceVersion === this.voiceVersion) &&
+        (text === undefined || g.text === text) &&
         Array.isArray(g.intros) && g.intros.includes(id) && g.intros.every(i => INTRO_IDS.includes(i)) &&
         Number.isFinite(g.duration) && g.duration > 0 && g.duration <= 15 &&
         Number.isFinite(g.envelopeStep) && g.envelopeStep >= .01 && g.envelopeStep <= .1 &&

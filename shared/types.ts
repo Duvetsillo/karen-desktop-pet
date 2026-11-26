@@ -1,4 +1,5 @@
 import type { IntroPreferences } from './startup-intros.js';
+import type { MusicPreferences } from './music.js';
 export const PET_STATES = [
   "IDLE",
   "LISTENING",
@@ -41,7 +42,7 @@ export type ConnectionState =
   | "connected"
   | "reconnecting"
   | "action-required";
-export interface Settings extends IntroPreferences {
+export interface Settings extends IntroPreferences, MusicPreferences {
   initiativeEnabled: boolean;
   initiativeSpeak: boolean;
   initiativeInterval: number;
@@ -124,6 +125,7 @@ export interface CaptureStatus {
   startedAt?: number;
 }
 export type DesktopEvent =
+  | { type: 'music'; snapshot: import('./music.js').MusicSnapshot }
   | { type: 'initiative'; snapshot: import('./initiative.js').InitiativeSnapshot; notice?: import('./initiative.js').InitiativeNotice }
   | { type: 'surface-visibility'; visible: boolean }
   | { type: 'core-activity'; clients: { interface: string; state: string }[] }
@@ -146,6 +148,7 @@ export type DesktopEvent =
   | { type: "energy"; value: number }
   | { type: "wake" };
 export interface Snapshot {
+  music?: import('./music.js').MusicSnapshot;
   initiative?: import('./initiative.js').InitiativeSnapshot;
   settings: Settings;
   connection: ConnectionInfo;
@@ -159,6 +162,7 @@ export interface Snapshot {
   wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
+  music?: import('./music.js').MusicBridge;
   playIntro?(id?: import('./startup-intros.js').IntroId): Promise<boolean>;
   introMonitors?(): Promise<{ id: string; name: string }[]>;
   interaction?(): void;

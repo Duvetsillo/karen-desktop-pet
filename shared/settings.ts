@@ -1,9 +1,11 @@
 import type { Settings } from "./types.js";
 import { introDefaults, INTRO_IDS } from './startup-intros.js';
+import { musicDefaults, MUSIC_PLATFORMS } from './music.js';
 import { PET_STYLES, VOICE_STYLES } from './types.js';
 import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
   ...introDefaults,
+  ...musicDefaults,
   initiativeEnabled: false,
   initiativeSpeak: false,
   initiativeInterval: 45,
@@ -82,6 +84,10 @@ export function validateSettings(
   current: Settings = defaults,
 ): Settings {
   const s = { ...current };
+  if (raw.musicPlatforms !== undefined) {
+    if (!Array.isArray(raw.musicPlatforms) || raw.musicPlatforms.some(p => !MUSIC_PLATFORMS.includes(p))) throw new Error('Plataforma musical inválida.');
+    s.musicPlatforms = [...new Set(raw.musicPlatforms)];
+  }
   if (raw.introSelection !== undefined) {
     if (!['random', 'fixed', 'contextual'].includes(raw.introSelection)) throw new Error('Selección de introducción inválida.');
     s.introSelection = raw.introSelection;
@@ -113,6 +119,7 @@ export function validateSettings(
     s.idleActivity = raw.idleActivity;
   }
   for (const key of [
+    'musicEnabled', 'musicPlayer', 'musicPlayerPinned', 'musicStrictYouTube', 'musicComments', 'musicAnimations', 'musicGamingReactions', 'musicHistory', 'musicObsidian',
     'introEnabled', 'introVoice', 'introSounds', 'introReducedMotion', 'introEscape',
     "particles",
     "initiativeEnabled",
@@ -138,6 +145,7 @@ export function validateSettings(
     }
   }
   const ranges = {
+    musicCommentProbability: [0, 1], musicCommentVolume: [0, 1], musicCooldownMinutes: [1, 240], musicMaxComments: [1, 10],
     introVolume: [0, 1],
     initiativeInterval: [15, 240],
     initiativeDailyLimit: [1, 12],
@@ -157,7 +165,7 @@ export function validateSettings(
     if (n !== undefined) {
       if (!Number.isFinite(n)) throw new Error("Número inválido.");
       const value = Math.min(ranges[key][1], Math.max(ranges[key][0], n));
-      s[key] = key.startsWith('initiative') ? Math.round(value) : value;
+      s[key] = key.startsWith('initiative') || key === 'musicMaxComments' ? Math.round(value) : value;
     }
   }
   if (raw.gatewayUrl !== undefined)
