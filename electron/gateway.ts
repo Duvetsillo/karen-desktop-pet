@@ -532,7 +532,7 @@ export class OpenClawAdapter {
       if (/^\/automatizaciones(?:\s+listar)?$/i.test(text)) {
         if (!this.core?.listSchedules) return 'Automatizaciones no configuradas. Comparte KAREN_TASKS_DB con clásica.';
         const rows = this.core.listSchedules();
-        return rows.length ? rows.map(row => `${row.id}: ${row.name} · ${row.enabled ? 'programada' : 'detenida'} · ${row.next_run} · ${row.last_status ?? 'pendiente'}`).join('\n') : 'No hay automatizaciones guardadas.';
+        return rows.length ? rows.map(row => `${row.id}: ${row.name} · ${row.enabled ? 'programada' : 'detenida'} · ${row.event_topic ? `evento ${row.event_topic}; disponible desde ` : ''}${row.next_run} · ${row.last_status ?? 'pendiente'}`).join('\n') : 'No hay automatizaciones guardadas.';
       }
       if (/^\/desarrollo(?:\s+listar)?$/i.test(text)) {
         if (!this.core?.listHandoffs) return 'Solicitudes de desarrollo no configuradas. Comparte KAREN_CORE_DB con clásica.';

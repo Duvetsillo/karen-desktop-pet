@@ -17,6 +17,7 @@ export interface CorePlanDetail extends CorePlanSummary {
 export interface CoreScheduleSummary {
   id: string; name: string; next_run: string; interval_seconds: number | null;
   retries: number; enabled: number; last_status: string | null;
+  event_topic?: string | null;
 }
 export interface CoreHandoffSummary {
   id: string; project: string; status: string; priority: string; updated_at: string;

@@ -29,8 +29,12 @@ export class CoreTaskReader {
     return this.read(db => {
       const version = db.prepare("SELECT value FROM core2_meta WHERE key='automation_version'").get() as {value: string} | undefined;
       if (version?.value !== '1') throw new Error('Versión de automatizaciones incompatible o no inicializada.');
-      const rows = db.prepare(`SELECT id,substr(name,1,100) AS name,next_run,interval_seconds,retries,enabled,last_status
-        FROM core2_schedules ORDER BY next_run LIMIT 50`).all() as unknown as CoreScheduleSummary[];
+      const policy = db.prepare("SELECT value FROM core2_meta WHERE key='automation_policy_version'").get() as {value:string} | undefined;
+      if (policy && policy.value !== '1') throw new Error('Versión de políticas incompatible.');
+      const query = policy ? `SELECT s.id,substr(s.name,1,100) AS name,s.next_run,s.interval_seconds,s.retries,s.enabled,s.last_status,
+        p.event_topic FROM core2_schedules s LEFT JOIN core2_schedule_policy p ON p.schedule_id=s.id ORDER BY s.next_run LIMIT 50`
+        : `SELECT id,substr(name,1,100) AS name,next_run,interval_seconds,retries,enabled,last_status FROM core2_schedules ORDER BY next_run LIMIT 50`;
+      const rows = db.prepare(query).all() as unknown as CoreScheduleSummary[];
       return rows.map(row => ({...row, name: publicCoreLabel(row.name)}));
     });
   }

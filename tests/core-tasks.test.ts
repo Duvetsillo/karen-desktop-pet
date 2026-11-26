@@ -43,6 +43,12 @@ describe('persistent task read adapter', () => {
     expect(rows[0]).toMatchObject({id, enabled:1, name:'Bearer [redactado]'});
     expect(JSON.stringify(rows)).not.toMatch(/PRIVATE_RECIPE|synthetic-label|payload/);
     expect(readFileSync(path)).toEqual(before);
+    const policy = new DatabaseSync(path);
+    policy.exec(`INSERT INTO core2_meta VALUES('automation_policy_version','1');
+      CREATE TABLE core2_schedule_policy(schedule_id TEXT,event_topic TEXT);`);
+    policy.prepare('INSERT INTO core2_schedule_policy VALUES(?,?)').run(id,'memory.conflict');
+    policy.close();
+    expect(new CoreTaskReader(path).schedules()[0].event_topic).toBe('memory.conflict');
   });
   it('reads bounded metadata and leaves task state and private fields untouched', () => {
     const { path, id } = fixture();

@@ -56,6 +56,10 @@ El contrato v1 incorpora el SQL compartido `shared/core-events.sql`: registro ac
 
 ## Metadatos de automatización y desarrollo — 2026-11-26
 
+Con automation_policy_version=1, el lector incluye event_topic y Pet identifica
+el evento y la próxima fecha de aceptación. Se mantiene compatibilidad con bases
+anteriores sin esa extensión; una versión desconocida se rechaza. No ejecuta triggers.
+
 `/automatizaciones listar` consulta hasta 50 schedules de KAREN_TASKS_DB;
 `/desarrollo listar` consulta hasta 50 handoffs de KAREN_CORE_DB. Requieren las
 versiones automation_version=1 y handoff_version=1 creadas por el runtime clásico.
