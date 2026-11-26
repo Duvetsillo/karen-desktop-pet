@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { CoreTaskSummary, CoreTaskDetail, CorePlanSummary, CorePlanDetail } from '../shared/core-tasks.js';
+import type { CoreTaskSummary, CoreTaskDetail, CorePlanSummary, CorePlanDetail, CoreScheduleSummary } from '../shared/core-tasks.js';
+import { publicCoreLabel } from '../shared/core-tasks.js';
 
 /** Read the same persistent task IDs as classic, without recovering or executing jobs. */
 export class CoreTaskReader {
@@ -23,6 +24,15 @@ export class CoreTaskReader {
   }
   plans(): CorePlanSummary[] {
     return this.read(db => db.prepare('SELECT id,goal,status,created_at,updated_at FROM core2_plans ORDER BY created_at DESC LIMIT 50').all() as unknown as CorePlanSummary[]);
+  }
+  schedules(): CoreScheduleSummary[] {
+    return this.read(db => {
+      const version = db.prepare("SELECT value FROM core2_meta WHERE key='automation_version'").get() as {value: string} | undefined;
+      if (version?.value !== '1') throw new Error('Versión de automatizaciones incompatible o no inicializada.');
+      const rows = db.prepare(`SELECT id,substr(name,1,100) AS name,next_run,interval_seconds,retries,enabled,last_status
+        FROM core2_schedules ORDER BY next_run LIMIT 50`).all() as unknown as CoreScheduleSummary[];
+      return rows.map(row => ({...row, name: publicCoreLabel(row.name)}));
+    });
   }
   plan(id: string): CorePlanDetail | null {
     if (!/^[0-9a-f]{32}$/.test(id)) throw new Error('ID de plan inválido.');

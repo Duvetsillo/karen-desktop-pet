@@ -29,6 +29,21 @@ function fixture() {
 }
 
 describe('persistent task read adapter', () => {
+  it('reads versioned schedules without recipes, mutation or execution', () => {
+    const {path, id} = fixture();
+    const db = new DatabaseSync(path);
+    db.exec(`CREATE TABLE core2_meta(key TEXT PRIMARY KEY,value TEXT);
+      INSERT INTO core2_meta VALUES('automation_version','1');
+      CREATE TABLE core2_schedules(id TEXT,name TEXT,next_run TEXT,interval_seconds INTEGER,retries INTEGER,
+      enabled INTEGER,last_status TEXT,payload TEXT);`);
+    db.prepare('INSERT INTO core2_schedules VALUES(?,?,?,?,?,?,?,?)').run(id,'Bearer synthetic-label','2100-01-01',null,0,1,null,'PRIVATE_RECIPE');
+    db.close();
+    const before = readFileSync(path);
+    const rows = new CoreTaskReader(path).schedules();
+    expect(rows[0]).toMatchObject({id, enabled:1, name:'Bearer [redactado]'});
+    expect(JSON.stringify(rows)).not.toMatch(/PRIVATE_RECIPE|synthetic-label|payload/);
+    expect(readFileSync(path)).toEqual(before);
+  });
   it('reads bounded metadata and leaves task state and private fields untouched', () => {
     const { path, id } = fixture();
     const before = readFileSync(path);
