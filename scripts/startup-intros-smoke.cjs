@@ -104,12 +104,17 @@ async function play(id, style, accelerated) {
     await delay(3000);
     report.settledProcesses = await app.evaluate(({ app }) => app.getAppMetrics().map(m => ({ type: m.type, cpu: m.cpu.percentCPUUsage, workingSetKB: m.memory.workingSetSize })));
     // Explicit cancel and recovery, then local command and persistence.
-    const opened = app.waitForEvent('window', { predicate: w => w.url().includes('view=intro') });
-    await panel.evaluate(() => window.karen.playIntro('awakening')); const intro = await opened;
-    await intro.waitForSelector('canvas');
-    await intro.keyboard.press('Escape').catch(error => { if (!intro.isClosed()) throw error; });
-    if (!intro.isClosed()) await intro.waitForEvent('close', { timeout: 3000 });
-    report.escape = 'Evento de teclado entregado por Playwright; tecla física pendiente';
+    const played = await panel.evaluate(() => window.karen.playIntro('awakening'));
+    if (played) {
+      const intro = app.windows().find(w => w.url().includes('view=intro'));
+      assert(intro); await intro.waitForSelector('canvas');
+      await intro.keyboard.press('Escape').catch(error => { if (!intro.isClosed()) throw error; });
+      if (!intro.isClosed()) await intro.waitForEvent('close', { timeout: 3000 });
+      report.escape = 'Evento de teclado entregado por Playwright; tecla física pendiente';
+    } else {
+      report.escape = 'No ejecutado: Windows omitió la introducción por escritorio protegido.';
+      report.introSkippedByWindows = true;
+    }
     await panel.evaluate(() => window.karen.send('Karen, usa introducciones aleatorias'));
     await panel.evaluate(() => window.karen.send('Karen, desactiva los saludos de inicio'));
     assert.equal((await panel.evaluate(() => window.karen.snapshot())).settings.introVoice, false);

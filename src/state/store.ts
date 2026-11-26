@@ -24,6 +24,7 @@ export const signals: {
   hitTest?: (x: number, y: number) => boolean;
 } = { energy: 0, cursor: { x: 0.5, y: 0.5 }, pointingSide: 0, fps: 0 };
 interface Store {
+  music?: import('../../shared/music').MusicSnapshot;
   initiative?: InitiativeSnapshot;
   screenActionProposal?: ScreenActionProposal;
   surfaceVisible: boolean;
@@ -74,6 +75,7 @@ export const useStore = create<Store>((set, get) => ({
     set({ state, reason });
   },
   event: (event) => {
+    if (event.type === 'music') { set({ music: event.snapshot }); return; }
     if(event.type==='initiative'){set({initiative:event.snapshot});return;}
     if (event.type === 'screen-action-proposal') { set({ screenActionProposal: event.proposal ?? undefined }); return; }
     if (event.type === 'surface-visibility') { set({surfaceVisible:event.visible}); return; }

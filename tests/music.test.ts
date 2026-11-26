@@ -9,7 +9,8 @@ describe('music classification and commands', () => {
   it('requires positive web evidence and excludes non-music and ambiguous YouTube', () => {
     expect(classifyMusic(song())).toBe('spotify');
     expect(classifyMusic(song({ source: 'AppleInc.AppleMusicWin_test!App' }))).toBe('apple');
-    expect(classifyMusic(song({ domain: 'music.youtube.com', evidence: 'browser', source: 'browser' }))).toBe('youtube-music');
+    expect(classifyMusic(song({ domain: 'music.youtube.com', evidence: 'browser', source: 'browser', category: 'Music' }))).toBe('youtube-music');
+    expect(classifyMusic(song({ domain: 'music.youtube.com', evidence: 'browser', source: 'browser' }))).toBeUndefined();
     const youtube = song({ source: 'browser', evidence: 'browser', domain: 'www.youtube.com', videoId: 'abcdefghijk' });
     expect(classifyMusic(youtube)).toBeUndefined();
     expect(classifyMusic({ ...youtube, category: 'Music' })).toBe('youtube');

@@ -10,9 +10,11 @@ const gac = name => {
   if (!version) throw new Error(`Falta el ensamblado de Windows ${name}.`);
   return path.join(root, version, `${name}.dll`);
 };
-mkdirSync('dist-native', { recursive: true });
+const fixture = process.argv.includes('--fixture');
+const output = fixture ? 'qa/music/KarenMusicFixture.exe' : 'dist-native/KarenMusicBridge.exe';
+mkdirSync(path.dirname(output), { recursive: true });
 const references = ['Windows.Media', 'Windows.Foundation', 'Windows.Storage'].map(name => path.join(windows, 'System32/WinMetadata', `${name}.winmd`));
 references.push(path.join(framework, 'System.Runtime.WindowsRuntime.dll'), gac('System.Runtime'), path.join(framework, 'System.Web.Extensions.dll'));
 if (!references.every(existsSync)) throw new Error('Faltan contratos WinRT del sistema.');
-execFileSync(path.join(framework, 'csc.exe'), ['/nologo', '/target:exe', '/optimize+', `/out:${path.resolve('dist-native/KarenMusicBridge.exe')}`, ...references.map(r => `/r:${r}`), path.resolve('native/music/MusicBridge.cs')], { stdio: 'inherit', windowsHide: true });
+execFileSync(path.join(framework, 'csc.exe'), ['/nologo', '/target:exe', '/optimize+', `/out:${path.resolve(output)}`, ...references.map(r => `/r:${r}`), path.resolve(fixture ? 'native/music/MusicFixture.cs' : 'native/music/MusicBridge.cs')], { stdio: 'inherit', windowsHide: true });
 console.log('Puente GSMTC compilado con .NET de Windows, sin SDK adicional.');

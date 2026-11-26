@@ -41,10 +41,14 @@ export class MusicMemory {
   }
   summary() {
     const rows = this.history();
-    return '# Preferencias musicales de Karen\n\nDatos locales reportados; escuchar no implica preferencia.\n\n' + rows.slice(0, 30).map(r => {
+    const tracks = '# Preferencias musicales de Karen\n\nDatos locales reportados; escuchar no implica preferencia.\n\n' + rows.slice(0, 30).map(r => {
       const clean = (v: string) => v.replace(/[\r\n\[\]<>#`]/g, ' ').slice(0, 150);
       return `- ${clean(r.title)}${r.artist ? ' — ' + clean(r.artist) : ''}: ${r.plays} reproducciones, ${Math.round(r.seconds)} s; preferencia explícita: ${r.preference === 1 ? 'me gusta' : r.preference === -1 ? 'no me gusta' : 'sin indicar'}.`;
     }).join('\n');
+    const artists = this.db.prepare(`SELECT artist,SUM(plays) AS plays,SUM(seconds) AS seconds FROM core_music_tracks
+      WHERE artist IS NOT NULL AND artist<>'' GROUP BY artist ORDER BY seconds DESC LIMIT 10`).all() as { artist: string; plays: number; seconds: number }[];
+    return tracks + '\n\n## Patrones observados\n\nFrecuencia acumulada, sin inferir gustos ni emociones:\n\n' + artists.map(a =>
+      `- ${a.artist.replace(/[\r\n\[\]<>#`]/g, ' ').slice(0,150)}: ${a.plays} reproducciones y ${Math.round(a.seconds)} s estimados.`).join('\n');
   }
   clear() { this.db.exec('BEGIN IMMEDIATE; DELETE FROM core_music_plays; DELETE FROM core_music_tracks; COMMIT;'); }
 }

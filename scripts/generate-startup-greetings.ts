@@ -22,7 +22,8 @@ const root = settings.voiceRoot || process.env.KAREN_PROJECT_ROOT;
 if (!root && settings.ttsEngine !== 'system') throw new Error('Configura la carpeta de la voz existente.');
 const voiceRoot = resolve(root || dirname(settingsPath));
 const voiceVersion = greetingVoiceVersion(settings, voiceRoot);
-const catalog = JSON.parse(readFileSync(join(here, '../assets/startup-greetings/catalog.json'), 'utf8')) as { category: string; texts: string[] }[];
+const catalog = JSON.parse(readFileSync(argument('--catalog') ? resolve(argument('--catalog')!) : join(here, '../assets/startup-greetings/catalog.json'), 'utf8')) as { category: string; texts: string[] }[];
+const total = catalog.reduce((count, category) => count + category.texts.length, 0);
 const output = resolve(destination); mkdirSync(output, { recursive: true });
 const manifestPath = join(output, 'manifest.json');
 let existing: Greeting[] = [];
@@ -52,6 +53,6 @@ try {
       settingsFingerprint: createHash('sha256').update(voiceVersion).digest('hex'), greetings };
     writeFileSync(manifestPath + '.tmp', JSON.stringify(manifest, null, 2));
     renameSync(manifestPath + '.tmp', manifestPath);
-    console.log(`${number}/40 ${id} ${greetings.at(-1)!.duration.toFixed(2)}s`);
+    console.log(`${number}/${total} ${id} ${greetings.at(-1)!.duration.toFixed(2)}s`);
   }
 } finally { voice.dispose(); }

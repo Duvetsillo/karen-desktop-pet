@@ -32,7 +32,8 @@ class MusicBridge {
                 }
             }
         } catch { clear = false; }
-        return new { type = "result", id = id, ok = true, safeDesktop = safe, callsClear = clear };
+        using (var self = Process.GetCurrentProcess()) return new { type = "result", id = id, ok = true, safeDesktop = safe, callsClear = clear,
+            workingSetBytes = self.WorkingSet64, cpuSeconds = self.TotalProcessorTime.TotalSeconds };
     }
     static readonly object Gate = new object(), Output = new object();
     static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 2000000 };

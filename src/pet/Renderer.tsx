@@ -9,6 +9,7 @@ import { machine, signals, useStore } from "../state/store";
 import { effectiveSettings } from '../../shared/settings';
 import { IdleActivities } from './idle-activities';
 import type { IntroRenderer } from '../intros/IntroRenderer';
+import { chooseMusicSession } from '../../shared/music';
 
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
@@ -240,7 +241,10 @@ export function PetRenderer({
       app.ticker.add((ticker) => {
         const dt = Math.min(ticker.deltaMS / 1000, 0.06);
         t += dt;
-        const { settings, state, expression: spokenExpression, capture, coreActivity, wakeStatus, messages, surfaceVisible } = useStore.getState();
+        const { settings, state, expression: spokenExpression, capture, coreActivity, wakeStatus, messages, surfaceVisible, music } = useStore.getState();
+        const song = music && chooseMusicSession(music.sessions, music.activeId);
+        const musicMotion = !intro && settings.musicAnimations && song?.status === 'playing' && state === 'IDLE' && capture.phase === 'idle' &&
+          (settings.mode === 'normal' || (settings.mode === 'gaming' && settings.musicGamingReactions)) && !reduced.matches;
         const s = effectiveSettings(settings);
         const sleeping = state === "SLEEPING";
         app!.ticker.maxFPS = s.lowPower || sleeping || !s.animations || reduced.matches ? 12 : state === 'IDLE' ? 24 : preview ? 30 : 60;
@@ -259,7 +263,7 @@ export function PetRenderer({
         if (host.current!.dataset.arms !== String(s.showArms)) host.current!.dataset.arms = String(s.showArms);
         if (host.current!.dataset.legs !== String(s.showLegs)) host.current!.dataset.legs = String(s.showLegs);
         const idle = idleActivities.update({ settings: s, state, lastActivity: machine.snapshot.lastActivity,
-          blocked: document.hidden || !surfaceVisible || capture.phase !== 'idle' || signals.pointingSide !== 0 ||
+          blocked: Boolean(musicMotion) || document.hidden || !surfaceVisible || capture.phase !== 'idle' || signals.pointingSide !== 0 ||
             wakeStatus === 'processing' || wakeStatus === 'recovering' || Boolean(messages.at(-1)?.pending) ||
             coreActivity.some(client => client.state !== 'IDLE'),
           reducedMotion: reduced.matches });
@@ -504,6 +508,21 @@ export function PetRenderer({
             (0.18 + 0.5 * (0.5 + 0.5 * Math.sin(t * 1.4 + p.phase))) *
             s.brightness;
         });
+        if (musicMotion) {
+          // A quiet listening gesture, not a guessed beat or emotional classification.
+          const sway = Math.sin(t * 1.8);
+          root.rotation += sway * .035;
+          root.y += Math.sin(t * 3.6) * 2;
+          finL.rotation += sway * .08; finR.rotation -= sway * .08;
+          if (t % 12 < 3) for (let i = 0; i < 2; i++) {
+            const x = 115 + i * 21, y = -70 - (t % 12) * 16 - i * 16;
+            pastime.ellipse(x,y,4,2.5).fill({ color: 0xc9f4ff, alpha: .45 });
+            pastime.moveTo(x+3,y).lineTo(x+3,y-13).stroke({ color: 0xc9f4ff, alpha: .45, width: 1.5 });
+          }
+          if (t % 15 < 2) {
+            facial.moveTo(-12,36).quadraticCurveTo(0,53,12,36).stroke({color:0xcdfaff,width:3,cap:'round'});
+          }
+        }
         if (intro) {
           app!.ticker.maxFPS = s.introFPS;
           intro.update(app!, avatar);

@@ -46,13 +46,16 @@ import { ModelPicker } from './ModelPicker';
 import { StylePicker } from './pet/StylePicker';
 import { StartupIntro } from './intros/StartupIntro';
 import { IntroPreferencesPanel } from './intros/IntroPreferencesPanel';
+import { MusicSettings, MusicPlayer } from './music/MusicPanel';
+import { chooseMusicSession } from '../shared/music';
 import {InitiativePanel,Notice} from './InitiativePanel';
 import { ScreenActionApproval } from './ScreenActionApproval';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
 const isIntro = new URLSearchParams(location.search).get('view') === 'intro';
-document.documentElement.dataset.view = isIntro ? 'intro' : isPet ? "pet" : "settings";
-document.title = isIntro ? 'Karen · Introducción' : isPet ? "Karen Desktop Pet" : "Karen · Ajustes";
+const isMusic = new URLSearchParams(location.search).get('view') === 'music';
+document.documentElement.dataset.view = isMusic ? 'music' : isIntro ? 'intro' : isPet ? "pet" : "settings";
+document.title = isMusic ? 'Karen · Música' : isIntro ? 'Karen · Introducción' : isPet ? "Karen Desktop Pet" : "Karen · Ajustes";
 const labels: Record<PetState, string> = {
   IDLE: "En calma",
   LISTENING: "Escuchando",
@@ -72,6 +75,8 @@ const labels: Record<PetState, string> = {
 };
 const audio = isPet ? new AudioDirector() : undefined;
 const replies = audio ? new VoiceReplies(text => audio.speak(text), () => ({ enabled: effectiveSettings(useStore.getState().settings).voiceEnabled, capture: useStore.getState().capture })) : undefined;
+let musicCommentTrack: string | undefined;
+let lastMusicComment = '';
 async function action(operation: () => Promise<unknown>) {
   try {
     useStore.setState({ error: "" });
@@ -282,6 +287,7 @@ const tabs: { name: string; icon: LucideIcon }[] = [
   { name: "Comportamiento", icon: SlidersHorizontal },
   { name: "OpenClaw", icon: Radio },
   { name: "Voz", icon: AudioLines },
+  { name: 'Música', icon: AudioLines },
   { name: "Percepción", icon: Monitor },
   { name: "Sistema", icon: Monitor },
   { name: "Diagnóstico", icon: Activity },
@@ -293,6 +299,7 @@ const subtitles: Record<string, string> = {
   Comportamiento: "Encuentra su ritmo en tu escritorio.",
   OpenClaw: "Tu asistente existente, conectado de forma segura.",
   Voz: "Escuchar, responder y dar vida a cada palabra.",
+  Música: 'Tu música, una presencia discreta y controles locales.',
   Percepción: "Audio y pantalla, cuando tú decidas compartirlos.",
   Sistema: "Un pequeño espacio en Windows.",
   Diagnóstico: "Lo que está ocurriendo, sin secretos.",
@@ -381,6 +388,8 @@ function SettingsApp() {
               <OpenClaw />
             ) : tab === "Voz" ? (
               <Voice />
+            ) : tab === 'Música' ? (
+              <MusicSettings />
             ) : tab === "Percepción" ? (
               <Perception />
             ) : tab === "Sistema" ? (
@@ -1420,24 +1429,44 @@ function Root() {
     let settingsSeen = false;
     let captureSeen = false;
     let initiativeSeen = false;
+    let musicSeen = false;
     const off = bridge.event((e) => {
+      if (e.type === 'music') {
+        musicSeen = true;
+        const song = chooseMusicSession(e.snapshot.sessions, e.snapshot.activeId);
+        if (musicCommentTrack && (song?.trackId !== musicCommentTrack || song?.status !== 'playing' || !e.snapshot.comment)) { audio?.cancel(); musicCommentTrack = undefined; }
+        const notice = e.snapshot.comment;
+        if (audio && notice && notice.id !== lastMusicComment) {
+          lastMusicComment = notice.id;
+          void bridge.music?.comment(notice.id).then(clip => {
+            const current = useStore.getState(), active = current.music && chooseMusicSession(current.music.sessions, current.music.activeId);
+            if (!clip || active?.trackId !== clip.trackId || active.status !== 'playing' || current.capture.phase !== 'idle' || current.settings.mode !== 'normal') return;
+            musicCommentTrack = clip.trackId;
+            const bytes = new Uint8Array(clip.audio).buffer;
+            void audio.speak(clip.text, { bytes, volume: clip.volume }).catch(report).finally(() => { if (musicCommentTrack === clip.trackId) musicCommentTrack = undefined; });
+          }).catch(report);
+        }
+      }
       if (e.type === "connection") connectionSeen = true;
       if (e.type === "settings") settingsSeen = true;
       if (e.type === "capture") captureSeen = true;
       if (e.type === 'initiative') initiativeSeen = true;
       useStore.getState().event(e);
+      if (musicCommentTrack && ((e.type === 'pet' && !['IDLE','SPEAKING'].includes(e.state)) || (e.type === 'capture' && e.status.kind !== 'voice' && e.status.phase !== 'idle'))) { audio?.cancel(); musicCommentTrack = undefined; }
       if (e.type === 'capture' && e.status.kind === 'system') audio?.suspendWake(e.status.phase !== 'idle');
       if (
         e.type === "chat" &&
         e.final && e.speak !== false
       ) {
+        musicCommentTrack = undefined;
         replies?.enqueue(e.message);
       }
       if (e.type === "capture" && e.status.phase === "idle") replies?.resume();
       if (e.type === "voice-cancel") { replies?.clear(); audio?.cancel(); }
       if (e.type === "voice-listen") void audio?.toggleListening();
-      if (e.type === "voice-speak") void audio?.speak(e.text);
+      if (e.type === "voice-speak") { musicCommentTrack = undefined; void audio?.speak(e.text); }
       if (e.type === "settings" && !effectiveSettings(e.settings).voiceEnabled) { replies?.clear(); audio?.cancel(); }
+      if (e.type === 'settings' && musicCommentTrack && (!e.settings.musicComments || e.settings.mode !== 'normal')) { audio?.cancel(); musicCommentTrack = undefined; }
     });
     void bridge
       .snapshot()
@@ -1447,6 +1476,7 @@ function Root() {
             settings: settingsSeen
               ? useStore.getState().settings
               : snapshot.settings,
+            music: musicSeen ? useStore.getState().music : snapshot.music,
             connection: connectionSeen
               ? useStore.getState().connection
               : snapshot.connection,
@@ -1491,4 +1521,4 @@ function Root() {
   }, []);
   return isPet ? <PetApp /> : <SettingsApp />;
 }
-createRoot(document.getElementById("root")!).render(isIntro ? <StartupIntro /> : <Root />);
+createRoot(document.getElementById("root")!).render(isMusic ? <MusicPlayer mini /> : isIntro ? <StartupIntro /> : <Root />);

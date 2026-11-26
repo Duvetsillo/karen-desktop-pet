@@ -79,7 +79,11 @@ export class MusicPresence {
       if (!settings.musicComments) return;
       const desktop = await this.adapter.context();
       if (epoch !== this.epoch || this.play !== p) return;
-      const comment = this.comments.tick(p.session, settings, { ...this.options.context(), safeDesktop: desktop.safeDesktop === true, callsKnownClear: desktop.callsClear === true });
+      const context = this.options.context();
+      if (this.state.comment && (!desktop.safeDesktop || !desktop.callsClear || !context.present || context.intro || settings.mode !== 'normal')) {
+        this.state = { ...this.state, comment: undefined }; this.options.publish(this.state);
+      }
+      const comment = this.comments.tick(p.session, settings, { ...context, safeDesktop: desktop.safeDesktop === true, callsKnownClear: desktop.callsClear === true });
       if (comment) { this.state = { ...this.state, comment: { ...comment, id: randomUUID() } }; this.options.publish(this.state); }
     } finally { this.ticking = false; }
   }
@@ -118,9 +122,12 @@ export class MusicPresence {
     }
     if (request.action === 'shuffle' && typeof request.value !== 'boolean') throw new Error('Aleatorio inválido.');
     if (request.action === 'repeat' && !['none','track','list'].includes(String(request.value))) throw new Error('Repetición inválida.');
+    const skipped = request.action === 'next' && this.play?.session.trackId === active.trackId ? { ...this.play } : undefined;
     const ok = active.evidence === 'browser' ? await this.browser?.command(active.sessionId, active.trackId, request) : await this.adapter.command({ ...request, sessionId: active.sessionId });
     if (!ok) throw new Error('La aplicación no confirmó el control multimedia.');
-    if (request.action === 'next' && this.play && this.play.session.trackId === active.trackId && this.play.seconds >= 10 && active.duration && this.play.seconds < active.duration - 15) this.save(true);
+    if (skipped && this.options.settings().musicHistory && skipped.seconds >= 10 && active.duration && skipped.seconds < active.duration - 15) {
+      this.memory()?.observe(skipped.session, skipped.id, skipped.started, skipped.seconds, true);
+    }
   }
   history() { return this.memory()?.history() ?? []; }
   summary() { return this.memory()?.summary() ?? '# Música\n\nMemoria musical no disponible.'; }

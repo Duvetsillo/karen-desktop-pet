@@ -3,8 +3,8 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const child = spawn(path.resolve('dist-native/KarenMusicBridge.exe'), [], { windowsHide: true, stdio: ['pipe','pipe','pipe'] });
-let buffer = '', received = false, context = false;
-const timeout = setTimeout(() => { child.kill(); throw new Error('GSMTC no respondió.'); }, 10000);
+let buffer = '', received = false, context = false, initial;
+const timeout = setTimeout(() => { child.kill(); throw new Error('GSMTC no respondió.'); }, 15000);
 child.on('error', error => { clearTimeout(timeout); throw error; });
 child.stderr.resume();
 child.stdout.on('data', chunk => {
@@ -20,7 +20,14 @@ child.stdout.on('data', chunk => {
     } else if (row.type === 'result' && row.id === 'probe') {
       context = true;
       console.log(JSON.stringify({ contextRead: true, safeDesktop: row.safeDesktop, callsClear: row.callsClear }));
-      child.stdin.end();
+      initial={at:Date.now(),cpu:row.cpuSeconds,ram:row.workingSetBytes};
+      setTimeout(()=>child.stdin.write(JSON.stringify({id:'measured',action:'context'})+'\n'),5000);
+    } else if (row.type === 'result' && row.id === 'measured') {
+      const elapsed=(Date.now()-initial.at)/1000;
+      const report={source:'Owned GSMTC helper, idle subscription for five seconds; context probes included',elapsedSeconds:elapsed,
+        cpuOneCorePercent:(row.cpuSeconds-initial.cpu)/elapsed*100,workingSetBeforeMiB:initial.ram/1048576,workingSetAfterMiB:row.workingSetBytes/1048576};
+      fs.mkdirSync('qa/music',{recursive:true});fs.writeFileSync('qa/music/native-metrics.json',JSON.stringify(report,null,2));
+      console.log(JSON.stringify(report));child.stdin.end();
     } else if (row.type === 'error') { clearTimeout(timeout); child.kill(); throw new Error(row.error); }
   }
 });

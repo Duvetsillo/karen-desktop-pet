@@ -53,7 +53,11 @@ export function classifyMusic(session: MediaSession, strict = true): MusicPlatfo
     return 'spotify';
   }
   if (domain === 'music.apple.com' || /^appleinc\.applemusic(?:win)?[_!\.]/.test(source) || source === 'applemusic.exe') return 'apple';
-  if (domain === 'music.youtube.com') return 'youtube-music';
+  if (domain === 'music.youtube.com') {
+    // This service also hosts podcasts. The domain alone is not sufficient.
+    if (session.category === 'Music' || session.category === '10') return 'youtube-music';
+    return;
+  }
   if (domain === 'www.youtube.com' || domain === 'youtube.com') {
     if (!session.videoId || !/^[\w-]{11}$/.test(session.videoId)) return;
     // YouTube's explicit category 10 is strong evidence. Official-channel flags

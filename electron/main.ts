@@ -26,6 +26,8 @@ import { MicrophoneArbiter } from './core-resource.js';
 import { applyCoreMode, applyCoreVoiceStyle } from './core-style-sync.js';
 import { NativeVoice } from "./voice.js";
 import { StartupIntroManager } from './startup-intros.js';
+import { MusicPresence } from './music-presence.js';
+import { musicCommand, chooseMusicSession, type MusicRequest } from '../shared/music.js';
 import { INTRO_IDS, introCommand, type IntroId } from '../shared/startup-intros.js';
 import { petBounds } from "../shared/pet-layout.js";
 import { effectiveSettings } from '../shared/settings.js';
@@ -83,6 +85,8 @@ let cursorTimer: ReturnType<typeof setInterval>,
 const diagnostics: Diagnostic[] = [];
 const screenCapture = new ScreenCapture();
 let startupIntros: StartupIntroManager | undefined;
+let musicPresence: MusicPresence | undefined;
+let musicWindow: BrowserWindow | undefined;
 let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
 let wakeStatus: WakeStatus = 'off';
 let loopback: LoopbackRecorder;
@@ -150,6 +154,7 @@ function emit(event: DesktopEvent) {
   }
   for (const w of [pet, panel])
     if (w && !w.isDestroyed()) w.webContents.send("desktop-event", event);
+  if (event.type === 'music' && musicWindow && !musicWindow.isDestroyed()) musicWindow.webContents.send('desktop-event', event);
 }
 function cancelInitiativeSpeech() {
   if(initiativeSpeaking){initiativeSpeaking=false;stopPerception();}
@@ -343,9 +348,23 @@ function openSettings() {
     panel = undefined;
   });
 }
+function openMusicPlayer() {
+  if (!storage.settings.musicPlayer) throw new Error('Activa el minirreproductor en Música.');
+  if (musicWindow && !musicWindow.isDestroyed()) { musicWindow.show(); return; }
+  let bounds = { x: pet!.getBounds().x, y: pet!.getBounds().y, width: 380, height: 465 };
+  try { bounds = clampBounds({ ...bounds, ...JSON.parse(readFileSync(join(app.getPath('userData'), 'music-window.json'), 'utf8')) }); } catch { bounds = clampBounds(bounds); }
+  const w = musicWindow = new BrowserWindow({ ...bounds, minWidth: 330, minHeight: 400, frame: false, show: false,
+    title: 'Karen · Música', alwaysOnTop: storage.settings.musicPlayerPinned, webPreferences: prefs() });
+  protect(w); w.setMenuBarVisibility(false);
+  w.once('ready-to-show', () => w.show());
+  w.on('close', event => { if (!quitting) { event.preventDefault(); w.hide(); } });
+  w.on('moved', () => { if (!w.isDestroyed()) writeFileSync(join(app.getPath('userData'), 'music-window.json'), JSON.stringify(w.getBounds())); });
+  void loadWindow(w, 'music');
+}
 function contextMenu() {
   Menu.buildFromTemplate([
     { label: "Conversar y ajustar Karen", click: openSettings },
+    { label: 'Abrir reproductor de música', enabled: storage.settings.musicPlayer, click: openMusicPlayer },
     { label: "Detener voz y captura", click: stopPerception },
     { label: "Despertar / recuperar control · Ctrl+Alt+K", click: recover },
     { type: "separator" },
@@ -421,6 +440,10 @@ function updateSettings(patch: Partial<Settings>, fromCore = false) {
   startupIntros?.cancel();
   const before = storage.settings;
   const saved = storage.saveSettings(patch);
+  if (before.musicEnabled !== saved.musicEnabled) musicPresence?.configure();
+  else if (Object.keys(patch).some(key => key.startsWith('music'))) musicPresence?.preferencesChanged();
+  musicWindow?.setAlwaysOnTop(saved.musicPlayerPinned);
+  if (!saved.musicPlayer) musicWindow?.hide();
   if(!saved.initiativeEnabled || !saved.initiativeSpeak || saved.mode!=='normal')cancelInitiativeSpeech();
   if (patch.voiceStyle !== undefined && before.voiceStyle !== saved.voiceStyle && coreStore) {
     try { coreStore.setVoiceStyle(saved.voiceStyle); }
@@ -583,6 +606,15 @@ async function ready() {
       (capture.phase !== 'idle' && !(capture.kind === 'microphone' && capture.phase === 'transcribing')),
     log: message => log('warn', 'Introducciones', message),
   });
+  musicPresence = new MusicPresence({
+    executable: app.isPackaged ? join(process.resourcesPath, 'app.asar.unpacked/dist-native/KarenMusicBridge.exe') : join(here, '../../dist-native/KarenMusicBridge.exe'),
+    directory: app.getPath('userData'), settings: () => storage.settings, token: () => storage.musicToken(),
+    memory: () => coreStore?.musicMemory(), publish: snapshot => emit({ type: 'music', snapshot }),
+    context: () => ({ now: Date.now(), present: !sessionLocked && powerMonitor.getSystemIdleTime() < 180,
+      conversation: coreState !== 'IDLE' || Date.now() - lastInteraction < 45000,
+      voiceBusy: capture.phase !== 'idle', intro: Boolean(startupIntros?.active) }),
+  });
+  musicPresence.configure();
   void loadWindow(pet, "pet");
   pet.on("close", (event) => {
     if (!quitting) {
@@ -620,14 +652,16 @@ async function ready() {
     if (pet) pet.setBounds(clampBounds(pet.getBounds()));
   });
   powerMonitor.on("suspend", () => {
+    musicPresence?.stop();
     startupIntros?.cancel();
     stopPerception();
     stopPointing();
     gateway.disconnect();
   });
-  powerMonitor.on("lock-screen", () => { sessionLocked=true;startupIntros?.cancel();stopPerception(); stopPointing(); });
-  powerMonitor.on('unlock-screen',()=>{sessionLocked=false;lastInteraction=Date.now();});
+  powerMonitor.on("lock-screen", () => { sessionLocked=true;musicPresence?.stop();startupIntros?.cancel();stopPerception(); stopPointing(); });
+  powerMonitor.on('unlock-screen',()=>{sessionLocked=false;lastInteraction=Date.now();musicPresence?.configure();});
   powerMonitor.on("resume", () => {
+    musicPresence?.configure();
     lastInteraction=Date.now();
     void gateway.connect();
     emit({ type: "wake" });
@@ -653,6 +687,7 @@ async function ready() {
   handle(
     "snapshot",
     (): Snapshot => ({
+      music: musicPresence?.snapshot(),
       initiative: initiative?.snapshot(),
       settings: storage.settings,
       connection: gateway.info,
@@ -672,6 +707,29 @@ async function ready() {
   });
   handle('play-intro', id => startupIntros?.play(id as IntroId));
   handle('intro-monitors', () => screen.getAllDisplays().map(d => ({ id: String(d.id), name: d.label || `Monitor ${d.id}` })));
+  const musicHandle = (name: string, callback: (...args: any[]) => unknown) => ipcMain.handle(name, (event, ...args) => {
+    if (![pet?.webContents.id, panel?.webContents.id, musicWindow?.webContents.id].includes(event.sender.id) || event.senderFrame !== event.sender.mainFrame) throw new Error('Origen musical no autorizado.');
+    return callback(...args);
+  });
+  musicHandle('music-snapshot', () => musicPresence!.snapshot());
+  musicHandle('music-history', () => musicPresence!.history());
+  musicHandle('music-comment', id => typeof id === 'string' && id.length < 100 ? musicPresence!.commentAudio(id) : undefined);
+  musicHandle('music-action', async (request: MusicRequest) => {
+    if (!request || typeof request !== 'object') throw new Error('Acción musical inválida.');
+    if (request.action === 'open') return openMusicPlayer();
+    if (request.action === 'close') return musicWindow?.hide();
+    if (request.action === 'minimize') return musicWindow?.minimize();
+    if (request.action === 'pin') { if (typeof request.value !== 'boolean') throw new Error('Anclaje inválido.'); updateSettings({ musicPlayerPinned: request.value }); return; }
+    if (request.action === 'pair-browser') { const token = storage.musicToken(true); musicPresence!.configure(); return token; }
+    if (request.action === 'revoke-browser') { storage.revokeMusicToken(); musicPresence!.configure(); return; }
+    if (request.action === 'summary') {
+      if (!storage.settings.musicObsidian) throw new Error('Activa la exportación de resúmenes en Música.');
+      const file = await dialog.showSaveDialog({ title: 'Exportar resumen musical para Obsidian', defaultPath: 'Karen - Preferencias musicales.md', filters: [{ name: 'Markdown', extensions: ['md'] }] });
+      if (!file.canceled && file.filePath) writeFileSync(file.filePath, musicPresence!.summary(), { encoding: 'utf8' });
+      return;
+    }
+    return musicPresence!.action(request);
+  });
   handle('initiative',(action,id)=>{
     if(!initiative)throw new Error('El diario de iniciativa no está disponible. Consulta Diagnóstico.');
     if(action==='now'){
@@ -700,6 +758,19 @@ async function ready() {
     if (typeof value !== "string") throw new Error("Mensaje inválido.");
     lastInteraction=Date.now();cancelInitiativeSpeech();
     const noImages = !Array.isArray(images) || images.length === 0;
+    const music = noImages ? musicCommand(value) : undefined;
+    if (music) {
+      if (music.action === 'mute-comments') updateSettings({ musicComments: false });
+      else if (music.action === 'open') openMusicPlayer();
+      else if (music.action === 'close') musicWindow?.hide();
+      else if (music.action === 'identify') {
+        const state = musicPresence!.snapshot(), song = chooseMusicSession(state.sessions, state.activeId);
+        const text = song ? `${song.title}${song.artist ? ' — ' + song.artist : ''}.` : 'No hay una canción musical confirmada.';
+        emit({ type: 'chat', message: { id: randomUUID(), role: 'assistant', text }, final: true, speak: false });
+        if (storage.settings.voiceEnabled) emit({ type: 'voice-speak', text });
+      } else await musicPresence!.action(music);
+      return;
+    }
     const intro = noImages ? introCommand(value) : undefined;
     if (intro) {
       if (intro.kind === 'mute') updateSettings({ introVoice: false });
@@ -930,6 +1001,7 @@ else {
     .catch(() => app.quit());
   app.on("window-all-closed", () => {});
   app.on("before-quit", () => {
+    musicPresence?.stop();
     startupIntros?.dispose();
     if(initiativeTimer)clearInterval(initiativeTimer);
     quitting = true;

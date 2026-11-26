@@ -5,6 +5,12 @@ contextBridge.exposeInMainWorld('karenIntro', {
   finish: () => ipcRenderer.invoke('intro-finished'),
 });
 contextBridge.exposeInMainWorld('karen', {
+  music: {
+    snapshot: () => ipcRenderer.invoke('music-snapshot'),
+    action: request => ipcRenderer.invoke('music-action', request),
+    history: () => ipcRenderer.invoke('music-history'),
+    comment: id => ipcRenderer.invoke('music-comment', id),
+  },
   playIntro: id => ipcRenderer.invoke('play-intro', id),
   introMonitors: () => ipcRenderer.invoke('intro-monitors'),
   interaction: () => ipcRenderer.send('user-activity'),
