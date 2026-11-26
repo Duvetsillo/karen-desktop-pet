@@ -44,12 +44,15 @@ import { effectiveSettings } from '../shared/settings';
 import { Perception, CaptureIndicator } from "./Perception";
 import { ModelPicker } from './ModelPicker';
 import { StylePicker } from './pet/StylePicker';
+import { StartupIntro } from './intros/StartupIntro';
+import { IntroPreferencesPanel } from './intros/IntroPreferencesPanel';
 import {InitiativePanel,Notice} from './InitiativePanel';
 import { ScreenActionApproval } from './ScreenActionApproval';
 
 const isPet = new URLSearchParams(location.search).get("view") === "pet";
-document.documentElement.dataset.view = isPet ? "pet" : "settings";
-document.title = isPet ? "Karen Desktop Pet" : "Karen · Ajustes";
+const isIntro = new URLSearchParams(location.search).get('view') === 'intro';
+document.documentElement.dataset.view = isIntro ? 'intro' : isPet ? "pet" : "settings";
+document.title = isIntro ? 'Karen · Introducción' : isPet ? "Karen Desktop Pet" : "Karen · Ajustes";
 const labels: Record<PetState, string> = {
   IDLE: "En calma",
   LISTENING: "Escuchando",
@@ -544,6 +547,9 @@ function Appearance() {
     <>
       <Group title="Ocho estilos, la misma Karen" description="Elige su apariencia. Cambia al instante y se conserva al reiniciar.">
         <StylePicker value={s.petStyle} arms={s.showArms} legs={s.showLegs} onChange={petStyle => void patch({petStyle})}/>
+      </Group>
+      <Group title="Introducciones de inicio" description="Una entrada animada al abrir Karen. Se omite durante juegos, presentaciones y No molestar.">
+        <IntroPreferencesPanel settings={s} patch={patch} report={report} />
       </Group>
       <Group title="Su silueta" description="Cada estilo puede tener brazos, piernas o flotar libremente.">
         <div className="size-presets" role="group" aria-label="Versiones de cuerpo">
@@ -1485,4 +1491,4 @@ function Root() {
   }, []);
   return isPet ? <PetApp /> : <SettingsApp />;
 }
-createRoot(document.getElementById("root")!).render(<Root />);
+createRoot(document.getElementById("root")!).render(isIntro ? <StartupIntro /> : <Root />);

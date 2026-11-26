@@ -1,3 +1,4 @@
+import type { IntroPreferences } from './startup-intros.js';
 export const PET_STATES = [
   "IDLE",
   "LISTENING",
@@ -40,7 +41,7 @@ export type ConnectionState =
   | "connected"
   | "reconnecting"
   | "action-required";
-export interface Settings {
+export interface Settings extends IntroPreferences {
   initiativeEnabled: boolean;
   initiativeSpeak: boolean;
   initiativeInterval: number;
@@ -158,6 +159,8 @@ export interface Snapshot {
   wakeStatus?: WakeStatus;
 }
 export interface DesktopBridge {
+  playIntro?(id?: import('./startup-intros.js').IntroId): Promise<boolean>;
+  introMonitors?(): Promise<{ id: string; name: string }[]>;
   interaction?(): void;
   initiative?(action: import('./initiative.js').InitiativeAction, id?: string): Promise<import('./initiative.js').InitiativeSnapshot>;
   claimMicrophone?(): Promise<string>;

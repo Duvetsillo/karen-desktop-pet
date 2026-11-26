@@ -1,7 +1,9 @@
 import type { Settings } from "./types.js";
+import { introDefaults, INTRO_IDS } from './startup-intros.js';
 import { PET_STYLES, VOICE_STYLES } from './types.js';
 import { PET_SCALE } from "./pet-layout.js";
 export const defaults: Settings = {
+  ...introDefaults,
   initiativeEnabled: false,
   initiativeSpeak: false,
   initiativeInterval: 45,
@@ -80,6 +82,22 @@ export function validateSettings(
   current: Settings = defaults,
 ): Settings {
   const s = { ...current };
+  if (raw.introSelection !== undefined) {
+    if (!['random', 'fixed', 'contextual'].includes(raw.introSelection)) throw new Error('Selección de introducción inválida.');
+    s.introSelection = raw.introSelection;
+  }
+  if (raw.introFixed !== undefined) {
+    if (!INTRO_IDS.includes(raw.introFixed)) throw new Error('Introducción desconocida.');
+    s.introFixed = raw.introFixed;
+  }
+  if (raw.introFPS !== undefined) {
+    if (![30, 60].includes(raw.introFPS)) throw new Error('Frecuencia de introducción inválida.');
+    s.introFPS = raw.introFPS;
+  }
+  if (raw.introMonitor !== undefined) {
+    if (typeof raw.introMonitor !== 'string' || !/^(?:-?\d{1,16})?$/.test(raw.introMonitor)) throw new Error('Monitor inválido.');
+    s.introMonitor = raw.introMonitor;
+  }
   if (raw.mode !== undefined) {
     if (!['normal', 'gaming', 'do_not_disturb'].includes(raw.mode))
       throw new Error('Modo desconocido.');
@@ -95,6 +113,7 @@ export function validateSettings(
     s.idleActivity = raw.idleActivity;
   }
   for (const key of [
+    'introEnabled', 'introVoice', 'introSounds', 'introReducedMotion', 'introEscape',
     "particles",
     "initiativeEnabled",
     "initiativeSpeak",
@@ -119,6 +138,7 @@ export function validateSettings(
     }
   }
   const ranges = {
+    introVolume: [0, 1],
     initiativeInterval: [15, 240],
     initiativeDailyLimit: [1, 12],
     initiativeQuietStart: [0, 23],

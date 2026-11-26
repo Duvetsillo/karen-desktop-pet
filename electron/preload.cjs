@@ -1,5 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
+contextBridge.exposeInMainWorld('karenIntro', {
+  payload: () => ipcRenderer.invoke('intro-payload'),
+  ready: () => ipcRenderer.invoke('intro-ready'),
+  finish: () => ipcRenderer.invoke('intro-finished'),
+});
 contextBridge.exposeInMainWorld('karen', {
+  playIntro: id => ipcRenderer.invoke('play-intro', id),
+  introMonitors: () => ipcRenderer.invoke('intro-monitors'),
   interaction: () => ipcRenderer.send('user-activity'),
   initiative: (action,id) => ipcRenderer.invoke('initiative',action,id),
   claimMicrophone: () => ipcRenderer.invoke('claim-microphone'),

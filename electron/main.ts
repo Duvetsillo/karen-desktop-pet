@@ -25,6 +25,8 @@ import { localDay } from '../shared/initiative-policy.js';
 import { MicrophoneArbiter } from './core-resource.js';
 import { applyCoreMode, applyCoreVoiceStyle } from './core-style-sync.js';
 import { NativeVoice } from "./voice.js";
+import { StartupIntroManager } from './startup-intros.js';
+import { INTRO_IDS, introCommand, type IntroId } from '../shared/startup-intros.js';
 import { petBounds } from "../shared/pet-layout.js";
 import { effectiveSettings } from '../shared/settings.js';
 import { ScreenCapture } from "./capture.js";
@@ -80,6 +82,7 @@ let cursorTimer: ReturnType<typeof setInterval>,
   saveTimer: ReturnType<typeof setTimeout>;
 const diagnostics: Diagnostic[] = [];
 const screenCapture = new ScreenCapture();
+let startupIntros: StartupIntroManager | undefined;
 let capture: CaptureStatus = { kind: "microphone", phase: "idle" };
 let wakeStatus: WakeStatus = 'off';
 let loopback: LoopbackRecorder;
@@ -131,7 +134,7 @@ function showPoint(displayId: string, x: number, y: number) {
     pointTimer = setTimeout(stopPointing, 8000);
   }).catch(error => { stopPointing(); log('error','Señalamiento',String(error)); });
 }
-function hidePet() { stopPerception(); stopPointing(); pet?.hide(); }
+function hidePet() { startupIntros?.cancel(); stopPerception(); stopPointing(); pet?.hide(); }
 const boundsPath = () => join(app.getPath("userData"), "window.json");
 function emit(event: DesktopEvent) {
   if (event.type === 'connection') {
@@ -308,6 +311,7 @@ function resizePet() {
   pet.setBounds(petBounds(s, old, screen.getDisplayMatching(old).workArea));
 }
 function recover() {
+  startupIntros?.cancel();
   clickThrough = false;
   pet?.setIgnoreMouseEvents(false);
   pet?.show();
@@ -414,6 +418,7 @@ function protect(w: BrowserWindow) {
   );
 }
 function updateSettings(patch: Partial<Settings>, fromCore = false) {
+  startupIntros?.cancel();
   const before = storage.settings;
   const saved = storage.saveSettings(patch);
   if(!saved.initiativeEnabled || !saved.initiativeSpeak || saved.mode!=='normal')cancelInitiativeSpeech();
@@ -567,7 +572,17 @@ async function ready() {
   });
   pet.setMenuBarVisibility(false);
   protect(pet);
-  pet.once("ready-to-show", () => pet?.showInactive());
+  pet.once("ready-to-show", () => {
+    if (qa || process.argv.includes('--settings')) pet?.showInactive();
+    else void startupIntros?.play(undefined, true).then(played => { if (!played) pet?.showInactive(); });
+  });
+  startupIntros = new StartupIntroManager({
+    pet, settings: () => storage.settings, directory: app.getPath('userData'), prefs,
+    load: loadWindow, protect,
+    blocked: () => sessionLocked || quitting || storage.settings.mode !== 'normal' ||
+      (capture.phase !== 'idle' && !(capture.kind === 'microphone' && capture.phase === 'transcribing')),
+    log: message => log('warn', 'Introducciones', message),
+  });
   void loadWindow(pet, "pet");
   pet.on("close", (event) => {
     if (!quitting) {
@@ -597,17 +612,20 @@ async function ready() {
       "Ctrl+Alt+K está ocupado. Usa el icono de bandeja para recuperar a Karen.",
     );
   screen.on("display-removed", () => {
+    startupIntros?.cancel();
     if (pet) pet.setBounds(clampBounds(pet.getBounds()));
   });
   screen.on("display-metrics-changed", () => {
+    startupIntros?.cancel();
     if (pet) pet.setBounds(clampBounds(pet.getBounds()));
   });
   powerMonitor.on("suspend", () => {
+    startupIntros?.cancel();
     stopPerception();
     stopPointing();
     gateway.disconnect();
   });
-  powerMonitor.on("lock-screen", () => { sessionLocked=true;stopPerception(); stopPointing(); });
+  powerMonitor.on("lock-screen", () => { sessionLocked=true;startupIntros?.cancel();stopPerception(); stopPointing(); });
   powerMonitor.on('unlock-screen',()=>{sessionLocked=false;lastInteraction=Date.now();});
   powerMonitor.on("resume", () => {
     lastInteraction=Date.now();
@@ -652,6 +670,8 @@ async function ready() {
       throw new Error("Ajustes inválidos.");
     return updateSettings(patch as Partial<Settings>);
   });
+  handle('play-intro', id => startupIntros?.play(id as IntroId));
+  handle('intro-monitors', () => screen.getAllDisplays().map(d => ({ id: String(d.id), name: d.label || `Monitor ${d.id}` })));
   handle('initiative',(action,id)=>{
     if(!initiative)throw new Error('El diario de iniciativa no está disponible. Consulta Diagnóstico.');
     if(action==='now'){
@@ -680,6 +700,20 @@ async function ready() {
     if (typeof value !== "string") throw new Error("Mensaje inválido.");
     lastInteraction=Date.now();cancelInitiativeSpeech();
     const noImages = !Array.isArray(images) || images.length === 0;
+    const intro = noImages ? introCommand(value) : undefined;
+    if (intro) {
+      if (intro.kind === 'mute') updateSettings({ introVoice: false });
+      else if (intro.kind === 'random') updateSettings({ introSelection: 'random' });
+      else {
+        let id = intro.kind === 'play' ? intro.id : undefined;
+        if (intro.kind === 'next') {
+          id = INTRO_IDS[(INTRO_IDS.indexOf(storage.settings.introFixed) + 1) % INTRO_IDS.length];
+          updateSettings({ introFixed: id, introSelection: 'fixed' });
+        }
+        if (!await startupIntros?.play(id)) throw new Error('Introducción omitida: Karen está ocupada, ya está reproduciendo una o Windows está en modo protegido.');
+      }
+      return;
+    }
     const actionIntent = noImages ? screenActionIntent(value) : null;
     if (actionIntent) {
       const id = screenCapture.selectedScreen();
@@ -896,6 +930,7 @@ else {
     .catch(() => app.quit());
   app.on("window-all-closed", () => {});
   app.on("before-quit", () => {
+    startupIntros?.dispose();
     if(initiativeTimer)clearInterval(initiativeTimer);
     quitting = true;
     microphoneArbiter?.close();

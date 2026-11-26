@@ -8,6 +8,7 @@ import { SpeechMotion } from "./speech-motion";
 import { machine, signals, useStore } from "../state/store";
 import { effectiveSettings } from '../../shared/settings';
 import { IdleActivities } from './idle-activities';
+import type { IntroRenderer } from '../intros/IntroRenderer';
 
 function damp(value: number, target: number, dt: number, rate = 9) {
   return value + (target - value) * (1 - Math.exp(-rate * dt));
@@ -19,9 +20,11 @@ function dampTint(current: number, target: number, dt: number, rate: number) {
 export function PetRenderer({
   className = "",
   preview = false,
+  intro,
 }: {
   className?: string;
   preview?: boolean;
+  intro?: IntroRenderer;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const ready = useStore(s=>s.ready);
@@ -218,6 +221,8 @@ export function PetRenderer({
         haloTint = 0xffffff;
       const speechMotion = new SpeechMotion();
       const idleActivities = new IdleActivities();
+      const avatar = { scene, root, eyes, eyeL, eyeR, irisL, irisR, finL, finR, facial, shadow, halo };
+      intro?.attach(app);
       let lastIdleKind = '';
       const visibility = () => {
         idleActivities.suspend(Date.now(), useStore.getState().settings.idleAfter);
@@ -499,6 +504,10 @@ export function PetRenderer({
             (0.18 + 0.5 * (0.5 + 0.5 * Math.sin(t * 1.4 + p.phase))) *
             s.brightness;
         });
+        if (intro) {
+          app!.ticker.maxFPS = s.introFPS;
+          intro.update(app!, avatar);
+        }
       });
       const oldCleanup = cleanup;
       const pointer = (event: PointerEvent) => {
@@ -530,6 +539,7 @@ export function PetRenderer({
       }
     };
     void initialize().catch((error) => {
+      if (intro) void window.karenIntro?.finish().catch(() => {});
       if (!disposed)
         useStore.setState({
           error: `No se pudo iniciar el renderizador: ${String(error)}`,
@@ -539,7 +549,7 @@ export function PetRenderer({
       disposed = true;
       cleanup();
     };
-  }, [ready, preview]);
+  }, [ready, preview, intro]);
   return (
     <div
       ref={host}

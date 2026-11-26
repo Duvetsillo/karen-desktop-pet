@@ -10,6 +10,12 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   color-scheme: dark;
 }
+html[data-view="intro"], html[data-view="intro"] body, html[data-view="intro"] #root { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+html[data-view="intro"] .intro-canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+.intro-preferences { display: grid; gap: 14px; }
+.intro-preferences label { display: grid; gap: 7px; }
+.intro-preferences .intro-option { display: flex; justify-content: space-between; align-items: center; }
+.intro-option input { width: 18px; height: 18px; accent-color: var(--accent); }
 .pet-styles { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .pet-style-card { position: relative; display: flex; flex-direction: column; padding: 10px; border: 1px solid #394259; border-radius: 14px; background: #161d2b; cursor: pointer; transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out), transform 160ms var(--ease-out); }
 .pet-style-card:hover { border-color: #8794b7; background: #202a3b; }
